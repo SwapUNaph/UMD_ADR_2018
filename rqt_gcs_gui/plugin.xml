@@ -1,0 +1,19 @@
+<library path="lib/librqt_gcs_gui">
+  <class name="rqt_gcs_gui/View"
+         type="rqt_gcs_gui::View"
+         base_class_type="rqt_gui_cpp::Plugin">
+    <description>
+      rqt_gcs_gui provides a GUI plugin to a Parrot Bebop 2
+    </description>
+    <qtgui>
+      <group>
+        <label>ADR</label>
+        <icon type="theme">folder</icon>
+        <statustip>Plugins related to Autonomous Drone Racing</statustip>
+      </group>
+      <label>GUI pugin rqt_gcs_gui</label>
+      <icon type="theme">image-x-generic</icon>
+      <statustip>rqt_gcs_gui provides a GUI plugin to a Parrot Bebop 2</statustip>
+    </qtgui>
+  </class>
+</library>

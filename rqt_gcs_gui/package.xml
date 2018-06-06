@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<package format="2">
+  <name>rqt_gcs_gui</name>
+  <version>1.0.0</version>
+  <description>rqt_gcs_gui provides a GUI plugin to a Parrot Bebop 2</description>
+
+  <maintainer email="todo@todo.com">todo</maintainer>
+  <license>TODO</license>
+  <!-- <url type="website">http://www.bla.com</url> -->
+  <author email="todo@todo.com">todo</author>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <depend>rqt_gui</depend>
+  <depend>rqt_gui_cpp</depend>
+
+
+  <export>
+    <rqt_gui plugin="${prefix}/plugin.xml"/>
+  </export>
+</package>

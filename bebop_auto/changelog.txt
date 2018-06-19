@@ -1,0 +1,64 @@
+gate_crossing_detection.py
+Goal:
+Input by bebop camera and state_machine to detect that gate has been passed. Output advances state_machine
+Status:
+06/19: Not existing
+
+state_machine.py
+Goal:
+Input is start signal from ground_output and gate crossing confirmation. Output is a state on a global map, the current position, the upcoming gate type and similar
+Status:
+06/19: Not existing
+
+gate_detection.py
+Goal:
+Input by bebop camera and stereo camera and state machine and merged_odometry. Depending on state machine, use algorithms to detect gates on the image. Afterwards, position gates on a global map based on the odometry as gate orientation matrices are relative to camera orientation. Output position and orientation of next gate
+Status:
+06/19: Uses cheap stereo camera left video stream to identify gate position and orientation. Does not incorporate any odometry and publishes gate position at (1,0,0) with 3 Hz. Coordainte transformation missing. CV algorithm might need to be improved if there is a performance issue
+
+obstacle_detection.py
+Goal:
+Input stereo camera to identify obstacles in vicinity. Create a map with obstacles or a list of obstacles that feeds into path planner
+Status:
+06/19: Not existing
+
+odometry_merger.py
+Goal:
+Use Kalman filter to estimate current position based on bebop odometry (high accuracy, low frequency) and stereo odometry (low accuracy, high frequency)
+Status:
+06/19: Simply passes through bebop odometry
+
+path_planner_visual.py
+Goal:
+Input next gate position and obstacles and own position to plan a path through the target (eventually incorporating gate orientation)
+Status:
+06/19: Creates a path with two waypoints: Own position and gate_position
+
+path_planner_blind.py
+Goal:
+Input current state and create a path using the information of the map and track layout. Used only if no gate was detected. Publishes path.
+Status:
+06/19: Not existing
+
+navigation.py
+Goal:
+Input of both path planners. Find relevant waypoint depending on current position. Use visual path if possible, otherwise use blind backup. Calculate driving command based on waypoint position and orientation. Publish driving commands
+Status:
+06/19: Not existing
+
+driving.py
+Goal:
+Input from ground or from navigation. Ground overrides navigation. Publish to drone.
+Status:
+06/19: Not existing
+
+ground_input.py
+Goal: Display all relevant flight data like position, waypoint, state, video, battery level, wifi status,
+Status:
+06/19: There is a gui that displays some information.
+
+ground_output.py
+Goal: Input by joystick. Startup drone by publishing to the state machine. Intervene by publishing to driving.
+Status:
+06/19: Manual flight possible through joystick. Takeoff with T1, Land with T2, Emergency land at Mode A, Move camera with hat.
+

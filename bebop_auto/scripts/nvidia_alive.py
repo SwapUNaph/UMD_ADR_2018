@@ -5,19 +5,18 @@ import rospy
 from geometry_msgs.msg import Pose
 from nav_msgs.msg import Odometry
 from cv_bridge import CvBridge, CvBridgeError
-from std_msgs.msg import String
+from std_msgs.msg import Bool
 
 def talker():
-    rospy.init_node('nvidia_alive_node', anonymous=True)
-    pub = rospy.Publisher('/auto/nvidia_alive', String, queue_size=10)
-    rate = rospy.Rate(1) # 1 Hz
-    while not rospy.is_shutdown():
-        hello_str = "Nvidia is alive: %s" % rospy.get_time()
-        pub.publish(hello_str)
-        rate.sleep()
+    if not rospy.is_shutdown():
+        rospy.init_node('nvidia_alive_node', anonymous=True)
+        pub = rospy.Publisher('/auto/nvidia_alive', Bool, queue_size=1, latch=True)
+        pub.publish(True)
 
 if __name__ == '__main__':
     try:
         talker()
+        while True:
+            rospy.spin()
     except rospy.ROSInterruptException:
         pass

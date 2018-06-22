@@ -244,7 +244,6 @@ if __name__ == '__main__':
 
 
                 # delete the corners with the least number of votes
-                print("-")
                 while len(corners) > 4:
                     votes = zip(*corners)[2]
                     del corners[votes.index(min(votes))]
@@ -262,8 +261,6 @@ if __name__ == '__main__':
 
                 else:
                     if len(corners) == 3:
-
-                        print "points:3"
                         corner_points = np.array([[corners[0][0], corners[0][1]], [corners[1][0], corners[1][1]],
                                                   [corners[2][0], corners[2][1]]], dtype="double")
                         # 3D model points.
@@ -280,7 +277,6 @@ if __name__ == '__main__':
                         print success
 
                     elif len(corners) == 4:
-                        print "points:4"
                         corner_points = np.array([[corners[0][0], corners[0][1]], [corners[1][0], corners[1][1]],
                                                   [corners[2][0], corners[2][1]], [corners[3][0], corners[3][1]]],
                                                  dtype="double")
@@ -294,7 +290,19 @@ if __name__ == '__main__':
                                                                                       dist_coeffs, flags=cv2.SOLVEPNP_ITERATIVE)
                         valid_last_orientation = True
 
-                    # print "Rotation Vector:\n {0}".format(rvec)
+                    #print "Rotation Vector:\n {0}".format(rvec)
+                    rmat, _ = cv2.Rodrigues(rvec)
+                    #print "Rotation Matrix:\n {0}".format(rmat)
+                    if rmat[0][0] < 0:
+                        rmat = np.array([[-rmat[0][0], rmat[0][1], -rmat[0][2]],
+                                [-rmat[1][0], rmat[1][1], -rmat[1][2]],
+                                [-rmat[2][0], rmat[2][1], -rmat[2][2]]])
+
+                    rvec2, _ = cv2.Rodrigues(rmat)
+
+                    print rvec[0], rvec[1], rvec[2], rvec2[0], rvec2[1], rvec2[2]
+                    #print "nl"
+
                     # print "Translation Vector:\n {0}".format(tvec)
 
                     # draw a line sticking out of the plane

@@ -12,8 +12,7 @@ import signal
 import sys
 import time
 from bebop_msgs.msg import Ardrone3PilotingStateFlyingStateChanged
-from std_msgs.msg import Bool
-
+from std_msgs.msg import Bool, Int32
 
 def signal_handler(signal, frame):
     sys.exit(0)
@@ -40,13 +39,21 @@ def flt_st(st):
 
 
 
-def autonomy_st(bool):
-    pub = rospy.Publisher('/auto/autonomous_driving', Bool, queue_size=10, latch=True)
+def callback_state_machine_changed(data):
+    if data.data == 0:
+        # print("I heard from the drone")
+        pub = rospy.Publisher('/auto/state_machine', Int32, queue_size=5, latch=True)
+        # print('I will tell her')
+        pub.publish(1)
+    elif data.data == 2:
+        global jetson_online
+        jetson_online = True
+
+def autonomy_pub(bool):
+    pub = rospy.Publisher('/auto/autonomous_driving', Bool, queue_size=1, latch=True)
     if not rospy.is_shutdown():
-        print('autonomy ' + bool)
-        msg = Bool()
-        msg.bool = bool
-        pub.publish(msg)
+        print('autonomy_active: ' + str(bool))
+        pub.publish(bool)
     else:
         print("status command not sent")
 
@@ -114,17 +121,27 @@ if __name__ == '__main__':
                       joystick.get_button(12),
                       joystick.get_button(13)]
 
-    cmd_status = "off"
+    autonomy_active = None
     flt_status = -1
+
+    jetson_online = False
 
     rospy.Subscriber("/bebop/states/ardrone3/PilotingState/FlyingStateChanged", Ardrone3PilotingStateFlyingStateChanged,
                      callback_flying_state_changed)
+    rospy.Subscriber("/auto/state_machine", Int32, callback_state_machine_changed)
 
     cmd_vel_pub = rospy.Publisher('/bebop/cmd_vel', Twist, queue_size=1, latch=True)
 
-    print("init done")
-    done = False
+    print("GCS initialized")
+    rospy.loginfo("GCS initialized")
 
+    while not jetson_online:
+        time.sleep(0.5)
+
+    print("GCS communicating")
+    rospy.loginfo("GCS communicating")
+
+    done = False
     while done == False:
         try:
             axis_roll = joystick.get_axis(0)
@@ -158,7 +175,7 @@ if __name__ == '__main__':
                     for i in range(len(btn_status_diff)):
                         if btn_status_diff[i]==1:
                             if i == 4:  # takeoff
-                                if cmd_status == "manual":
+                                if not autonomy_active:
                                     if flt_status == 0:
                                         if axis_throttleL == 0:
                                             flt_st("takeoff")
@@ -170,7 +187,7 @@ if __name__ == '__main__':
                                 else:
                                     print("not in manual mode")
                             if i == 5:  # land
-                                if cmd_status == "manual":
+                                if not autonomy_active:
                                     if flt_status == 2 or flt_status == 1 or flt_status == 3 or flt_status == 5:
                                         flt_st("land")
                                         print("Landing")
@@ -180,22 +197,20 @@ if __name__ == '__main__':
                                     print("not in manual mode")
 
                             elif i == 8:  # set manual mode
-                                if cmd_status != "manual":
+                                if autonomy_active or autonomy_active is None:
                                     if axis_throttleL == 0:
-                                        autonomy_st(False)
-                                        cmd_status = "manual"
-                                        print(cmd_status + " mode")
+                                        autonomy_active = False
+                                        autonomy_pub(autonomy_active)
                                     else:
                                         print("center throttle: " + "%.2f" % -axis_throttleL)
                                 else:
                                     print("already in manual mode")
 
                             elif i == 9:  # enter automatic mode
-                                if cmd_status != "automatic":
+                                if not autonomy_active:
                                     if axis_throttleL == 0:
-                                        autonomy_st(True)
-                                        cmd_status = "automatic"
-                                        print(cmd_status + " mode")
+                                        autonomy_active = True
+                                        autonomy_pub(autonomy_active)
                                     else:
                                         print("center throttle: " + "%.2f" % -axis_throttleL)
                                 else:
@@ -218,7 +233,7 @@ if __name__ == '__main__':
 
                            # send flt_cmd every step
 
-            if cmd_status == "manual":
+            if not autonomy_active:
                 flt_cmd(-axis_pitch,-axis_roll,-axis_throttleL,-axis_yaw)
 
             clock.tick(20)

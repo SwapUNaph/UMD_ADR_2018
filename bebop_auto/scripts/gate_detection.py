@@ -73,7 +73,7 @@ def isect_lines(line1, line2):
 
 class bebop_image:
     def __init__(self):
-        self.image_pub = rospy.Publisher("bebop_image_CV",Image)
+        self.image_pub = rospy.Publisher("/auto/bebop_image_CV",Image)
 
         self.bridge = CvBridge()
         self.image_sub = rospy.Subscriber("/bebop/image_raw",Image,self.callback)

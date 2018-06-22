@@ -78,9 +78,9 @@ if __name__ == '__main__':
     rospy.init_node('path_planner', anonymous=True)
 
     gate_data = None
-    gate_position_sub = rospy.Subscriber("/global_gate_position", Pose, gate_updated)
-    own_position_sub = rospy.Subscriber("/odometry_merged", Pose, position_updated)
-    publisher = rospy.Publisher("path_planned", Pose, queue_size=2)
+    gate_position_sub = rospy.Subscriber("/auto/global_gate_position", Pose, gate_updated)
+    own_position_sub = rospy.Subscriber("/auto/odometry_merged", Pose, position_updated)
+    publisher = rospy.Publisher("/auto/path_planned", Pose, queue_size=2)
 
     rospy.spin()
 

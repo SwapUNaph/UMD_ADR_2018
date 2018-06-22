@@ -10,49 +10,27 @@ from geometry_msgs.msg import Twist
 import pygame
 import signal
 import sys
+import time
+from bebop_msgs.msg import Ardrone3PilotingStateFlyingStateChanged
+from std_msgs.msg import Bool
+
 
 def signal_handler(signal, frame):
     sys.exit(0)
 
-def startnode(package, executable):
-    return roslaunch.core.Node(package, executable)
-
-def cameramove(status):
-    pub = rospy.Publisher('/bebop/camera_control', Twist, queue_size=10, latch=True)
-    if not rospy.is_shutdown():
-        msg = Twist() # [0,0,0],[0,pitch,yaw])
-        msg.angular.y = status[1] # pitch
-        msg.angular.z = status[0] # tilt
-        #rospy.loginfo(msg)
-        pub.publish(msg)
-    else:
-        print("camera command not sent")
-
 def flt_cmd(x,y,z,r):
-    pub = rospy.Publisher('/bebop/cmd_vel', Twist, queue_size=10, latch=True)
     if not rospy.is_shutdown():
         msg = Twist()  # [0,0,0],[0,pitch,yaw])
         msg.linear.x = x
         msg.linear.y = y
         msg.linear.z = z
         msg.angular.z = r
-        #rospy.loginfo(msg)
-        pub.publish(msg)
+        cmd_vel_pub.publish(msg)
     else:
         print("flight command not sent")
 
-def wificheck(target_ssid):
-    scanoutput = check_output(["iwlist", "wlp4s0", "scan"])
-
-    for line in scanoutput.split():
-        if line.startswith("ESSID"):
-            actual_ssid = line.split('"')[1]
-            if actual_ssid <> target_ssid:
-                quit("Wifi check failed: " + actual_ssid)
-    print("Wifi check succeeded: " + actual_ssid)
-
 def flt_st(st):
-    pub = rospy.Publisher('/bebop/' + st, Empty, queue_size=10, latch=True)
+    pub = rospy.Publisher('/bebop/' + st, Empty, queue_size=1, latch=True)
     if not rospy.is_shutdown():
         print('publish to /bebop/' + st)
         msg = Empty()
@@ -60,20 +38,54 @@ def flt_st(st):
     else:
         print("status command not sent")
 
+
+
+def autonomy_st(bool):
+    pub = rospy.Publisher('/auto/autonomous_driving', Bool, queue_size=10, latch=True)
+    if not rospy.is_shutdown():
+        print('autonomy ' + bool)
+        msg = Bool()
+        msg.bool = bool
+        pub.publish(msg)
+    else:
+        print("status command not sent")
+
+
 def list_compare(old,new):
     for i in range(len(old)):
         new[i] = new[i] - old[i]
     return(new)
 
+
+def callback_flying_state_changed(data):
+    global flt_status
+    flt_status = data.state
+    # print("flying_state_changed")
+    if flt_status == 0:
+        print("flt_st: 0 - landed")
+    elif flt_status == 1:
+        print("flt_st: 1 - takeoff")
+    elif flt_status == 2:
+        print("flt_st: 2 - hover")
+    elif flt_status == 3:
+        print("flt_st: 3 - flying")
+    elif flt_status == 4:
+        print("flt_st: 4 - landing")
+    elif flt_status == 5:
+        print("flt_st: 5 - emergency")
+    elif flt_status == 6:
+        print("flt_st: 6 - usertakeoff")
+    elif flt_status == 7:
+        print("flt_st: 7 - motor ramping")
+    elif flt_status == 8:
+        print("flt_st: 8 - defect: emergency landing")
+
+
 if __name__ == '__main__':
-    # wificheck("Bebop2-L385479")
-    print("Wifi check disabled")
-    #bebop_nodelet = startnode("bebop_tools", "bebop_nodelet_iv.launch")
-    #print bebop_nodelet
 
     signal.signal(signal.SIGINT, signal_handler)
 
-    rospy.init_node('joystick_publish', anonymous=True)
+    rospy.init_node('ground_output', anonymous=True)
 
     pygame.init()
 
@@ -81,8 +93,9 @@ if __name__ == '__main__':
     pygame.joystick.init()
     clock = pygame.time.Clock()
 
-    if pygame.joystick.get_count() != 1:
-        quit("please connect exactly one Joystick")
+    while pygame.joystick.get_count() != 1:
+        print("Connect exactly one joystick")
+        time.sleep(1)
     joystick = pygame.joystick.Joystick(0)
     joystick.init()
 
@@ -100,16 +113,18 @@ if __name__ == '__main__':
                       joystick.get_button(11),
                       joystick.get_button(12),
                       joystick.get_button(13)]
-    hat_status_old = joystick.get_hat(0)
 
-    flt_status = "ground"
+    cmd_status = "off"
+    flt_status = -1
 
-    camera_status=[0,0]
-    #cameramove(camera_status)
-    #print("moved")
+    rospy.Subscriber("/bebop/states/ardrone3/PilotingState/FlyingStateChanged", Ardrone3PilotingStateFlyingStateChanged,
+                     callback_flying_state_changed)
+
+    cmd_vel_pub = rospy.Publisher('/bebop/cmd_vel', Twist, queue_size=1, latch=True)
 
     print("init done")
     done = False
+
     while done == False:
         try:
             axis_roll = joystick.get_axis(0)
@@ -142,31 +157,53 @@ if __name__ == '__main__':
                 if event.type == pygame.JOYBUTTONDOWN:
                     for i in range(len(btn_status_diff)):
                         if btn_status_diff[i]==1:
-                            if i == 4:
-                                if flt_status == "ground":
-                                    #print axis_throttleL
-                                    if axis_throttleL == 0:
-                                        flt_status = "air"
-                                        print(flt_status)
-                                        flt_st("takeoff")
+                            if i == 4:  # takeoff
+                                if cmd_status == "manual":
+                                    if flt_status == 0:
+                                        if axis_throttleL == 0:
+                                            flt_st("takeoff")
+                                            print("Takeoff")
+                                        else:
+                                            print("center throttle: " + "%.2f" % -axis_throttleL)
                                     else:
-                                        print("please center throttle: " + "%.2f" % -axis_throttleL)
+                                        print("not on the ground")
                                 else:
-                                    print("Your flight status is not ground")
-                            elif i == 5:
-                                if flt_status == "air":
-                                    flt_status = "land"
-                                    print(flt_status)
-                                    flt_st("land")
+                                    print("not in manual mode")
+                            if i == 5:  # land
+                                if cmd_status == "manual":
+                                    if flt_status == 2 or flt_status == 1 or flt_status == 3 or flt_status == 5:
+                                        flt_st("land")
+                                        print("Landing")
+                                    else:
+                                        print("not hovering or taking off or flying")
                                 else:
-                                    print("Your flight status is not air")
-                            elif i == 11:
-                                print("Exit")
-                                done = True
-                            elif i ==12:
-                                flt_status = "emergency"
-                                print(flt_status)
+                                    print("not in manual mode")
+
+                            elif i == 8:  # set manual mode
+                                if cmd_status != "manual":
+                                    if axis_throttleL == 0:
+                                        autonomy_st(False)
+                                        cmd_status = "manual"
+                                        print(cmd_status + " mode")
+                                    else:
+                                        print("center throttle: " + "%.2f" % -axis_throttleL)
+                                else:
+                                    print("already in manual mode")
+
+                            elif i == 9:  # enter automatic mode
+                                if cmd_status != "automatic":
+                                    if axis_throttleL == 0:
+                                        autonomy_st(True)
+                                        cmd_status = "automatic"
+                                        print(cmd_status + " mode")
+                                    else:
+                                        print("center throttle: " + "%.2f" % -axis_throttleL)
+                                else:
+                                    print("already in automatic mode")
+
+                            elif i == 12:
                                 flt_st("reset")
+                                print("Emergency")
 
                             btn_status_old[i] = 1
 
@@ -176,38 +213,12 @@ if __name__ == '__main__':
                             if i == 4:
                                 pass
                             elif i == 12:
-                                flt_status = "ground"
-                                print(flt_status)
+                                print("Emergency Reset")
                             btn_status_old[i] = 0
 
-                if event.type == pygame.JOYHATMOTION:
-                    hat_status_new = joystick.get_hat(0)
+                           # send flt_cmd every step
 
-                    if hat_status_old[0] == 0 and hat_status_new[0] == 1:
-                        camera_status[0] += 5
-                        camera_status[0] = min(camera_status[0], 35)
-                        cameramove(camera_status) # x,y = tilt,pitch
-                    if hat_status_old[0] == 0 and hat_status_new[0] == -1:
-                        camera_status[0] -= 5
-                        camera_status[0] = max(camera_status[0], -35)
-                        cameramove(camera_status)
-                    if hat_status_old[1] == 0 and hat_status_new[1] == 1:
-                        camera_status[1] += 5
-                        camera_status[1] = min(camera_status[1], 20)
-                        cameramove(camera_status)
-                    if hat_status_old[1] == 0 and hat_status_new[1] == -1:
-                        camera_status[1] -= 5
-                        camera_status[1] = max(camera_status[1], -85)
-                        cameramove(camera_status)
-                    hat_status_old = hat_status_new
-
-                #if event.type == pygame.JOYAXISMOTION:
-                #    print("axis moved")
-                #if event.type == pygame.JOYBALLMOTION:
-                #    print("ball moved")
-
-            # send flt_cmd every step
-            if flt_status == "air":
+            if cmd_status == "manual":
                 flt_cmd(-axis_pitch,-axis_roll,-axis_throttleL,-axis_yaw)
 
             clock.tick(20)

@@ -1,5 +1,5 @@
 <launch>
   <env name="ROS_MASTER_URI" value="http://192.168.1.6:11311" />
   <env name="ROS_IP" value="192.168.1.6" />
-  <node name="nvidia_alive_node" pkg="bebop_auto" type="nvidia_alive.py" respawn="true"/>
+  <node name="state_machine_node" pkg="bebop_auto" type="state_machine.py" respawn="true"/>
 </launch>

@@ -1,9 +1,13 @@
 #!/usr/bin/env python
-# license removed for brevity
+
+#  --- Changelog ---
+# Goal:     Input by joystick. Startup drone by publishing to the state machine. Intervene by publishing to driving.
+# Status:   06/19:  Manual flight possible through joystick. Takeoff with T1, Land with T2, Emergency land at Mode A, Move camera with hat.
+#           06/25:  Start of script delayed until connected to state_machine. Manual flight possible through joystick. Takeoff with T1, Land with T2, Emergency land at Mode A, Manual flight with T3, automatic flight with T4.
+
 import rospy
 import roslaunch
 import time
-#from std_msgs.msg import String
 from std_msgs.msg import Empty
 from subprocess import check_output
 from geometry_msgs.msg import Twist
@@ -14,8 +18,10 @@ import time
 from bebop_msgs.msg import Ardrone3PilotingStateFlyingStateChanged
 from std_msgs.msg import Bool, Int32
 
+
 def signal_handler(signal, frame):
     sys.exit(0)
+
 
 def flt_cmd(x,y,z,r):
     if not rospy.is_shutdown():
@@ -28,6 +34,7 @@ def flt_cmd(x,y,z,r):
     else:
         print("flight command not sent")
 
+
 def flt_st(st):
     pub = rospy.Publisher('/bebop/' + st, Empty, queue_size=1, latch=True)
     if not rospy.is_shutdown():
@@ -38,16 +45,16 @@ def flt_st(st):
         print("status command not sent")
 
 
-
 def callback_state_machine_changed(data):
     if data.data == 0:
         # print("I heard from the drone")
-        pub = rospy.Publisher('/auto/state_machine', Int32, queue_size=5, latch=True)
+        pub = rospy.Publisher('/auto/state_machine', Int32, queue_size=3, latch=True)
         # print('I will tell her')
         pub.publish(1)
     elif data.data == 2:
         global jetson_online
         jetson_online = True
+
 
 def autonomy_pub(bool):
     pub = rospy.Publisher('/auto/autonomous_driving', Bool, queue_size=1, latch=True)
@@ -67,7 +74,7 @@ def list_compare(old,new):
 def callback_flying_state_changed(data):
     global flt_status
     flt_status = data.state
-    # print("flying_state_changed")
+    print("flying_state_changed")
     if flt_status == 0:
         print("flt_st: 0 - landed")
     elif flt_status == 1:
@@ -121,8 +128,8 @@ if __name__ == '__main__':
                       joystick.get_button(12),
                       joystick.get_button(13)]
 
-    autonomy_active = None
-    flt_status = -1
+    autonomy_active = False
+    flt_status = 0
 
     jetson_online = False
 
@@ -171,70 +178,70 @@ if __name__ == '__main__':
                                       joystick.get_button(13)]  # B
                     btn_status_diff = list_compare(btn_status_old, btn_status_new)
 
-                if event.type == pygame.JOYBUTTONDOWN:
-                    for i in range(len(btn_status_diff)):
-                        if btn_status_diff[i]==1:
-                            if i == 4:  # takeoff
-                                if not autonomy_active:
-                                    if flt_status == 0:
+                    if event.type == pygame.JOYBUTTONDOWN:
+                        for i in range(len(btn_status_diff)):
+                            if btn_status_diff[i] == 1:
+
+                                if i == 4:  # takeoff
+                                    if not autonomy_active:
+                                        if flt_status == 0:
+                                            if axis_throttleL == 0:
+                                                flt_st("takeoff")
+                                                print("Takeoff")
+                                            else:
+                                                print("center throttle: " + "%.2f" % -axis_throttleL)
+                                        else:
+                                            print("not on the ground")
+                                    else:
+                                        print("not in manual mode")
+
+                                if i == 5:  # land
+                                    if not autonomy_active:
+                                        if flt_status == 2 or flt_status == 1 or flt_status == 3:
+                                            flt_st("land")
+                                            print("Landing")
+                                        else:
+                                            print("not hovering or taking off or flying")
+                                    else:
+                                        print("not in manual mode")
+
+                                elif i == 6:  # set manual mode
+                                    if autonomy_active or autonomy_active is None:
                                         if axis_throttleL == 0:
-                                            flt_st("takeoff")
-                                            print("Takeoff")
+                                            autonomy_active = False
+                                            autonomy_pub(autonomy_active)
                                         else:
                                             print("center throttle: " + "%.2f" % -axis_throttleL)
                                     else:
-                                        print("not on the ground")
-                                else:
-                                    print("not in manual mode")
-                            if i == 5:  # land
-                                if not autonomy_active:
-                                    if flt_status == 2 or flt_status == 1 or flt_status == 3 or flt_status == 5:
-                                        flt_st("land")
-                                        print("Landing")
+                                        print("already in manual mode")
+
+                                elif i == 7:  # enter automatic mode
+                                    if not autonomy_active:
+                                        if axis_throttleL == 0:
+                                            autonomy_active = True
+                                            autonomy_pub(autonomy_active)
+                                        else:
+                                            print("center throttle: " + "%.2f" % -axis_throttleL)
                                     else:
-                                        print("not hovering or taking off or flying")
-                                else:
-                                    print("not in manual mode")
+                                        print("already in automatic mode")
 
-                            elif i == 8:  # set manual mode
-                                if autonomy_active or autonomy_active is None:
-                                    if axis_throttleL == 0:
-                                        autonomy_active = False
-                                        autonomy_pub(autonomy_active)
-                                    else:
-                                        print("center throttle: " + "%.2f" % -axis_throttleL)
-                                else:
-                                    print("already in manual mode")
+                                elif i == 12:
+                                    flt_st("reset")
+                                    print("Emergency")
 
-                            elif i == 9:  # enter automatic mode
-                                if not autonomy_active:
-                                    if axis_throttleL == 0:
-                                        autonomy_active = True
-                                        autonomy_pub(autonomy_active)
-                                    else:
-                                        print("center throttle: " + "%.2f" % -axis_throttleL)
-                                else:
-                                    print("already in automatic mode")
+                                btn_status_old[i] = 1
 
-                            elif i == 12:
-                                flt_st("reset")
-                                print("Emergency")
+                    if event.type == pygame.JOYBUTTONUP:
+                        for i in range(len(btn_status_diff)):
+                            if btn_status_diff[i] == -1:
+                                if i == 12:
+                                    print("Emergency Reset")
+                                btn_status_old[i] = 0
 
-                            btn_status_old[i] = 1
+                               # send flt_cmd every step
 
-                if event.type == pygame.JOYBUTTONUP:
-                    for i in range(len(btn_status_diff)):
-                        if btn_status_diff[i] == -1:
-                            if i == 4:
-                                pass
-                            elif i == 12:
-                                print("Emergency Reset")
-                            btn_status_old[i] = 0
-
-                           # send flt_cmd every step
-
-            if not autonomy_active:
-                flt_cmd(-axis_pitch,-axis_roll,-axis_throttleL,-axis_yaw)
+            if (not autonomy_active) and flt_status == 2 or flt_status == 3:
+                flt_cmd(-axis_pitch, -axis_roll, -axis_throttleL, -axis_yaw)
 
             clock.tick(20)
         except rospy.ROSInterruptException:

@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 
 #  --- Changelog ---
-# Goal:     Input next gate position and obstacles and own position to plan a path through the target (eventually incorporating gate orientation)
-# Status:   06/19: Creates a path with two waypoints: Own position and gate_position
-#           06/25:
+# Goal:     Input current state and create a path using the information of the map and track layout. Used only if no gate was detected. Publishes path.
+# Status:   06/19: Not existing
+#           06/25: Copy of path_planner_visual
 
 from __future__ import print_function
 
@@ -39,7 +39,7 @@ def position_updated(pos_data):
 
 if __name__ == '__main__':
 
-    rospy.init_node('path_planner_visual', anonymous=True)
+    rospy.init_node('path_planner_blind', anonymous=True)
 
     gate_data = None
     gate_position_sub = rospy.Subscriber("/auto/global_gate_position", Pose, gate_updated)

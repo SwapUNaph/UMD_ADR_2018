@@ -1,4 +1,10 @@
 #!/usr/bin/env python
+
+#  --- Changelog ---
+# Goal:     Use Kalman filter to estimate current position based on bebop odometry (high accuracy, low frequency) and stereo odometry (low accuracy, high frequency)
+# Status:   06/19:  Simply passes through bebop odometry
+#           06/25:
+
 from __future__ import print_function
 
 import sys

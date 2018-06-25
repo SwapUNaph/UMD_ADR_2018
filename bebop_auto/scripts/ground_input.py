@@ -1,4 +1,10 @@
 #!/usr/bin/env python
+
+#  --- Changelog ---
+# Goal:     Display all relevant flight data like position, waypoint, state, video, battery level, wifi status,
+# Status:   06/19: There is a gui that displays some information.
+#           06/25:
+
 import rospy
 import Tkinter as tk
 import ttk as ttk

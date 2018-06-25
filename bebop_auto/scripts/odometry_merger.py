@@ -28,9 +28,7 @@ def callback(data):
     publisher.publish(msg)
 
 
-if __name__ == '__main__':
-
-
+def main():
     rospy.init_node('odometry_merger', anonymous=True)
     publisher = rospy.Publisher("/auto/odometry_merged", Pose, queue_size=2)
     rospy.Subscriber("/bebop/odom", Odometry, callback)
@@ -39,3 +37,7 @@ if __name__ == '__main__':
 
     print("Shutting down")
     # cv2.destroyAllWindows()
+
+
+if __name__ == '__main__':
+    main()

@@ -157,7 +157,7 @@ def mask_image(im):
     return mask
 
 
-if __name__ == '__main__':
+def main():
     cap = cv2.VideoCapture(2)
     i=0
     while True:
@@ -352,3 +352,7 @@ if __name__ == '__main__':
     # cv2.solvePnP(objectPoints, imagePoints, cameraMatrix, distCoeffs[, rvec[, tvec[, useExtrinsicGuess[, flags]]]]) ----> retval, rvec, tvec
 
 #    rospy.spin()
+
+
+if __name__ == '__main__':
+    main()

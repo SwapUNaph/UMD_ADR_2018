@@ -66,7 +66,7 @@ class bebop_image:
         #cv2.solvePnP(objectPoints, imagePoints, cameraMatrix, distCoeffs[, rvec[, tvec[, useExtrinsicGuess[, flags]]]]) ----> retval, rvec, tvec
 
 
-if __name__ == '__main__':
+def main():
     signal.signal(signal.SIGINT, signal_handler)
     rospy.init_node('bebop_image', anonymous=True)
     bebop_image()
@@ -77,3 +77,7 @@ if __name__ == '__main__':
     #cv2.solvePnP(objectPoints, imagePoints, cameraMatrix, distCoeffs[, rvec[, tvec[, useExtrinsicGuess[, flags]]]]) ----> retval, rvec, tvec
 
     rospy.spin()
+
+
+if __name__ == '__main__':
+    main()

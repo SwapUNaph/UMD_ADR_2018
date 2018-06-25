@@ -3,7 +3,7 @@
 #  --- Changelog ---
 # Goal:     Input is start signal from ground_output and gate crossing confirmation. Output is a state on a global map, the current position, the upcoming gate type and similar
 # Status:   06/19:  Not existing
-#           06/25:  Start delayed until connected to ground_output.
+#           06/25:  Start delayed until connected to ground_output. Observes takeoff and landing (and advances state)
 #           06/25:
 
 from __future__ import print_function
@@ -15,20 +15,21 @@ from bebop_msgs.msg import Ardrone3PilotingStateFlyingStateChanged
 import time
 
 
-def callback_autonomous_driving(data):
+# def callback_autonomous_driving(data):
+#    print("autonomy_active: " + str(data.data))
+#    rospy.loginfo("autonomy_active: " + str(data.data))
 
-    print("autonomy_active: " + str(data.data))
-    rospy.loginfo("autonomy_active: " + str(data.data))
 
+def callback_bebop_state_changed(data):
+    # observe takeoff and landing
+    global state_publisher
 
-def callback_flying_state_changed(data):
-    print("flying state changed")
-    print("data " + str(data.state) + " and state " + str(current_state))
-    if data.state == 2 and current_state == 3:  # taking off completed
+    if data.state == 2 and state_machine == 3:  # drone is hovering and was taking off
         print("takeoff completed")
         state_publisher.publish(4)
 
-    if data.state == 0 and current_state == 5:  # landing completed
+    if data.state == 0 and state_machine == 5:  # drone has landed and was landing
+        print("landing completed")
         state_publisher.publish(6)
 
     # state_landed = 0  # Landed state
@@ -43,45 +44,53 @@ def callback_flying_state_changed(data):
 
 
 def callback_state_machine_changed(data):
-    global current_state
-    current_state = data.data
+    # used for initialization between jetson and ground
+    global state_machine
+    state_machine = data.data
 
-    if current_state == 0:
+    if state_machine == 0:
         pass
         # rospy.loginfo("I talked to ground")
         # print("I talked to ground")
-    elif current_state == 1:
+    elif state_machine == 1:
         # rospy.loginfo("I heard back from ground")
         time.sleep(0.5)
         state_publisher.publish(2)
-    elif current_state == 2:
-        global gcs_online
-        gcs_online = True
+    elif state_machine == 2:
+        pass
 
-if __name__ == '__main__':
 
+def main():
     rospy.init_node('state_machine', anonymous=True)
+
+    # create global state publisher
+    global state_publisher
     state_publisher = rospy.Publisher("/auto/state_machine", Int32, queue_size=3, latch=True)
-    
-    rospy.Subscriber("/auto/autonomous_driving", Bool, callback_autonomous_driving)
-    rospy.Subscriber("/bebop/states/ardrone3/PilotingState/FlyingStateChanged", Ardrone3PilotingStateFlyingStateChanged, callback_flying_state_changed)
+
+    # rospy.Subscriber("/auto/autonomous_driving", Bool, callback_autonomous_driving)
+    rospy.Subscriber("/bebop/states/ardrone3/PilotingState/FlyingStateChanged", Ardrone3PilotingStateFlyingStateChanged,
+                     callback_bebop_state_changed)
     rospy.Subscriber("/auto/state_machine", Int32, callback_state_machine_changed)
 
-    current_state = None
-    gcs_online = False
+    global state_machine
+    state_machine = None
+
+    # initializes startup by publishing state 0
     state_publisher.publish(0)
 
-    print("Jetson initialized")
-    rospy.loginfo("Jetson initialized")
-
-    while not gcs_online:
+    # wait until communication with ground is established
+    while state_machine <= 1:
         time.sleep(0.5)
 
     print("Jetson communicating")
     rospy.loginfo("Jetson communicating")
 
-
+    # wait
     rospy.spin()
 
     print("Shutting down")
     # cv2.destroyAllWindows()
+
+
+if __name__ == '__main__':
+    main()

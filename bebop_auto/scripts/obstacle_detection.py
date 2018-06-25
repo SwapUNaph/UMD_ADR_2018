@@ -5,19 +5,6 @@
 # Status:   06/19: Not existing
 #           06/25: Empty file
 
-import rospy
-import roslaunch
-import time
-from std_msgs.msg import Empty
-from subprocess import check_output
-from geometry_msgs.msg import Twist
-import pygame
-import signal
-import sys
-import time
-from bebop_msgs.msg import Ardrone3PilotingStateFlyingStateChanged
-from std_msgs.msg import Bool, Int32
-
 from __future__ import print_function
 
 import sys
@@ -26,7 +13,6 @@ from geometry_msgs.msg import PoseArray, Pose
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
 import cv2 as cv
-
 
 
 def callbackPose(data):
@@ -58,11 +44,7 @@ def callback(data):
     publisher.publish(msg)
 
 
-
-
-if __name__ == '__main__':
-    # main(sys.argv)
-
+def main():
     rospy.init_node('odometry_merger', anonymous=True)
     publisher = rospy.Publisher("/obstacles", PoseArray, queue_size=2)
 
@@ -77,3 +59,7 @@ if __name__ == '__main__':
 
     print("Shutting down")
     # cv2.destroyAllWindows()
+
+
+if __name__ == '__main__':
+    main()

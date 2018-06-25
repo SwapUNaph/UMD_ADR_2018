@@ -93,8 +93,7 @@ class bebop_data:
 
         # print(rospy.get_caller_id() + "\n I heard %s", data)
 
-if __name__ == '__main__':
-
+def main():
     signal.signal(signal.SIGINT, signal_handler)
 
     root = tk.Tk()
@@ -135,3 +134,7 @@ if __name__ == '__main__':
     bebop_data()
 
     root.mainloop()
+
+
+if __name__ == '__main__':
+    main()

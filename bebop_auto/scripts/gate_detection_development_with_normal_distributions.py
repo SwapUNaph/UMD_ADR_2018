@@ -270,7 +270,8 @@ def add_normal(array):
 
     return mu, array
 
-if __name__ == '__main__':
+
+def main():
     cap = cv2.VideoCapture(2)
 
     i=0
@@ -572,3 +573,7 @@ if __name__ == '__main__':
     # cv2.solvePnP(objectPoints, imagePoints, cameraMatrix, distCoeffs[, rvec[, tvec[, useExtrinsicGuess[, flags]]]]) ----> retval, rvec, tvec
 
 #    rospy.spin()
+
+
+if __name__ == '__main__':
+    main()

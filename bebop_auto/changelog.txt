@@ -20,7 +20,7 @@ obstacle_detection.py
 Goal:
 Input stereo camera to identify obstacles in vicinity. Create a map with obstacles or a list of obstacles that feeds into path planner
 Status:
-06/19: Not existing
+06/19: started but probably not necessary. 
 
 odometry_merger.py
 Goal:
@@ -50,7 +50,7 @@ driving.py
 Goal:
 Input from ground or from navigation. Ground overrides navigation. Publish to drone.
 Status:
-06/19: Not existing
+06/19: Started, needs to be looked over, not sure if thats how ros works
 
 ground_input.py
 Goal: Display all relevant flight data like position, waypoint, state, video, battery level, wifi status,

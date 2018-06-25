@@ -47,7 +47,7 @@ def callback_state_machine_changed(data):
     elif data.data == 2:
         global gcs_online
         gcs_online = True
-        
+
 
 
 

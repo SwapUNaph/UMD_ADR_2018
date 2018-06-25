@@ -6,19 +6,21 @@
 #           06/25: Takes in position and state
 
 from __future__ import print_function
-
-import roslib
-# roslib.load_manifest('my_package')
-import sys
-from geometry_msgs.msg import Pose
-from cv_bridge import CvBridge, CvBridgeError
-import roslib
+from geometry_msgs.msg import Pose, PoseArray, PoseStamped
+from std_msgs.msg import Int32
 # roslib.load_manifest('learning_tf')
 import rospy
 import tf
 
 
 def position_updated(drone_pos):
+    print(drone_pos)
+
+    global initialized
+    if not initialized:
+        #initialize with this position
+        initialized = True
+
     if current_state == 4:
         WP = [drone_pos.position.x, drone_pos.position.y, drone_pos.position.z]
         # publisher.publish(self.bridge.cv2_to_imgmsg(cv_image, "bgr8"))
@@ -33,9 +35,12 @@ def main():
     rospy.init_node('path_planner_visual', anonymous=True)
 
     current_state = -1
-    rospy.Subscriber("/auto/state_machine", Pose, state_updated)
+    rospy.Subscriber("/auto/state_machine", Int32, state_updated)
     rospy.Subscriber("/auto/odometry_merged", Pose, position_updated)
     publisher = rospy.Publisher("/auto/path_blind", Pose, queue_size=2)
+
+    global initialized
+    initialized = False
 
     rospy.spin()
 

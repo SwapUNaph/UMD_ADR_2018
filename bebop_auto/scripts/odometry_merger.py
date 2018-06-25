@@ -15,6 +15,7 @@ from cv_bridge import CvBridge, CvBridgeError
 #
 
 def callback(data):
+    global odometry_merged_publisher
     # rospy.loginfo(rospy.get_caller_id() + "\nI heard %s", data)
 
     # print("odometry: ...")
@@ -25,18 +26,17 @@ def callback(data):
     # print("---")
 
     msg = data.pose.pose
-    publisher.publish(msg)
+    odometry_merged_publisher.publish(msg)
 
 
 def main():
     rospy.init_node('odometry_merger', anonymous=True)
-    publisher = rospy.Publisher("/auto/odometry_merged", Pose, queue_size=2)
+
+    global odometry_merged_publisher
+    odometry_merged_publisher = rospy.Publisher("/auto/odometry_merged", Pose, queue_size=2)
     rospy.Subscriber("/bebop/odom", Odometry, callback)
 
     rospy.spin()
-
-    print("Shutting down")
-    # cv2.destroyAllWindows()
 
 
 if __name__ == '__main__':

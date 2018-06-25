@@ -18,3 +18,6 @@ import time
 from bebop_msgs.msg import Ardrone3PilotingStateFlyingStateChanged
 from std_msgs.msg import Bool, Int32
 
+
+# read in position and path
+# if we are close enough to the last waypoint, advance status

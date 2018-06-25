@@ -13,11 +13,11 @@ from cv_bridge import CvBridge, CvBridgeError
 from std_msgs.msg import Empty, Bool, Int32
 from bebop_msgs.msg import Ardrone3PilotingStateFlyingStateChanged
 import time
+import signal
 
 
-# def callback_autonomous_driving(data):
-#    print("autonomy_active: " + str(data.data))
-#    rospy.loginfo("autonomy_active: " + str(data.data))
+def signal_handler(signal, frame):
+    sys.exit(0)
 
 
 def callback_bebop_state_changed(data):
@@ -25,12 +25,12 @@ def callback_bebop_state_changed(data):
     global state_publisher
 
     if data.state == 2 and state_machine == 3:  # drone is hovering and was taking off
-        print("takeoff completed")
+        rospy.loginfo("takeoff completed")
         state_publisher.publish(4)
 
-    if data.state == 0 and state_machine == 5:  # drone has landed and was landing
-        print("landing completed")
-        state_publisher.publish(6)
+    if data.state == 0 and state_machine == 6:  # drone has landed and was landing
+        rospy.loginfo("landing completed")
+        state_publisher.publish(7)
 
     # state_landed = 0  # Landed state
     # state_takingoff = 1  # Taking off state
@@ -51,7 +51,6 @@ def callback_state_machine_changed(data):
     if state_machine == 0:
         pass
         # rospy.loginfo("I talked to ground")
-        # print("I talked to ground")
     elif state_machine == 1:
         # rospy.loginfo("I heard back from ground")
         time.sleep(0.5)
@@ -61,6 +60,9 @@ def callback_state_machine_changed(data):
 
 
 def main():
+    # Enable killing the script with Ctrl+C.
+    signal.signal(signal.SIGINT, signal_handler)
+
     rospy.init_node('state_machine', anonymous=True)
 
     # create global state publisher
@@ -82,14 +84,10 @@ def main():
     while state_machine <= 1:
         time.sleep(0.5)
 
-    print("Jetson communicating")
     rospy.loginfo("Jetson communicating")
 
     # wait
     rospy.spin()
-
-    print("Shutting down")
-    # cv2.destroyAllWindows()
 
 
 if __name__ == '__main__':

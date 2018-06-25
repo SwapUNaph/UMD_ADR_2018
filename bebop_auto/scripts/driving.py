@@ -32,17 +32,16 @@ def publish_command(x,y,z,r):
         msg.angular.z = r
         cmd_vel_pub.publish(msg)
     else:
-        print("flight command not sent")
+        rospy.loginfo("flight command not sent")
 
 
 def publish_status(st):
     pub = rospy.Publisher('/bebop/' + st, Empty, queue_size=1, latch=True)
     if not rospy.is_shutdown():
-        print('publish to /bebop/' + st)
         msg = Empty()
         pub.publish(msg)
     else:
-        print("status command not sent")
+        rospy.loginfo("status command not sent")
 
 
 def callback_state_machine_changed(data):
@@ -58,24 +57,6 @@ def callback_autonomous_driving(data):
 def callback_bebop_state_changed(data):
     global bebop_status
     bebop_status = data.state
-    if bebop_status == 0:
-        print("flt_st: 0 - landed")
-    elif bebop_status == 1:
-        print("flt_st: 1 - takeoff")
-    elif bebop_status == 2:
-        print("flt_st: 2 - hover")
-    elif bebop_status == 3:
-        print("flt_st: 3 - flying")
-    elif bebop_status == 4:
-        print("flt_st: 4 - landing")
-    elif bebop_status == 5:
-        print("flt_st: 5 - emergency")
-    elif bebop_status == 6:
-        print("flt_st: 6 - usertakeoff")
-    elif bebop_status == 7:
-        print("flt_st: 7 - motor ramping")
-    elif bebop_status == 8:
-        print("flt_st: 8 - defect: emergency landing")
 
 
 def main():
@@ -106,7 +87,7 @@ def main():
 
     # Wait until connecction between ground and air is established. Script can get stuck here
     while state_machine <= 1:
-        print("stuck " + str(state_machine))
+        rospy.loginfo("stuck " + str(state_machine))
         time.sleep(0.5)
 
     while True:
@@ -114,14 +95,13 @@ def main():
             if state_machine == 2:
                 publish_status("takeoff")
                 state_publisher.publish(3)
-            #if current_state == 4:
-            #    #driving
-            #    #flt_cmd(-axis_pitch, -axis_roll, -axis_throttleL, -axis_yaw)
-            #    print("autonomous landing")
-            #    flt_st("reset")
             if state_machine == 4:
+                #driving
+                #flt_cmd(-axis_pitch, -axis_roll, -axis_throttleL, -axis_yaw)
+                rospy.loginfo("flying")
+            if state_machine == 5:
                 publish_status("land")
-                state_publisher.publish(5)
+                state_publisher.publish(6)
         else:
             pass
         rate.sleep()

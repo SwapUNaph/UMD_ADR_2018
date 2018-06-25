@@ -138,6 +138,7 @@ if __name__ == '__main__':
     rospy.Subscriber("/auto/state_machine", Int32, callback_state_machine_changed)
 
     cmd_vel_pub = rospy.Publisher('/bebop/cmd_vel', Twist, queue_size=1, latch=True)
+    # cmd_vel_pub = rospy.Publisher('/ground_output', Twist, queue_size=1, latch=True)
 
     print("GCS initialized")
     rospy.loginfo("GCS initialized")

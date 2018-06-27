@@ -200,7 +200,7 @@ def main():
                                         print("not in manual mode")
 
                                 if i == 5:  # land
-                                    if not autonomy_active:  # manual flight active
+                                    if True:#not autonomy_active:  # manual flight active
                                         if bebop_status == 2 or bebop_status == 1 or bebop_status == 3:  # takeoff, hover, flight
                                             publish_status("land")
                                             print("Landing")

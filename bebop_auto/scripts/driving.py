@@ -17,6 +17,7 @@ import sys
 import time
 from bebop_msgs.msg import Ardrone3PilotingStateFlyingStateChanged
 from std_msgs.msg import Bool, Int32
+from bebop_auto.msg import Auto_Driving_Msg
 
 
 def signal_handler(signal, frame):
@@ -50,6 +51,7 @@ def callback_state_machine_changed(data):
 
 
 def callback_autonomous_driving(data):
+    print("autonomy changed")
     global autonomy_active
     autonomy_active = data.data
 
@@ -57,6 +59,11 @@ def callback_autonomous_driving(data):
 def callback_bebop_state_changed(data):
     global bebop_status
     bebop_status = data.state
+
+
+def callback_autonomous_drive_msg_changed(data):
+    global drive_msg
+    drive_msg = data
 
 
 def main():
@@ -67,6 +74,7 @@ def main():
 
     # Global variables for autonomy mode, and the status of the drone and the state machine
     global autonomy_active
+    global drive_msg
     autonomy_active = False
     global bebop_status
     bebop_status = 0
@@ -81,6 +89,7 @@ def main():
                      callback_bebop_state_changed)
     rospy.Subscriber("/auto/state_machine", Int32, callback_state_machine_changed)
     rospy.Subscriber("/auto/autonomous_driving", Bool, callback_autonomous_driving)
+    rospy.Subscriber("/auto/auto_drive", Auto_Driving_Msg, callback_autonomous_drive_msg_changed)
 
     # run with 20Hz
     rate = rospy.Rate(20)
@@ -96,13 +105,14 @@ def main():
                 publish_status("takeoff")
                 state_publisher.publish(3)
             if state_machine == 4:
-                #driving
-                #flt_cmd(-axis_pitch, -axis_roll, -axis_throttleL, -axis_yaw)
+                print(drive_msg)
+                publish_command(drive_msg.x, drive_msg.y, drive_msg.z, drive_msg.r)
                 rospy.loginfo("flying")
             if state_machine == 5:
                 publish_status("land")
                 state_publisher.publish(6)
         else:
+            publish_command(0,0,0,0)
             pass
         rate.sleep()
 

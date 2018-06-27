@@ -13,7 +13,17 @@ from std_msgs.msg import Int32
 import rospy
 import tf
 import time
+import math
 import numpy as np
+
+
+def qv_mult(q1, v1):
+    length = math.sqrt(v1[0]*v1[0]+v1[1]*v1[1]+v1[2]*v1[2])
+    v1 = tf.transformations.unit_vector(v1)
+    q2 = list(v1)
+    q2.append(0.0)
+    return tf.transformations.quaternion_multiply(tf.transformations.quaternion_multiply(q1, q2),
+                                                tf.transformations.quaternion_conjugate(q1))[:3]*length
 
 
 def position_updated(drone_pos):
@@ -21,19 +31,31 @@ def position_updated(drone_pos):
     #      drone_pos.orientation.y, drone_pos.orientation.z, drone_pos.orientation.w)
 
     global initialized
+    global publisher
+
     if not initialized:
         print("initializing fake target")
-        print("Drone position: ")
-        print(drone_pos)
-        q = [drone_pos.orientation.x, drone_pos.orientation.y, drone_pos.orientation.z, drone_pos.orientation.w]
-        qi = q
-        qi[3] = -qi[3]
+        #print("Drone position: ")
+        # print(drone_pos)
 
-        gate = [1, 0, 1, 0]
+        # implementation exactly reverse as in matlab. Invert necessary when not required in matlab vice versa
+        q = [drone_pos.orientation.x, drone_pos.orientation.y, drone_pos.orientation.z, drone_pos.orientation.w]
+        qi = [-q[0], -q[1], -q[2], q[3]]
+
+        # own heading:
+        dx0 = [1, 0, 0]
+        dy0 = [0, 1, 0]
+        dz0 = [0, 0, 1]
+        dx = qv_mult(q, dx0)
+        dy = qv_mult(q, dy0)
+        dz = qv_mult(q, dz0)
+        # print("heading: " + str(math.atan2(-dx[1], dx[0])*180/math.pi))
+
+        gate = [-0.5, 0, 1.5]
         print("Virtual gate (local):")
-        print(gate[0:3])
-        gate_tf = tf.transformations.quaternion_multiply(qi, gate)
-        gate_tf = gate_tf.tolist()[0:3]
+        print(gate)
+        gate_tf = qv_mult(q, gate)
+        gate_tf = gate_tf.tolist()
         print("Virtual gate (global):")
         print(gate_tf)
 
@@ -42,14 +64,17 @@ def position_updated(drone_pos):
         target = gate_tf
         initialized = True
 
-    if current_state == 4:
-        WP = Pose()
-        WP.x = target[0]
-        WP.y = target[1]
-        WP.z = target[2]
+    if current_state <= 3:
+        # publish zeros before mission start
+        publisher.publish(Pose())
 
-        global publisher
-        publisher.publish(Pose)
+    if current_state == 4:
+        wp = Pose()
+        wp.position.x = target[0]
+        wp.position.y = target[1]
+        wp.position.z = target[2]
+
+        publisher.publish(wp)
 
 
 def state_updated(data):
@@ -59,7 +84,7 @@ def state_updated(data):
 
 
 def main():
-    rospy.init_node('path_planner_visual', anonymous=True)
+    rospy.init_node('path_planner_blind', anonymous=True)
 
     global current_state
     current_state = -1

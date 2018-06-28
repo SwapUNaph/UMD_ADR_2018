@@ -46,9 +46,12 @@ def callback_state_machine_changed(data):
     if state_machine == 0:
         time.sleep(1)
         # print("I heard from the drone")
-        pub = rospy.Publisher('/auto/state_machine', Int32, queue_size=3, latch=True)
+        pub = rospy.Publisher('/auto/state_machine', Int32, queue_size=1, latch=True)
         # print('I will tell her')
         pub.publish(1)
+    #elif state_machine == 2:
+    #    pub = rospy.Publisher('/auto/state_machine', Int32, queue_size=1, latch=True)
+    #    pub.publish(3)
 
 
 def autonomy_pub(bool):
@@ -121,8 +124,9 @@ def main():
     global cmd_vel_pub
     cmd_vel_pub = rospy.Publisher('/bebop/cmd_vel', Twist, queue_size=1, latch=True)
 
-    # Wait until communication to jetson is established
+    # Wait until connecction between ground and air is established. Script can get stuck here
     while state_machine <= 1:
+        rospy.loginfo("waiting")
         time.sleep(0.5)
 
     print("GCS communicating")
@@ -179,7 +183,7 @@ def main():
                                     rospy.loginfo("not in manual mode")
 
                             if i == 5:  # land
-                                if True:  # not autonomy_active:  # manual flight active -> Land can always be initialized
+                                if not autonomy_active:  # manual flight active
                                     if bebop_status == 2 or bebop_status == 1 or bebop_status == 3:  # takeoff, hover, flight
                                         publish_status("land")
                                         print("Landing")

@@ -85,7 +85,7 @@ def main():
     # create a state machine publisher and a global command publisher
     global cmd_vel_pub
     cmd_vel_pub = rospy.Publisher('/bebop/cmd_vel', Twist, queue_size=1, latch=True)
-    state_publisher = rospy.Publisher("/auto/state_machine", Int32, queue_size=3, latch=True)
+    state_publisher = rospy.Publisher("/auto/state_machine", Int32, queue_size=1, latch=True)
     rospy.Subscriber("/bebop/states/ardrone3/PilotingState/FlyingStateChanged", Ardrone3PilotingStateFlyingStateChanged,
                      callback_bebop_state_changed)
     rospy.Subscriber("/auto/state_machine", Int32, callback_state_machine_changed)
@@ -97,8 +97,8 @@ def main():
 
     # Wait until connecction between ground and air is established. Script can get stuck here
     while state_machine <= 1:
-        rospy.loginfo("stuck " + str(state_machine))
-        time.sleep(0.5)
+        rospy.loginfo("waiting")
+        time.sleep(2)
 
     while True:
         rate.sleep()

@@ -52,13 +52,18 @@ def main():
     drone = None
     path_visual = None
     path_blind = None
-    state_machine = None
+    state_machine = -1
     rospy.Subscriber("/auto/odometry_merged",   Pose, received_update, "position")
     rospy.Subscriber("/auto/path_blind",        Pose, received_update, "path_blind")
     rospy.Subscriber("/auto/path_visual",       Pose, received_update, "path_visual")
     rospy.Subscriber("/auto/state_machine",    Int32, received_update, "state_machine")
 
-    state_publisher = rospy.Publisher("/auto/state_machine", Int32, queue_size=3, latch=True)
+    state_publisher = rospy.Publisher("/auto/state_machine", Int32, queue_size=1, latch=True)
+
+    # Wait until connecction between ground and air is established. Script can get stuck here
+    while state_machine <= 1:
+        rospy.loginfo("waiting")
+        time.sleep(2)
 
     rate = rospy.Rate(20)
 
@@ -70,13 +75,13 @@ def main():
             if path_blind is not None:
                 path = path_blind
             else:
-                rospy.loginfo("no path")
+                # rospy.loginfo("no path")
                 continue
         else:
             path = path_visual
 
         if drone is None:
-            rospy.loginfo("no position")
+            # rospy.loginfo("no position")
             continue
 
         if state_machine == 4:
@@ -87,7 +92,7 @@ def main():
             distance = math.sqrt(
                 diff_global[0] * diff_global[0] + diff_global[1] * diff_global[1] + diff_global[2] * diff_global[2])
 
-            if distance < 0.1:
+            if distance < 0.05:
                 rospy.loginfo("Target reached")
                 state_publisher.publish(5)
 

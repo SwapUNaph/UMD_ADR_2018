@@ -24,11 +24,13 @@ def signal_handler(signal, frame):
 
 def qv_mult(q1, v1):
     length = math.sqrt(v1[0] * v1[0] + v1[1] * v1[1] + v1[2] * v1[2])
-    v1 = tf.transformations.unit_vector(v1)
+    if length != 0:
+        v1 = tf.transformations.unit_vector(v1)
     q2 = list(v1)
     q2.append(0.0)
     return tf.transformations.quaternion_multiply(tf.transformations.quaternion_multiply(q1, q2),
                                                   tf.transformations.quaternion_conjugate(q1))[:3] * length
+
 
 def received_update(data, args):
     global drone
@@ -59,13 +61,18 @@ def main():
     drone = None
     path_visual = None
     path_blind = None
-    state_machine = None
+    state_machine = -1
     rospy.Subscriber("/auto/odometry_merged",   Pose, received_update, "position")
     rospy.Subscriber("/auto/path_blind",        Pose, received_update, "path_blind")
     rospy.Subscriber("/auto/path_visual",       Pose, received_update, "path_visual")
     rospy.Subscriber("/auto/state_machine",    Int32, received_update, "state_machine")
 
     driver_publisher = rospy.Publisher("/auto/auto_drive", Auto_Driving_Msg, queue_size=1)
+
+    # Wait until connecction between ground and air is established. Script can get stuck here
+    while state_machine <= 1:
+        rospy.loginfo("waiting")
+        time.sleep(2)
 
     rate = rospy.Rate(20)
 
@@ -77,13 +84,13 @@ def main():
             if path_blind is not None:
                 path = path_blind
             else:
-                rospy.loginfo("no path")
+                # rospy.loginfo("no path")
                 continue
         else:
             path = path_visual
 
         if drone is None:
-            rospy.loginfo("no position")
+            # rospy.loginfo("no position")
             continue
 
         # calculate path to WP
@@ -109,8 +116,8 @@ def main():
         msg.z = min(gain*diff_bebop[2], limit)
         msg.r = 0
 
-        rospy.loginfo("fwd: " + "{:.9f}".format(msg.x) + " | left: " + "{.9f}".format(msg.y) + " | up: " + "{.9f}".format(
-            msg.z) + " | ccw: " + "{.9f}".format(msg.r))
+        #rospy.loginfo("fwd: " + "{:.9f}".format(msg.x) + " | left: " + "{.9f}".format(msg.y) + " | up: " + "{.9f}".format(
+        #    msg.z) + " | ccw: " + "{.9f}".format(msg.r))
         driver_publisher.publish(msg)
 
 

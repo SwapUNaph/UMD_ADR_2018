@@ -81,7 +81,7 @@ def main():
 
     # create global state publisher
     global state_publisher
-    state_publisher = rospy.Publisher("/auto/state_machine", Int32, queue_size=3, latch=True)
+    state_publisher = rospy.Publisher("/auto/state_machine", Int32, queue_size=1, latch=True)
 
     global state_machine
     global bebop_state
@@ -96,8 +96,9 @@ def main():
     # initializes startup by publishing state 0
     state_publisher.publish(0)
 
-    # wait until communication with ground is established
+    # Wait until connecction between ground and air is established. Script can get stuck here
     while state_machine <= 1:
+        rospy.loginfo("waiting")
         time.sleep(0.5)
 
     rospy.loginfo("Jetson communicating")

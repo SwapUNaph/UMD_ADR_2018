@@ -84,8 +84,8 @@ def main():
     global publisher
     publisher = rospy.Publisher("/auto/path_blind", Pose, queue_size=2)
 
-    global initialized
-    initialized = False
+    global fake_target_set
+    fake_target_set = False
 
     rospy.spin()
 

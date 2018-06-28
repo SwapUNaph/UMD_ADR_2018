@@ -4,6 +4,7 @@
 # Goal:     Input from ground or from navigation. Ground overrides navigation. Publish to drone.
 # Status:   06/19: Not existing
 #           06/25: Drone takes off autonomously and lands autonomously on the same location
+#           06/27: Drone takes off autonomously, flies to a virtual target and lands after reaching the target
 
 import rospy
 import roslaunch
@@ -51,7 +52,7 @@ def callback_state_machine_changed(data):
 
 
 def callback_autonomous_driving(data):
-    print("autonomy changed")
+    # rospy.loginfo("autonomy changed")
     global autonomy_active
     autonomy_active = data.data
 
@@ -100,21 +101,19 @@ def main():
         time.sleep(0.5)
 
     while True:
+        rate.sleep()
+
         if autonomy_active:
             if state_machine == 2:
                 publish_status("takeoff")
-                state_publisher.publish(3)
             if state_machine == 4:
-                print(drive_msg)
                 publish_command(drive_msg.x, drive_msg.y, drive_msg.z, drive_msg.r)
                 rospy.loginfo("flying")
             if state_machine == 5:
                 publish_status("land")
-                state_publisher.publish(6)
         else:
             publish_command(0,0,0,0)
-            pass
-        rate.sleep()
+
 
 
 if __name__ == '__main__':

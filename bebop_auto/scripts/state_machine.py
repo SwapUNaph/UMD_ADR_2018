@@ -4,9 +4,8 @@
 # Goal:     Input is start signal from ground_output and gate crossing confirmation. Output is a state on a global map, the current position, the upcoming gate type and similar
 # Status:   06/19:  Not existing
 #           06/25:  Start delayed until connected to ground_output. Observes takeoff and landing (and advances state)
-#           06/25:
+#           06/27:  State machine is now handling more/most state changes
 
-from __future__ import print_function
 import sys
 import rospy
 from cv_bridge import CvBridge, CvBridgeError
@@ -20,43 +19,58 @@ def signal_handler(signal, frame):
     sys.exit(0)
 
 
-def callback_bebop_state_changed(data):
-    # observe takeoff and landing
+def callback_states_changed(data, args):
     global state_publisher
+    global state_machine
+    global bebop_state
 
-    if data.state == 2 and state_machine == 3:  # drone is hovering and was taking off
+    # update variables
+    if args == "bebop_state":
+        bebop_state = data.state
+    elif args == "state_machine":
+        state_machine = data.data
+
+    # STATE MACHINE
+    if state_machine == 0:                          # My own signal
+        pass
+    elif state_machine == 1:                        # Heard from ground -> respond
+        time.sleep(1)
+        state_publisher.publish(2)
+    elif state_machine == 2 and bebop_state == 1:   # drone is taking off
+        rospy.loginfo("takeoff started")
+        state_publisher.publish(3)
+    elif state_machine == 3 and bebop_state == 2:   # drone was taking off and is now hovering
         rospy.loginfo("takeoff completed")
         state_publisher.publish(4)
-
-    if data.state == 0 and state_machine == 6:  # drone has landed and was landing
+    elif state_machine == 4:                        # state transition in gate_crossing_detection
+        pass
+    elif state_machine == 5 and bebop_state == 4:   # drone has reached target and is now landing
+        rospy.loginfo("landing started")
+        state_publisher.publish(6)
+    elif state_machine == 6 and bebop_state == 0:   # drone was landing and has landed
         rospy.loginfo("landing completed")
         state_publisher.publish(7)
 
-    # state_landed = 0  # Landed state
-    # state_takingoff = 1  # Taking off state
-    # state_hovering = 2  # Hovering / Circling (for fixed wings) state
-    # state_flying = 3  # Flying state
-    # state_landing = 4  # Landing state
-    # state_emergency = 5  # Emergency state
-    # state_usertakeoff = 6  # User take off state. Waiting for user action to take off.
-    # state_motor_ramping = 7  # Motor ramping state (for fixed wings).
-    # state_emergency_landing = 8  # Emergency landing state. Drone autopilot has detected defective sensor(s). Only Yaw argument in PCMD is taken into account. All others flying commands are ignored.
+    # STATE MACHINE overview
+    #   0   state machine sent signal to ground
+    #   1   ground received signal and sends it back to air
+    #   2   air received response and starts autonomous takeoff
+    #   3   drone is taking off
+    #   4   takeoff completed, start mission
+    #   5   mission finished, land
+    #   6   landing
+    #   7   landing completed
 
-
-def callback_state_machine_changed(data):
-    # used for initialization between jetson and ground
-    global state_machine
-    state_machine = data.data
-
-    if state_machine == 0:
-        pass
-        # rospy.loginfo("I talked to ground")
-    elif state_machine == 1:
-        # rospy.loginfo("I heard back from ground")
-        time.sleep(0.5)
-        state_publisher.publish(2)
-    elif state_machine == 2:
-        pass
+    # BEBOP STATE overview
+    #   0   landed
+    #   1   takeoff
+    #   2   hovering
+    #   3   flying
+    #   4   landing
+    #   5   emergency
+    #   6   not observed (usertakeoff, User take off state. Waiting for user action to take off)
+    #   7   not observed (for fixed wing, motor ramping state)
+    #   8   not observed (emergency landinng after sensor defect. Only YAW is taken into account)
 
 
 def main():
@@ -69,13 +83,15 @@ def main():
     global state_publisher
     state_publisher = rospy.Publisher("/auto/state_machine", Int32, queue_size=3, latch=True)
 
+    global state_machine
+    global bebop_state
+    state_machine = None
+    bebop_state = None
+
     # rospy.Subscriber("/auto/autonomous_driving", Bool, callback_autonomous_driving)
     rospy.Subscriber("/bebop/states/ardrone3/PilotingState/FlyingStateChanged", Ardrone3PilotingStateFlyingStateChanged,
-                     callback_bebop_state_changed)
-    rospy.Subscriber("/auto/state_machine", Int32, callback_state_machine_changed)
-
-    global state_machine
-    state_machine = None
+                     callback_states_changed, "bebop_state")
+    rospy.Subscriber("/auto/state_machine", Int32, callback_states_changed, "state_machine")
 
     # initializes startup by publishing state 0
     state_publisher.publish(0)

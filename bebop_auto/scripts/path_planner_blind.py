@@ -27,42 +27,33 @@ def qv_mult(q1, v1):
 
 
 def position_updated(drone_pos):
-    #print(drone_pos.position.x, drone_pos.position.y, drone_pos.position.z, drone_pos.orientation.x,
-    #      drone_pos.orientation.y, drone_pos.orientation.z, drone_pos.orientation.w)
-
-    global initialized
+    global fake_target_set
     global publisher
 
-    if not initialized:
-        print("initializing fake target")
-        #print("Drone position: ")
-        # print(drone_pos)
+    if not fake_target_set:
+        rospy.loginfo("set fake target")
 
         # implementation exactly reverse as in matlab. Invert necessary when not required in matlab vice versa
         q = [drone_pos.orientation.x, drone_pos.orientation.y, drone_pos.orientation.z, drone_pos.orientation.w]
         qi = [-q[0], -q[1], -q[2], q[3]]
 
         # own heading:
-        dx0 = [1, 0, 0]
-        dy0 = [0, 1, 0]
-        dz0 = [0, 0, 1]
-        dx = qv_mult(q, dx0)
-        dy = qv_mult(q, dy0)
-        dz = qv_mult(q, dz0)
-        # print("heading: " + str(math.atan2(-dx[1], dx[0])*180/math.pi))
+        # dx0 = [1, 0, 0]
+        # dy0 = [0, 1, 0]
+        # dz0 = [0, 0, 1]
+        # dx = qv_mult(q, dx0)
+        # dy = qv_mult(q, dy0)
+        # dz = qv_mult(q, dz0)
 
         gate = [-0.5, 0, 1.5]
-        print("Virtual gate (local):")
-        print(gate)
         gate_tf = qv_mult(q, gate)
         gate_tf = gate_tf.tolist()
-        print("Virtual gate (global):")
-        print(gate_tf)
+        rospy.loginfo("global position: " + str(gate_tf))
 
         # initialize with this position
         global target
         target = gate_tf
-        initialized = True
+        fake_target_set = True
 
     if current_state <= 3:
         # publish zeros before mission start

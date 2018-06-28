@@ -108,7 +108,6 @@ def main():
                 publish_status("takeoff")
             if state_machine == 4:
                 publish_command(drive_msg.x, drive_msg.y, drive_msg.z, drive_msg.r)
-                rospy.loginfo("flying")
             if state_machine == 5:
                 publish_status("land")
         else:

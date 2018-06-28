@@ -10,7 +10,6 @@ import roslaunch
 import time
 from subprocess import check_output
 from geometry_msgs.msg import Twist, Pose
-import pygame
 import math
 import signal
 import sys

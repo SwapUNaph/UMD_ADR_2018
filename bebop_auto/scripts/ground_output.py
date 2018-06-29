@@ -124,7 +124,7 @@ def main():
     global cmd_vel_pub
     cmd_vel_pub = rospy.Publisher('/bebop/cmd_vel', Twist, queue_size=1, latch=True)
 
-    # Wait until connecction between ground and air is established. Script can get stuck here
+    # Wait until connection between ground and air is established
     while state_machine <= 1:
         rospy.loginfo("waiting")
         time.sleep(0.5)

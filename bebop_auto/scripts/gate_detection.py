@@ -6,6 +6,7 @@
 #           06/25:
 
 import rospy
+from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Pose
 from sensor_msgs.msg import Image
 import cv2
@@ -280,7 +281,7 @@ def stereo_callback(data):
                 msg = Gate_Detection_Msg()
                 msg.t = tvec
                 msg.r = rvec
-                msg.Pose = this_odom
+                msg.Odometry = this_odom
                 result_publisher.publish(msg)
 
                 # print "nl"
@@ -328,6 +329,7 @@ def main():
     global image_pub_dev2
     global result_publisher
     global zed_odom
+    zed_odom = None
     image_pub_threshold = rospy.Publisher("/auto/gate_detection_threshold", Image, queue_size=1)
     image_pub_gate = rospy.Publisher("/auto/gate_detection_gate", Image, queue_size=1)
     image_pub_dev1 = rospy.Publisher("/auto/gate_detection_dev1", Image, queue_size=1)
@@ -335,7 +337,7 @@ def main():
     result_publisher = rospy.Publisher("/auto/gate_detection_result", Gate_Detection_Msg, queue_size=1)
     pose_pub = rospy.Publisher("/auto/gate_location", Pose, queue_size=1)
     rospy.Subscriber("/zed/left/image_rect_color", Image, stereo_callback)
-    rospy.Subscriber("/zed/odom", Pose, pose_update)
+    rospy.Subscriber("/zed/odom", Odometry, pose_update)
 
     global bridge
     bridge = CvBridge()

@@ -14,6 +14,7 @@ from cv_bridge import CvBridge, CvBridgeError
 import math
 import matplotlib.pyplot as plt
 import time
+from bebop_auto.msg import Gate_Detection_Msg
 
 import signal
 import sys
@@ -87,10 +88,14 @@ def mask_image(rgb, enc):
     # upper_color = np.array([180, 150, 150])  # blue
     # lower_color = np.array([6, 230, 110])  # orange 2D
     # upper_color = np.array([14, 255, 200])  # orange 2D
-    lower_color = np.array([6, 150, 10])  # orange 3D
-    upper_color = np.array([14, 255, 240])  # orange 3D
+    lower_color1 = np.array([150, 160, 30])  # orange 3D
+    upper_color1 = np.array([255, 255, 150])  # orange 3D
+    lower_color2 = np.array([0, 160, 30])  # orange 3D
+    upper_color2 = np.array([20, 255, 150])  # orange 3D
 
-    mask = cv2.inRange(hsv, lower_color, upper_color)
+    mask1 = cv2.inRange(hsv, lower_color1, upper_color1)
+    mask2 = cv2.inRange(hsv, lower_color2, upper_color2)
+    mask = mask1 + mask2
 
 
     # t0 = time.time()
@@ -105,7 +110,7 @@ def mask_image(rgb, enc):
 
 
     # using a laplacian is very fast, around 100 Hz
-    laplacian = cv2.Laplacian(mask, cv2.CV_8U)
+    # laplacian = cv2.Laplacian(mask, cv2.CV_8U)
 
     # t1 = time.time()
     # total = t1 - t0
@@ -116,18 +121,20 @@ def mask_image(rgb, enc):
     output_im = bridge.cv2_to_imgmsg(mask, encoding="8UC1")
     image_pub_dev1.publish(output_im)
 
-
     global image_pub_threshold
     # res = cv2.bitwise_and(rgb, rgb, mask=sobel_8u)
-    output_im = bridge.cv2_to_imgmsg(laplacian, encoding="8UC1")
-    image_pub_threshold.publish(output_im)
+    # output_im = bridge.cv2_to_imgmsg(laplacian, encoding="8UC1")
+    # image_pub_threshold.publish(output_im)
 
-    return laplacian
+    return mask
 
 
 def stereo_callback(data):
     global pose_pub
     global bridge
+    global zed_odom
+
+    this_odom = zed_odom
 
     # convert image msg to matrix
     rgb = bridge.imgmsg_to_cv2(data, desired_encoding=data.encoding)
@@ -218,7 +225,7 @@ def stereo_callback(data):
             # Assume no lens distortion
             dist_coeffs = np.zeros((4, 1))
 
-            square_side = 0.1015
+            square_side = 0.122
             if len(corners) < 3:
                 print "Found only two points or less"
                 valid_last_orientation = False
@@ -268,6 +275,14 @@ def stereo_callback(data):
                 rvec2, _ = cv2.Rodrigues(rmat)
 
                 print rvec[0], rvec[1], rvec[2], rvec2[0], rvec2[1], rvec2[2]
+
+                global result_publisher
+                msg = Gate_Detection_Msg()
+                msg.t = tvec
+                msg.r = rvec
+                msg.Pose = this_odom
+                result_publisher.publish(msg)
+
                 # print "nl"
 
                 # print "Translation Vector:\n {0}".format(tvec)
@@ -291,12 +306,16 @@ def stereo_callback(data):
                     cv2.circle(rgb, p3, 10, (0, 0, 0), -1)
 
     # Display the resulting frame
-    cv2.imshow('frame', rgb)
+    # cv2.imshow('frame', rgb)
 
     global image_pub_gate
     output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
     image_pub_gate.publish(output_im)
 
+
+def pose_update(data):
+    global zed_odom
+    zed_odom = data
 
 def main():
     signal.signal(signal.SIGINT, signal_handler)
@@ -307,14 +326,16 @@ def main():
     global pose_pub
     global image_pub_dev1
     global image_pub_dev2
-    global image_pub_dev3
+    global result_publisher
+    global zed_odom
     image_pub_threshold = rospy.Publisher("/auto/gate_detection_threshold", Image, queue_size=1)
     image_pub_gate = rospy.Publisher("/auto/gate_detection_gate", Image, queue_size=1)
     image_pub_dev1 = rospy.Publisher("/auto/gate_detection_dev1", Image, queue_size=1)
     image_pub_dev2 = rospy.Publisher("/auto/gate_detection_dev2", Image, queue_size=1)
-    image_pub_dev3 = rospy.Publisher("/auto/gate_detection_dev3", Image, queue_size=1)
+    result_publisher = rospy.Publisher("/auto/gate_detection_result", Gate_Detection_Msg, queue_size=1)
     pose_pub = rospy.Publisher("/auto/gate_location", Pose, queue_size=1)
     rospy.Subscriber("/zed/left/image_rect_color", Image, stereo_callback)
+    rospy.Subscriber("/zed/odom", Pose, pose_update)
 
     global bridge
     bridge = CvBridge()

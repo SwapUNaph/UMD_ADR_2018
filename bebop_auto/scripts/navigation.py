@@ -16,6 +16,7 @@ import signal
 import sys
 import numpy as np
 from bebop_auto.msg import Auto_Driving_Msg
+from pid_Function import PID 
 
 
 def signal_handler(signal, frame):
@@ -69,6 +70,11 @@ def main():
 
     driver_publisher = rospy.Publisher("/auto/auto_drive", Auto_Driving_Msg, queue_size=1)
 
+    Z_PID = PID()
+    R_PID = PID()
+    F_PID = PID()
+    T_PID = PID()
+
     # Wait until connecction between ground and air is established. Script can get stuck here
     while state_machine <= 1:
         rospy.loginfo("waiting")
@@ -93,6 +99,26 @@ def main():
             # rospy.loginfo("no position")
             continue
 
+
+
+        dy = path.position.y - drone.position.y
+        dx = path.position.x - drone.position.x
+        dist = (dy**2+dx**2)**.5
+        
+        euler = tf.transformations.euler_from_quaternion(drone.orientation)
+
+        gate_theta = tf.transformations.euler_from_quaternion(path.orientation)
+
+        vehicle_theta = math.atan2(dy,dx)
+        d_theta = gate_theta-vehicle_theta
+
+        t_error = -dist*math.sin(d_theta)
+        f_error = -dist*math.cos(d_theta)
+        z_error = path.position.z - drone.position.z
+        r_error = vehicle_theta - euler[3]
+
+
+
         # calculate path to WP
         diff_global = [path.position.x - drone.position.x,
                        path.position.y - drone.position.y,
@@ -111,10 +137,17 @@ def main():
         limit = 0.2
         gain = 0.2/0.5
 
-        msg.x = min(gain*diff_bebop[0], limit)
-        msg.y = min(gain*diff_bebop[1], limit)
-        msg.z = min(gain*diff_bebop[2], limit)
-        msg.r = 0
+        # msg.x = max(min(F_PID.update(f_error), 1),-1)
+        msg.x = 0
+
+        msg.y = max(min(T_PID.update(t_error), 1),-1)
+        # msg.x = 0
+
+        # msg.z = max(min(Z_PID.update(z_error), 1),-1)
+        msg.x = 0
+
+        # msg.r = max(min(R_PID.update(z_error), 1),-1)
+        msg.x = 0
 
         #rospy.loginfo("fwd: " + "{:.9f}".format(msg.x) + " | left: " + "{.9f}".format(msg.y) + " | up: " + "{.9f}".format(
         #    msg.z) + " | ccw: " + "{.9f}".format(msg.r))

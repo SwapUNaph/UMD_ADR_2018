@@ -8,6 +8,7 @@
 import rospy
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Pose
+from std_msgs.msg import Float32MultiArray
 from sensor_msgs.msg import Image
 import cv2
 import numpy as np
@@ -20,7 +21,8 @@ from bebop_auto.msg import Gate_Detection_Msg
 import signal
 import sys
 
-camera_matrix = np.array(
+# this is an old camera matrix!! Needs updating
+ camera_matrix = np.array(
         [[608.91474407072610, 0, 318.06264860718505],
          [0, 568.01764400596119, 242.18421070925399],
          [0, 0, 1]], dtype="double"
@@ -284,6 +286,22 @@ def stereo_callback(data):
                 msg.Odometry = this_odom
                 result_publisher.publish(msg)
 
+                global result_publisher_dev1
+                global result_publisher_dev2
+                global result_publisher_dev3
+
+                msg = Float32MultiArray()
+                msg.data = tvec
+                result_publisher_dev1.publish(msg)
+
+                msg = Float32MultiArray()
+                msg.data = rvec
+                result_publisher_dev2.publish(msg)
+
+                msg = Odometry()
+                msg = this_odom
+                result_publisher_dev3.publish(msg)
+
                 # print "nl"
 
                 # print "Translation Vector:\n {0}".format(tvec)
@@ -328,6 +346,9 @@ def main():
     global image_pub_dev1
     global image_pub_dev2
     global result_publisher
+    global result_publisher_dev1
+    global result_publisher_dev2
+    global result_publisher_dev3
     global zed_odom
     zed_odom = None
     image_pub_threshold = rospy.Publisher("/auto/gate_detection_threshold", Image, queue_size=1)
@@ -335,6 +356,9 @@ def main():
     image_pub_dev1 = rospy.Publisher("/auto/gate_detection_dev1", Image, queue_size=1)
     image_pub_dev2 = rospy.Publisher("/auto/gate_detection_dev2", Image, queue_size=1)
     result_publisher = rospy.Publisher("/auto/gate_detection_result", Gate_Detection_Msg, queue_size=1)
+    result_publisher_dev1 = rospy.Publisher("/auto/gate_detection_result_dev1", Float32MultiArray, queue_size=1)
+    result_publisher_dev2 = rospy.Publisher("/auto/gate_detection_result_dev2", Float32MultiArray, queue_size=1)
+    result_publisher_dev3 = rospy.Publisher("/auto/gate_detection_result_dev3", Odometry, queue_size=1)
     pose_pub = rospy.Publisher("/auto/gate_location", Pose, queue_size=1)
     rospy.Subscriber("/zed/left/image_rect_color", Image, stereo_callback)
     rospy.Subscriber("/zed/odom", Odometry, pose_update)

@@ -9,7 +9,7 @@ import rospy
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Pose
 from std_msgs.msg import Float32MultiArray
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, CameraInfo
 import cv2
 import numpy as np
 from cv_bridge import CvBridge, CvBridgeError
@@ -21,12 +21,6 @@ from bebop_auto.msg import Gate_Detection_Msg
 import signal
 import sys
 
-# this is an old camera matrix!! Needs updating
- camera_matrix = np.array(
-        [[608.91474407072610, 0, 318.06264860718505],
-         [0, 568.01764400596119, 242.18421070925399],
-         [0, 0, 1]], dtype="double"
-    )
 
 valid_last_orientation = False
 
@@ -91,15 +85,14 @@ def mask_image(rgb, enc):
     # upper_color = np.array([180, 150, 150])  # blue
     # lower_color = np.array([6, 230, 110])  # orange 2D
     # upper_color = np.array([14, 255, 200])  # orange 2D
-    lower_color1 = np.array([150, 160, 30])  # orange 3D
-    upper_color1 = np.array([255, 255, 150])  # orange 3D
-    lower_color2 = np.array([0, 160, 30])  # orange 3D
-    upper_color2 = np.array([20, 255, 150])  # orange 3D
+    lower_color1 = np.array([0, 180, 150])  # orange 3D
+    upper_color1 = np.array([20, 255, 255])  # orange 3D
+    lower_color2 = np.array([170, 180, 150])  # orange 3D
+    upper_color2 = np.array([180, 255, 255])  # orange 3D
 
     mask1 = cv2.inRange(hsv, lower_color1, upper_color1)
     mask2 = cv2.inRange(hsv, lower_color2, upper_color2)
-    mask = mask1 + mask2
-
+    mask = mask1+mask2
 
     # t0 = time.time()
     # try thinning all colored pixels from above (runs at around 5Hz)
@@ -110,7 +103,6 @@ def mask_image(rgb, enc):
     # sobely64f = cv2.Sobel(mask, cv2.CV_64F, 0, 1, ksize=3)
     # abs_sobel64f = np.absolute(sobelx64f) + np.absolute(sobely64f)
     # sobel_8u = np.uint8(abs_sobel64f)
-
 
     # using a laplacian is very fast, around 100 Hz
     # laplacian = cv2.Laplacian(mask, cv2.CV_8U)
@@ -123,6 +115,12 @@ def mask_image(rgb, enc):
     global image_pub_dev1
     output_im = bridge.cv2_to_imgmsg(mask, encoding="8UC1")
     image_pub_dev1.publish(output_im)
+
+    #show = cv2.resize(debug,(1280,720))
+    #cv2.imshow("show",show)
+    #if cv2.waitKey(1) & 0xFF == ord('q'):
+    #   exit()
+
 
     global image_pub_threshold
     # res = cv2.bitwise_and(rgb, rgb, mask=sobel_8u)
@@ -146,14 +144,16 @@ def stereo_callback(data):
     mask = mask_image(rgb, data.encoding)
 
     # probabilistic hough transform
-    minLineLength = 50
-    maxLineGap = 30
+    minLineLength = 200
+    maxLineGap = 50
 
-    lines = cv2.HoughLinesP(mask, 1, np.pi / 180, 50, minLineLength, maxLineGap)
+    lines = cv2.HoughLinesP(mask, 5, np.pi / 180, 2000, minLineLength=minLineLength, maxLineGap=maxLineGap)
+
     if lines is None:
         print "no lines"
 
     else:  # lines have been found
+        print len(lines)
         # calculate angles of all lines and create a border frame in the picture of the gate location
         angles = []
 
@@ -228,7 +228,7 @@ def stereo_callback(data):
             # Assume no lens distortion
             dist_coeffs = np.zeros((4, 1))
 
-            square_side = 0.122
+            square_side = 1.03
             if len(corners) < 3:
                 print "Found only two points or less"
                 valid_last_orientation = False
@@ -277,7 +277,7 @@ def stereo_callback(data):
 
                 rvec2, _ = cv2.Rodrigues(rmat)
 
-                print rvec[0], rvec[1], rvec[2], rvec2[0], rvec2[1], rvec2[2]
+                #print rvec[0], rvec[1], rvec[2], rvec2[0], rvec2[1], rvec2[2]
 
                 global result_publisher
                 msg = Gate_Detection_Msg()
@@ -336,9 +336,25 @@ def pose_update(data):
     global zed_odom
     zed_odom = data
 
+
+def camera_info_update(data):
+    global camera_matrix
+    camera_matrix = np.resize(np.asarray(data.K),[3,3])
+
+    # camera_matrix = np.array(
+    #     [[608.91474407, 0, 318.06264861]
+    #      [0, 568.01764401, 242.18421071]
+    #     [0, 0, 1]], dtype="double"
+    # )
+
+
 def main():
     signal.signal(signal.SIGINT, signal_handler)
     rospy.init_node('gate_detection', anonymous=True)
+
+    global camera_matrix
+    camera_matrix = None
+    rospy.Subscriber("/zed/left/camera_info", CameraInfo, camera_info_update)
 
     global image_pub_threshold
     global image_pub_gate

@@ -5,8 +5,6 @@
 # Status:   06/19: Creates a path with two waypoints: Own position and gate_position
 #           06/25:
 
-from __future__ import print_function
-
 import roslib
 #roslib.load_manifest('my_package')
 import sys

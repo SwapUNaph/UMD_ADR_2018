@@ -100,7 +100,7 @@ def main():
             continue
 
 
-
+        '''
         dy = path.position.y - drone.position.y
         dx = path.position.x - drone.position.x
         dist = (dy**2+dx**2)**.5
@@ -116,8 +116,10 @@ def main():
         f_error = -dist*math.cos(d_theta)
         z_error = path.position.z - drone.position.z
         r_error = vehicle_theta - euler[3]
+        '''
 
-
+        t_error = path_visual.pose.y
+        z_error = path_visual.pose.z
 
         # calculate path to WP
         diff_global = [path.position.x - drone.position.x,

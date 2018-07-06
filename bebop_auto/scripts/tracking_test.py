@@ -58,7 +58,7 @@ def image_callback(data):
     
     # convert image msg to matrix
     rgb = bridge.imgmsg_to_cv2(data, desired_encoding=data.encoding)
-
+    image_shape = rgb.shape
     # HSV conversion and frame detection
     hsv = cv2.cvtColor(rgb, cv2.COLOR_BGR2HSV)
 
@@ -100,22 +100,42 @@ def image_callback(data):
                 (0, 255, 255), 2)
             cv2.circle(frame, center, 5, (0, 0, 255), -1)
  
-    # update the points queue
-    pts.appendleft(center)
+    
+    fov_Y = 90 *3.1415/180
+    fov_Z = 70 *3.1415/180
+
+    dist_from_track = 1.5
 
 
 
 
+    width = image_shape[1]
+    lateral_error = (center[1]-width/2)/(width*.5)
+    lateral_error = lateral_error*dist_from_track*math.tan(fov_Y)
 
-    cv2.line(rgb, p2, p3, (0, 255, 255), 10)
-    cv2.circle(rgb, p3, 10, (0, 0, 0), -1)
+    height = image_shape[0]
+    heigth_error = (center[0]-height/2)/(height*.5)
+    heigth_error = heigth_error*dist_from_track*math.tan(fov_Z)
+    
+    cv2.line(rgb, (0,image_shape[1]/2), (image_shape[0],image_shape[1]/2), (0, 255, 255), 10)
+    cv2.line(rgb, (image_shape[0]/2,0), (image_shape[0]/2,image_shape[1]), (0, 255, 255), 10)
+    cv2.line(rgb, (image_shape[0]/2,image_shape[1]/2), center, (255, 255, 0), 10)
+
+    
 
     # Display the resulting frame
     cv2.imshow('frame', rgb)
 
-    global image_pub_gate
-    output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
-    image_pub_gate.publish(output_im)
+
+    object_loc = Pose()
+
+    object_loc.position.x = 0.0
+    object_loc.position.y = lateral_error
+    object_loc.position.z = heigth_error
+
+
+    global pose_pub
+    pose_pub.publish(object_loc)
 
 
 
@@ -124,12 +144,7 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)
     rospy.init_node('tracking_test', anonymous=True)
 
-
-
-    image_pub_dev1 = rospy.Publisher("/auto/tracking_dev1", Image, queue_size=1)
-    image_pub_dev2 = rospy.Publisher("/auto/tracking_dev2", Image, queue_size=1)
-    result_publisher = rospy.Publisher("/auto/gate_detection_result", Gate_Detection_Msg, queue_size=1)
-    pose_pub = rospy.Publisher("/auto/gate_location", Pose, queue_size=1)
+    pose_pub = rospy.Publisher("/auto/path_visual", Pose, queue_size=1)
     rospy.Subscriber("/bebop/raw_image", Image, image_callback)
 
     global bridge

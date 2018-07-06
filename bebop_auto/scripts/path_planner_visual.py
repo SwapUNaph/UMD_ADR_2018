@@ -15,28 +15,22 @@ import math
 #roslib.load_manifest('learning_tf')
 import rospy
 from tf import transformations as tfs
+import common_resources as cr
 
 
-def qv_mult(q1, v1):
-    length = math.sqrt(v1[0]*v1[0]+v1[1]*v1[1]+v1[2]*v1[2])
-    v1 = tfs.unit_vector(v1)
-    q2 = list(v1)
-    q2.append(0.0)
-    return tfs.quaternion_multiply(tfs.quaternion_multiply(q1, q2), tfs.quaternion_conjugate(q1))[:3] * length
 
-
-def eul2quat(z,y,x):
-    cz = math.cos(z * 0.5)
-    sz = math.sin(z * 0.5)
-    cx = math.cos(x * 0.5)
-    sx = math.sin(x * 0.5)
-    cy = math.cos(y * 0.5)
-    sy = math.sin(y * 0.5)
-    qw = cz * cx * cy + sz * sx * sy
-    qx = cz * sx * cy - sz * cx * sy
-    qy = cz * cx * sy + sz * sx * cy
-    qz = sz * cx * cy - cz * sx * sy
-    return [qx,qy,qz,qw]
+#def eul2quat(z,y,x):
+#    cz = math.cos(z * 0.5)
+#    sz = math.sin(z * 0.5)
+#    cx = math.cos(x * 0.5)
+#    sx = math.sin(x * 0.5)
+#    cy = math.cos(y * 0.5)
+#    sy = math.sin(y * 0.5)
+#    qw = cz * cx * cy + sz * sx * sy
+#    qx = cz * sx * cy - sz * cx * sy
+#    qy = cz * cx * sy + sz * sx * cy
+#    qz = sz * cx * cy - cz * sx * sy
+#    return [qx,qy,qz,qw]
 
 
 def axang2quat(vector):
@@ -50,32 +44,31 @@ def axang2quat(vector):
 
 
 def callback(data):
-    # bebop position and orientation
-    bebop_pos = [data.bebop_pose.position.x, data.bebop_pose.position.y, data.bebop_pose.position.z]
-    bebop_q = [data.bebop_pose.orientation.x, data.bebop_pose.orientation.y, data.bebop_pose.orientation.z, data.bebop_pose.orientation.w]
-    # bebop_qi = [-bebop_q[0], -bebop_q[1], -bebop_q[2], bebop_q[3]]
-
-    # camera position and orientation
-    BZ = [0, 0, 0]
-    cam_q = eul2quat(-math.pi / 2, 0, -math.pi / 2)
-
-    # gate position and orientation
-    gate_pos = data.tvec
-    gate_q = axang2quat(data.rvec)
-    # gate_qi = [-gate_q[0], -gate_q[1], -gate_q[2], gate_q[3]]
-
-    gate_global_p = qv_mult(bebop_q, qv_mult(cam_q, gate_pos) + BZ) + bebop_pos
-    gate_global_q = tfs.quaternion_multiply(bebop_q, tfs.quaternion_multiply(cam_q, gate_q))
-
-    global publisher
     msg = Pose()
-    msg.position.x = gate_global_p[0]
-    msg.position.y = gate_global_p[1]
-    msg.position.z = gate_global_p[2]
-    msg.orientation.w = gate_global_q[3]
-    msg.orientation.x = gate_global_q[0]
-    msg.orientation.y = gate_global_q[1]
-    msg.orientation.z = gate_global_q[2]
+    if data.rvec is not ():
+        # bebop position and orientation
+        bebop_pos = [data.bebop_pose.position.x, data.bebop_pose.position.y, data.bebop_pose.position.z]
+        bebop_q = [data.bebop_pose.orientation.x, data.bebop_pose.orientation.y, data.bebop_pose.orientation.z, data.bebop_pose.orientation.w]
+        # bebop_qi = [-bebop_q[0], -bebop_q[1], -bebop_q[2], bebop_q[3]]
+
+        # gate position and orientation
+        gate_pos = data.tvec
+        gate_q = axang2quat(data.rvec)
+        # gate_qi = [-gate_q[0], -gate_q[1], -gate_q[2], gate_q[3]]
+
+        gate_global_p = cr.qv_mult(bebop_q, cr.qv_mult(cr.cam_q, gate_pos) + cr.BZ) + bebop_pos
+        gate_global_q = tfs.quaternion_multiply(bebop_q, tfs.quaternion_multiply(cr.cam_q, gate_q))
+
+        msg.position.x = gate_global_p[0]
+        msg.position.y = gate_global_p[1]
+        msg.position.z = gate_global_p[2]
+        msg.orientation.w = gate_global_q[3]
+        msg.orientation.x = gate_global_q[0]
+        msg.orientation.y = gate_global_q[1]
+        msg.orientation.z = gate_global_q[2]
+    else:
+        msg.position.x = None
+
     publisher.publish(msg)
 
 

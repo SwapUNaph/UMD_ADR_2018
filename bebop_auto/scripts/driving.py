@@ -111,7 +111,8 @@ def main():
             if state_machine == 5:
                 publish_status("land")
         else:
-            publish_command(0,0,0,0)
+            pass
+            # publish_command(0,0,0,0)
 
 
 

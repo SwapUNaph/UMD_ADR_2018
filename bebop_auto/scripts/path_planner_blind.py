@@ -11,55 +11,48 @@ from geometry_msgs.msg import Pose, PoseArray, PoseStamped
 from std_msgs.msg import Int32
 # roslib.load_manifest('learning_tf')
 import rospy
-import tf
 import time
 import math
 import numpy as np
+import common_resources as cr
 
 
-def qv_mult(q1, v1):
-    length = math.sqrt(v1[0]*v1[0]+v1[1]*v1[1]+v1[2]*v1[2])
-    v1 = tf.transformations.unit_vector(v1)
-    q2 = list(v1)
-    q2.append(0.0)
-    return tf.transformations.quaternion_multiply(tf.transformations.quaternion_multiply(q1, q2),
-                                                tf.transformations.quaternion_conjugate(q1))[:3]*length
-
-
-def position_updated(drone_pos):
+def position_updated(drone_pose):
     global fake_target_set
-    global publisher
-
-    if not fake_target_set:
-        rospy.loginfo("set fake target")
-
-        # implementation exactly reverse as in matlab. Invert necessary when not required in matlab vice versa
-        q = [drone_pos.orientation.x, drone_pos.orientation.y, drone_pos.orientation.z, drone_pos.orientation.w]
-        qi = [-q[0], -q[1], -q[2], q[3]]
-
-        # own heading:
-        # dx0 = [1, 0, 0]
-        # dy0 = [0, 1, 0]
-        # dz0 = [0, 0, 1]
-        # dx = qv_mult(q, dx0)
-        # dy = qv_mult(q, dy0)
-        # dz = qv_mult(q, dz0)
-
-        gate = [-0.5, 0, 1.5]
-        gate_tf = qv_mult(q, gate)
-        gate_tf = gate_tf.tolist()
-        rospy.loginfo("global position: " + str(gate_tf))
-
-        # initialize with this position
-        global target
-        target = gate_tf
-        fake_target_set = True
 
     if current_state <= 3:
         # publish zeros before mission start
-        publisher.publish(Pose())
+        wp = Pose()
+        wp.position.x = None
+        publisher.publish(wp)
 
     if current_state == 4:
+        if not fake_target_set:
+            rospy.loginfo("set fake target")
+
+            # implementation exactly reverse as in matlab. Invert necessary when not required in matlab vice versa
+            drone_pos = [drone_pose.position.x, drone_pose.position.y, drone_pose.position.z]
+            q = [drone_pose.orientation.x, drone_pose.orientation.y, drone_pose.orientation.z, drone_pose.orientation.w]
+            qi = [-q[0], -q[1], -q[2], q[3]]
+
+            # own heading:
+            # dx0 = [1, 0, 0]
+            # dy0 = [0, 1, 0]
+            # dz0 = [0, 0, 1]
+            # dx = qv_mult(q, dx0)
+            # dy = qv_mult(q, dy0)
+            # dz = qv_mult(q, dz0)
+
+            gate_local = [-0.5, 0, 0.5]
+            gate_global = cr.qv_mult(q, gate_local) + drone_pos
+            gate_global = gate_global.tolist()
+            rospy.loginfo("global position: " + str(gate_global))
+
+            # initialize with this position
+            global target
+            target = gate_global
+            fake_target_set = True
+
         wp = Pose()
         wp.position.x = target[0]
         wp.position.y = target[1]

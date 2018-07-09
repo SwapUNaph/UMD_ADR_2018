@@ -44,7 +44,9 @@ def axang2quat(vector):
 
 
 def callback(data):
-    msg = Pose()
+    global latest_poses
+
+    average_pose = Pose()
     if data.rvec is not ():
         # bebop position and orientation
         bebop_pos = [data.bebop_pose.position.x, data.bebop_pose.position.y, data.bebop_pose.position.z]
@@ -59,22 +61,38 @@ def callback(data):
         gate_global_p = cr.qv_mult(bebop_q, cr.qv_mult(cr.cam_q, gate_pos) + cr.BZ) + bebop_pos
         gate_global_q = tfs.quaternion_multiply(bebop_q, tfs.quaternion_multiply(cr.cam_q, gate_q))
 
-        msg.position.x = gate_global_p[0]
-        msg.position.y = gate_global_p[1]
-        msg.position.z = gate_global_p[2]
-        msg.orientation.w = gate_global_q[3]
-        msg.orientation.x = gate_global_q[0]
-        msg.orientation.y = gate_global_q[1]
-        msg.orientation.z = gate_global_q[2]
-    else:
-        msg.position.x = None
+        this_pose = Pose()
+        this_pose.position.x = gate_global_p[0]
+        this_pose.position.y = gate_global_p[1]
+        this_pose.position.z = gate_global_p[2]
+        this_pose.orientation.w = gate_global_q[3]
+        this_pose.orientation.x = gate_global_q[0]
+        this_pose.orientation.y = gate_global_q[1]
+        this_pose.orientation.z = gate_global_q[2]
 
-    publisher.publish(msg)
+        distance = math.sqrt(
+              (this_pose.position.x - latest_poses[-1].position.x) * (this_pose.position.x - latest_poses[-1].position.x)
+            + (this_pose.position.y - latest_poses[-1].position.y) * (this_pose.position.y - latest_poses[-1].position.y)
+            + (this_pose.position.z - latest_poses[-1].position.z) * (this_pose.position.z - latest_poses[-1].position.z))
+        if distance > 0.5:
+            latest_poses = [Pose()]
+        else:
+            latest_poses.append(Pose)
+            del latest_poses[0]
+
+        average
+
+    else:
+        average_pose.position.x = None
+
+    publisher.publish(average_pose)
 
 
 def main():
     rospy.init_node('path_planner_visual', anonymous=True)
 
+    global latest_poses
+    latest_poses = [Pose()]
     global publisher
     rospy.Subscriber("/auto/gate_detection_result", Gate_Detection_Msg, callback)
     publisher = rospy.Publisher("/auto/path_visual", Pose, queue_size=2)

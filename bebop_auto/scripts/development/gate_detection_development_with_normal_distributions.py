@@ -51,7 +51,7 @@ def find_streak(array, mode):
                 max_middle = this_middle
             break
 
-    if max_middle > 90:
+    if max_middle > 90:g
         max_middle = max_middle - 90
 
     return max_middle

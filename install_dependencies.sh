@@ -10,6 +10,8 @@ sudo apt-get install ros-kinetic-robot-state-publisher
 sudo apt-get install python-tf
 sudo apt-get install python-pygame
 sudo apt-get install ros-kinetic-tf
+sudo python -m pip install https://pypi.python.org/packages/source/g/getch/getch-1.0-python2.tar.gz
+
 
 
 # run catkin_make in workspace

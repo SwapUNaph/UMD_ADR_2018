@@ -6,7 +6,8 @@
 #           06/26: Reads updates from blind path, visual path and position. Publishes empty command
 
 from geometry_msgs.msg import Pose, PoseArray, PoseStamped
-from std_msgs.msg import Int32
+from std_msgs.msg import Int32, Float32MultiArray
+from bebop_auto.msg import Waypoint_Msg
 # roslib.load_manifest('learning_tf')
 import rospy
 import math
@@ -61,10 +62,10 @@ def main():
     path_visual = None
     path_blind = None
     state_machine = -1
-    rospy.Subscriber("/auto/odometry_merged",   Pose, received_update, "position")
-    rospy.Subscriber("/auto/path_blind",        Pose, received_update, "path_blind")
-    rospy.Subscriber("/auto/path_visual",       Pose, received_update, "path_visual")
-    rospy.Subscriber("/auto/state_machine",    Int32, received_update, "state_machine")
+    rospy.Subscriber("/auto/odometry_merged",  Pose,         received_update, "position")
+    rospy.Subscriber("/auto/wp_blind",         Waypoint_Msg, received_update, "path_blind")
+    rospy.Subscriber("/auto/wp_visual",        Waypoint_Msg, received_update, "path_visual")
+    rospy.Subscriber("/auto/state_machine",    Int32,        received_update, "state_machine")
 
     driver_publisher = rospy.Publisher("/auto/auto_drive", Auto_Driving_Msg, queue_size=1)
 
@@ -81,22 +82,25 @@ def main():
         # set applicable path
         path = path_blind
         if path_visual is not None:
-            if path_visual.position.x is not None:
+            if path_visual.pos is not ():
                 path = path_visual
 
         if path is None:
+            driver_publisher.publish(Auto_Driving_Msg())
             continue
-        elif path.position.x is None:
+        elif path.pos is ():
+            driver_publisher.publish(Auto_Driving_Msg())
             continue
 
         if drone is None:
             # rospy.loginfo("no position")
+            driver_publisher.publish(Auto_Driving_Msg())
             continue
 
         # calculate path to WP
-        diff_global = [path.position.x - drone.position.x,
-                       path.position.y - drone.position.y,
-                       path.position.z - drone.position.z]
+        diff_global = [path.pos[0] - drone.position.x,
+                       path.pos[1] - drone.position.y,
+                       path.pos[2] - drone.position.z]
 
         msg = Auto_Driving_Msg()
 
@@ -116,8 +120,6 @@ def main():
         msg.z = min(gain*diff_bebop[2], limit)
         msg.r = 0
 
-        rospy.loginfo("fwd: " + "{:.9f}".format(msg.x) + " | left: " + "{.9f}".format(msg.y) + " | up: " + "{.9f}".format(
-            msg.z) + " | ccw: " + "{.9f}".format(msg.r))
         driver_publisher.publish(msg)
 
 

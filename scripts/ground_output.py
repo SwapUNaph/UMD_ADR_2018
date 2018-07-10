@@ -49,6 +49,9 @@ def callback_state_machine_changed(data):
         pub = rospy.Publisher('/auto/state_machine', Int32, queue_size=1, latch=True)
         # print('I will tell her')
         pub.publish(1)
+    elif state_machine == 1:
+        pub = rospy.Publisher('/auto/state_machine', Int32, queue_size=1, latch=True)
+        pub.publish(2)
     #elif state_machine == 2:
     #    pub = rospy.Publisher('/auto/state_machine', Int32, queue_size=1, latch=True)
     #    pub.publish(3)

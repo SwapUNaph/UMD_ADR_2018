@@ -20,6 +20,12 @@ def bebop_update(data):
     global cRo, OC
     global zRc, CZ
 
+    # only publish bebop data, no zed required
+    if True:
+        global odometry_merged_publisher
+        odometry_merged_publisher.publish(data.pose.pose)
+        return
+
     # calculate transformation from zed_origin to bebop_origin
 
     # position of bebop in bebop_origin coordinate system

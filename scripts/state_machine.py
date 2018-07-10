@@ -35,31 +35,33 @@ def callback_states_changed(data, args):
         pass
     elif state_machine == 1:                        # Heard from ground -> respond
         time.sleep(1)
-        state_publisher.publish(2)
+        state_publisher.publish(state_machine + 1)
     elif state_machine == 2 and bebop_state == 1:   # drone is taking off
         rospy.loginfo("takeoff started")
-        state_publisher.publish(3)
+        state_publisher.publish(state_machine + 1)
     elif state_machine == 3 and bebop_state == 2:   # drone was taking off and is now hovering
         rospy.loginfo("takeoff completed")
-        state_publisher.publish(4)
-    elif state_machine == 4:                        # state transition in gate_crossing_detection
+        state_publisher.publish(state_machine + 1)
+    elif 4 <= state_machine <= 6:  # state transition in gate_crossing_detection
         pass
-    elif state_machine == 5 and bebop_state == 4:   # drone has reached target and is now landing
+    elif state_machine == 7 and bebop_state == 4:   # drone has reached target and is now landing
         rospy.loginfo("landing started")
-        state_publisher.publish(6)
-    elif state_machine == 6 and bebop_state == 0:   # drone was landing and has landed
+        state_publisher.publish(state_machine + 1)
+    elif state_machine == 8 and bebop_state == 0:   # drone was landing and has landed
         rospy.loginfo("landing completed")
-        state_publisher.publish(7)
+        state_publisher.publish(state_machine + 1)
 
     # STATE MACHINE overview
     #   0   state machine sent signal to ground
     #   1   ground received signal and sends it back to air
     #   2   air received response and starts autonomous takeoff
     #   3   drone is taking off
-    #   4   takeoff completed, start mission
-    #   5   mission finished, land
-    #   6   landing
-    #   7   landing completed
+    #   4   takeoff completed, start mission blind (0.5,0.0,0.5). after 15s, gate will be detected 1.5m away at 45deg
+    #   5   too close to WP (.5m), so continuing towards WP until reached
+    #   6   WP reached (.05m), continue in gate direction (north) for 1m
+    #   7   location reached, mission finished, land
+    #   8   landing
+    #   9   landing completed
 
     # BEBOP STATE overview
     #   0   landed

@@ -52,7 +52,7 @@ def callback_state_machine_changed(data):
 
 
 def callback_autonomous_driving(data):
-    # rospy.loginfo("autonomy changed")
+    rospy.loginfo("autonomy changed")
     global autonomy_active
     autonomy_active = data.data
 
@@ -85,7 +85,6 @@ def main():
     # create a state machine publisher and a global command publisher
     global cmd_vel_pub
     cmd_vel_pub = rospy.Publisher('/bebop/cmd_vel', Twist, queue_size=1, latch=True)
-    state_publisher = rospy.Publisher("/auto/state_machine", Int32, queue_size=1, latch=True)
     rospy.Subscriber("/bebop/states/ardrone3/PilotingState/FlyingStateChanged", Ardrone3PilotingStateFlyingStateChanged,
                      callback_bebop_state_changed)
     rospy.Subscriber("/auto/state_machine", Int32, callback_state_machine_changed)
@@ -95,20 +94,20 @@ def main():
     # run with 20Hz
     rate = rospy.Rate(20)
 
-    # Wait until connecction between ground and air is established. Script can get stuck here
-    while state_machine <= 1:
-        rospy.loginfo("waiting")
-        time.sleep(2)
+    rospy.loginfo("ready")
 
     while True:
         rate.sleep()
 
         if autonomy_active:
             if state_machine == 2:
+                rospy.loginfo("takeoff")
                 publish_status("takeoff")
-            if state_machine == 4:
+            if 4 <= state_machine <= 6:
                 publish_command(drive_msg.x, drive_msg.y, drive_msg.z, drive_msg.r)
-            if state_machine == 5:
+                rospy.loginfo("fwd: " + "{:.2f}".format(drive_msg.x) + " | left: " + "{:.2f}".format(
+                    drive_msg.y) + " | up: " + "{:.2f}".format(drive_msg.z) + " | ccw: " + "{:.2f}".format(drive_msg.r))
+            if state_machine == 7:
                 publish_status("land")
         else:
             pass

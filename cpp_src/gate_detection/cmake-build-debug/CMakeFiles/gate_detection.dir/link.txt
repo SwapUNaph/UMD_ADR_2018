@@ -1,0 +1,1 @@
+/usr/bin/c++   -I/usr/local/include -L/usr/local/lib -g   CMakeFiles/gate_detection.dir/main.cpp.o  -o gate_detection  -ltensorflow 

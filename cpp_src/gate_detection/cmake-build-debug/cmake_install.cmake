@@ -1,4 +1,4 @@
-# Install script for directory: /home/matt/catkin_ws/src/bebop_auto/src
+# Install script for directory: /home/matt/catkin_ws/src/bebop_auto/cpp_src/gate_detection
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -45,5 +45,5 @@ endif()
 
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
-file(WRITE "/home/matt/catkin_ws/src/bebop_auto/src/cmake-build-debug/${CMAKE_INSTALL_MANIFEST}"
+file(WRITE "/home/matt/catkin_ws/src/bebop_auto/cpp_src/gate_detection/cmake-build-debug/${CMAKE_INSTALL_MANIFEST}"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")

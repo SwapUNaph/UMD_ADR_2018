@@ -59,11 +59,6 @@ def main():
 
     state_publisher = rospy.Publisher("/auto/state_machine", Int32, queue_size=1, latch=True)
 
-    # Wait until connecction between ground and air is established. Script can get stuck here
-    while state_machine <= 1:
-        rospy.loginfo("waiting")
-        time.sleep(2)
-
     rate = rospy.Rate(20)
 
     while True:
@@ -83,17 +78,29 @@ def main():
             # rospy.loginfo("no position")
             continue
 
+        diff_global = [path.position.x - drone.position.x,
+                       path.position.y - drone.position.y,
+                       path.position.z - drone.position.z]
+
+        distance = math.sqrt(
+            diff_global[0] * diff_global[0] + diff_global[1] * diff_global[1] + diff_global[2] * diff_global[2])
+
         if state_machine == 4:
-            diff_global = [path.position.x - drone.position.x,
-                           path.position.y - drone.position.y,
-                           path.position.z - drone.position.z]
+            if distance < 0.5:
+                rospy.loginfo("too close to WP")
+                state_publisher.publish(state_machine + 1)
 
-            distance = math.sqrt(
-                diff_global[0] * diff_global[0] + diff_global[1] * diff_global[1] + diff_global[2] * diff_global[2])
-
+        if state_machine == 5:
             if distance < 0.05:
                 rospy.loginfo("Target reached")
-                state_publisher.publish(5)
+                state_publisher.publish(state_machine + 1)
+
+        if state_machine == 6:
+            if distance < 0.05:
+                rospy.loginfo("landing reached")
+                state_publisher.publish(state_machine + 1)
+
+
 
 if __name__ == '__main__':
     main()

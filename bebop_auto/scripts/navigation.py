@@ -128,17 +128,6 @@ def main():
 
         msg = Auto_Driving_Msg()
 
-        # implementation exactly reverse as in matlab. Invert necessary when not required in matlab vice versa
-        q = [drone.orientation.x, drone.orientation.y, drone.orientation.z, drone.orientation.w]
-        qi = [-q[0], -q[1], -q[2], q[3]]
-
-        diff_bebop = qv_mult(qi, diff_global)
-        # print("heading to goal " + str(math.atan2(-diff_bebop[1], diff_bebop[0]) * 180 / math.pi))
-
-        # change driving message
-        limit = 0.2
-        gain = 0.2/0.5
-
         # msg.x = max(min(F_PID.update(f_error), 1),-1)
         msg.x = 0
 
@@ -149,10 +138,8 @@ def main():
         msg.x = 0
 
         # msg.r = max(min(R_PID.update(z_error), 1),-1)
-        msg.x = 0
+        msg.r = 0
 
-        #rospy.loginfo("fwd: " + "{:.9f}".format(msg.x) + " | left: " + "{.9f}".format(msg.y) + " | up: " + "{.9f}".format(
-        #    msg.z) + " | ccw: " + "{.9f}".format(msg.r))
         driver_publisher.publish(msg)
 
 

@@ -57,31 +57,36 @@ def image_callback(data):
 
     
     # convert image msg to matrix
-    rgb = bridge.imgmsg_to_cv2(data, desired_encoding=data.encoding)
-    image_shape = rgb.shape
+    bgr = bridge.imgmsg_to_cv2(data, desired_encoding=data.encoding)
+    
+    rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+    cv2.imshow('frame', rgb)
+
     # HSV conversion and frame detection
-    hsv = cv2.cvtColor(rgb, cv2.COLOR_BGR2HSV)
+    hsv = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
+    img_gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
+    
 
-    lower_color1 = np.array([150, 160, 30])  # orange 3D
-    upper_color1 = np.array([255, 255, 150])  # orange 3D
-    lower_color2 = np.array([0, 160, 30])  # orange 3D
-    upper_color2 = np.array([20, 255, 150])  # orange 3D
-
-    mask1 = cv2.inRange(hsv, lower_color1, upper_color1)
-    mask2 = cv2.inRange(hsv, lower_color2, upper_color2)
-    mask = mask1 + mask2
+    # HSV conversion and frame detection
+    hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
+    img_gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
 
 
-    gray_blur = cv2.GaussianBlur(mask_onimage, (5,5), 0)
-    ret, img_postthresh = cv2.threshold(mask_onimage, 50, 255, cv2.THRESH_BINARY)
-    mask = cv2.erode(mask, None, iterations=2)
-    mask = cv2.dilate(mask, None, iterations=2)
+    lower_color = np.array([0, 130, 65])  # orange 3D
+    upper_color = np.array([40, 255, 255])  # orange 3D
 
-    cnts = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL,
-        cv2.CHAIN_APPROX_SIMPLE)
-    cnts = cnts[0] if imutils.is_cv2() else cnts[1]
-    center = None
- 
+    mask = cv2.inRange(hsv, lower_color, upper_color)
+
+    # mask = cv2.bitwise_and(img_gray,mask)
+    mask_on = cv2.GaussianBlur(mask, (3,3), 0)
+    ret, mask2 = cv2.threshold(mask_on, 10, 255, cv2.THRESH_BINARY)
+
+
+    
+    img2, cnts, hierarchy = cv2.findContours(mask2,cv2.RETR_TREE,cv2.CHAIN_APPROX_NONE)
+    # cv2.drawContours(rgb, cnts, -1, (0,255,0), 15)
+    
+
     # only proceed if at least one contour was found
     if len(cnts) > 0:
         # find the largest contour in the mask, then use
@@ -90,16 +95,15 @@ def image_callback(data):
         c = max(cnts, key=cv2.contourArea)
         ((x, y), radius) = cv2.minEnclosingCircle(c)
         M = cv2.moments(c)
-        center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+        # center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
  
         # only proceed if the radius meets a minimum size
         if radius > 10:
             # draw the circle and centroid on the frame,
-            # then update the list of tracked points
-            cv2.circle(frame, (int(x), int(y)), int(radius),
-                (0, 255, 255), 2)
-            cv2.circle(frame, center, 5, (0, 0, 255), -1)
- 
+            cv2.circle(rgb, (int(x), int(y)), int(radius),(0, 255, 255), 2)
+
+    cv2.imshow('contours', rgb)
+
     
     fov_Y = 90 *3.1415/180
     fov_Z = 70 *3.1415/180
@@ -137,6 +141,17 @@ def image_callback(data):
     global pose_pub
     pose_pub.publish(object_loc)
 
+    if (cv2.waitKey(1) &  0xff == ord('q')):
+        exit()
+
+    
+    msg = Gate_Detection_Msg()
+    msg.t = tvec
+    msg.r = rvec
+
+    global pose_pub
+
+    pose_pub.publish(msg)
 
 
 

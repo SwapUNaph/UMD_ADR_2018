@@ -53,7 +53,6 @@ add_message_files(
   FILES
   Auto_Driving_Msg.msg
   Gate_Detection_Msg.msg
-  Waypoint_Msg.msg
 )
 
 ## Generate services in the 'srv' folder

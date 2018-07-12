@@ -38,23 +38,10 @@ def publish_status(st):
     rospy.loginfo('publish to /bebop/' + st)
 
 
-def callback_state_machine_changed(data):
+def callback_state_auto_changed(data):
     # used for initialization between jetson and ground
-    global state_machine
-    state_machine = data.data
-
-    if state_machine == 0:
-        time.sleep(1)
-        # print("I heard from the drone")
-        pub = rospy.Publisher('/auto/state_machine', Int32, queue_size=1, latch=True)
-        # print('I will tell her')
-        pub.publish(1)
-    elif state_machine == 1:
-        pub = rospy.Publisher('/auto/state_machine', Int32, queue_size=1, latch=True)
-        pub.publish(2)
-    #elif state_machine == 2:
-    #    pub = rospy.Publisher('/auto/state_machine', Int32, queue_size=1, latch=True)
-    #    pub.publish(3)
+    global state_auto
+    state_auto = data.data
 
 
 def autonomy_pub(bool):
@@ -114,23 +101,28 @@ def main():
     # Global variables for autonomy mode, and the status of the drone and the state machine
     global autonomy_active
     autonomy_active = False
-    global bebop_status
-    bebop_status = 0
-    global state_machine
-    state_machine = -1
+    global state_bebop
+    state_bebop = 0
+    global state_auto
+    state_auto = None
 
     rospy.Subscriber("/bebop/states/ardrone3/PilotingState/FlyingStateChanged", Ardrone3PilotingStateFlyingStateChanged,
                      callback_bebop_state_changed)
-    rospy.Subscriber("/auto/state_machine", Int32, callback_state_machine_changed)
+    rospy.Subscriber("/auto/state_auto", Int32, callback_state_auto_changed)
 
     # create a global publisher for driving manually
     global cmd_vel_pub
     cmd_vel_pub = rospy.Publisher('/bebop/cmd_vel', Twist, queue_size=1, latch=True)
 
     # Wait until connection between ground and air is established
-    while state_machine <= 1:
-        rospy.loginfo("waiting")
-        time.sleep(0.5)
+    pub = rospy.Publisher('/auto/state_auto', Int32, queue_size=1, latch=True)
+    while state_auto is None:
+        time.sleep(1)
+    while state_auto == 0:
+        pub.publish(1)
+        time.sleep(1)
+    while state_auto == 1:
+        time.sleep(1)
 
     print("GCS communicating")
     rospy.loginfo("GCS communicating")
@@ -170,7 +162,7 @@ def main():
                         if btn_status_diff[i] == 1:  # button with index i was pressed
                             if i == 4:  # takeoff
                                 if not autonomy_active:  # manual flight active
-                                    if bebop_status == 0:  # drone on the ground
+                                    if state_bebop == 0:  # drone on the ground
                                         if axis_throttleL == 0:  # throttle centered
                                             publish_status("takeoff")
                                             print("Takeoff")
@@ -186,8 +178,8 @@ def main():
                                     rospy.loginfo("not in manual mode")
 
                             if i == 5:  # land
-                                if not autonomy_active:  # manual flight active
-                                    if bebop_status == 2 or bebop_status == 1 or bebop_status == 3:  # takeoff, hover, flight
+                                if True: #not autonomy_active:  # manual flight active
+                                    if True: #state_bebop == 2 or state_bebop == 1 or state_bebop == 3:  # takeoff, hover, flight
                                         publish_status("land")
                                         print("Landing")
                                         rospy.loginfo("Landing")
@@ -200,7 +192,7 @@ def main():
 
                             elif i == 6:  # enter manual mode
                                 if autonomy_active:  # autonomous flight active
-                                    if axis_throttleL == 0:  # throttle centered
+                                    if True:# axis_throttleL == 0:  # throttle centered
                                         autonomy_active = False
                                         autonomy_pub(autonomy_active)
                                     else:
@@ -243,7 +235,7 @@ def main():
                            # send flt_cmd every step
 
         # if in manual mode and hovering or flying, publish commands
-        if (not autonomy_active) and bebop_status == 2 or bebop_status == 3:
+        if (not autonomy_active) and state_bebop == 2 or state_bebop == 3:
             publish_cmd(-axis_pitch, -axis_roll, -axis_throttleL, -axis_yaw)
 
         # run with 20Hz

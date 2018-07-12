@@ -104,17 +104,23 @@ def callback(data):
             start_time = time.time()
 
         if fake_visual_target is None:
+            rospy.loginfo("set visual target")
             global current_position
             bebop_pos = [current_position.position.x, current_position.position.y, current_position.position.z]
             bebop_q = [current_position.orientation.x, current_position.orientation.y, current_position.orientation.z,
                        current_position.orientation.w]
-            virtual_gate = [1,1,0]
+            virtual_gate = [0,-.8,0]
             fake_visual_target = cr.qv_mult(bebop_q,virtual_gate) + bebop_pos
             fake_visual_target = fake_visual_target.tolist()
+            rospy.loginfo("global position: " + str(fake_visual_target))
 
-        if start_time + 15 < time.time():
-            msg.pos = fake_visual_target
-            msg.hdg = 0
+        if start_time + 5 < time.time():
+            state_publisher = rospy.Publisher("/auto/state_machine", Int32, queue_size=1, latch=True)
+            state_publisher.publish(5)
+
+    if current_state == 5:
+        msg.pos = fake_visual_target
+        msg.hdg = 0
 
     publisher.publish(msg)
 
@@ -147,7 +153,7 @@ def main():
     latest_gates = [[0,0,0,0]]
     global publisher
     rospy.Subscriber("/auto/gate_detection_result", Gate_Detection_Msg, callback)
-    publisher = rospy.Publisher("/auto/wp_visual", Waypoint_Msg, queue_size=1)
+    publisher = rospy.Publisher("/auto/wp_visual", Waypoint_Msg, queue_size=1, latch=True)
 
     rate = rospy.Rate(20)
     while True:

@@ -7,18 +7,14 @@
 #           06/27: Drone takes off autonomously, flies to a virtual target and lands after reaching the target
 
 import rospy
-import roslaunch
-import time
 from std_msgs.msg import Empty
-from subprocess import check_output
 from geometry_msgs.msg import Twist
-import pygame
 import signal
 import sys
-import time
 from bebop_msgs.msg import Ardrone3PilotingStateFlyingStateChanged
 from std_msgs.msg import Bool, Int32
 from bebop_auto.msg import Auto_Driving_Msg
+import common_resources as cr
 
 
 def signal_handler(signal, frame):
@@ -92,7 +88,7 @@ def main():
     rospy.Subscriber("/auto/auto_drive", Auto_Driving_Msg, callback_autonomous_drive_msg_changed)
 
     # run with 20Hz
-    rate = rospy.Rate(20)
+    rate = rospy.Rate(cr.frequency)
 
     rospy.loginfo("ready")
 
@@ -100,11 +96,10 @@ def main():
         rate.sleep()
 
         if autonomy_active:
-
             if state_auto == 2:
                 rospy.loginfo("takeoff")
                 publish_status("takeoff")
-            elif state_auto == 5:
+            elif state_auto == 7:
                 rospy.loginfo("land")
                 publish_status("land")
 

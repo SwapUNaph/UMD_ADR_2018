@@ -15,6 +15,9 @@ zRb = tfs.euler_matrix(-math.pi / 2, 0, -math.pi / 2, 'rzyx')
 cam_q = tfs.quaternion_from_matrix(zRb)
 zRb = zRb[:3, :3]
 
+# how fast do scripts run
+frequency = 5
+
 
 # rotate vector by quaternion
 def qv_mult(q1, v1):

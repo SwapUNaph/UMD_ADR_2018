@@ -58,9 +58,9 @@ def list_compare(old,new):
     return new
 
 
-def callback_bebop_state_changed(data):
-    global bebop_status
-    bebop_status = data.state
+def callback_state_bebop_changed(data):
+    global state_bebop
+    state_bebop = data.state
 
 
 def main():
@@ -107,7 +107,7 @@ def main():
     state_auto = None
 
     rospy.Subscriber("/bebop/states/ardrone3/PilotingState/FlyingStateChanged", Ardrone3PilotingStateFlyingStateChanged,
-                     callback_bebop_state_changed)
+                     callback_state_bebop_changed)
     rospy.Subscriber("/auto/state_auto", Int32, callback_state_auto_changed)
 
     # create a global publisher for driving manually
@@ -117,12 +117,16 @@ def main():
     # Wait until connection between ground and air is established
     pub = rospy.Publisher('/auto/state_auto', Int32, queue_size=1, latch=True)
     while state_auto is None:
+        rospy.loginfo("waiting None")
         time.sleep(1)
     while state_auto == 0:
+        rospy.loginfo("waiting 0")
         pub.publish(1)
         time.sleep(1)
     while state_auto == 1:
+        rospy.loginfo("waiting 1")
         time.sleep(1)
+    pub.publish(2)
 
     print("GCS communicating")
     rospy.loginfo("GCS communicating")
@@ -235,8 +239,13 @@ def main():
                            # send flt_cmd every step
 
         # if in manual mode and hovering or flying, publish commands
-        if (not autonomy_active) and state_bebop == 2 or state_bebop == 3:
+        if (not autonomy_active) and (state_bebop == 2 or state_bebop == 3):
             publish_cmd(-axis_pitch, -axis_roll, -axis_throttleL, -axis_yaw)
+            rospy.loginfo("ground publish driving msg")
+            rospy.loginfo(-axis_pitch)
+            rospy.loginfo(-axis_roll)
+            rospy.loginfo(-axis_throttleL)
+            rospy.loginfo(-axis_yaw)
 
         # run with 20Hz
         clock.tick(20)

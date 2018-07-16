@@ -37,11 +37,12 @@ def callback_states_changed(data, args):
 def callback_odometry_merged_changed(data):
     global odometry_merged
     odometry_merged = data
-#
-# from bebop_auto.msg import Gate_Detection_Msg
-# from tf import transformations as tfs
-#
+
 def calculate_visual_wp(wp_visual, wp_visual_old):
+    #
+    # from bebop_auto.msg import Gate_Detection_Msg
+    # from tf import transformations as tfs
+
 
     #     def axang2quat(vector):
     #         length = math.sqrt(vector[0] * vector[0] + vector[1] * vector[1] + vector[2] * vector[2])
@@ -149,8 +150,8 @@ def calculate_visual_wp(wp_visual, wp_visual_old):
 
 
 def calculate_blind_wp(wp_blind, wp_blind_old, wp_visual, wp_visual_old):
-    if state_auto == 2:
-        rospy.loginfo("state 2")
+    if state_auto == 4:
+        rospy.loginfo("state 4")
         if wp_blind is None:
             rospy.loginfo("set fake target")
 
@@ -179,10 +180,10 @@ def calculate_blind_wp(wp_blind, wp_blind_old, wp_visual, wp_visual_old):
         new_heading = 0
         extra_distance = np.array([0.5*math.cos(new_heading), 0.5*math.sin(new_heading), 0])
 
-        wp_blind.x = extra_distance[0] + odometry_merged.position.x
-        wp_blind.y = extra_distance[1] + odometry_merged.position.y
-        wp_blind.z = extra_distance[2] + odometry_merged.position.z
-        wp_blind.hdg = new_heading
+        wp_blind = cr.WP([extra_distance[0] + odometry_merged.position.x,
+                          extra_distance[1] + odometry_merged.position.y,
+                          extra_distance[2] + odometry_merged.position.z],
+                         new_heading)
 
         rospy.loginfo("land at: " + str(wp_blind))
 
@@ -287,11 +288,11 @@ def state_machine_advancement(state_auto, state_bebop, navigation_distance, stat
         wp_blind = None
         rospy.loginfo("visually detected gate")
         state_auto_publisher.publish(state_auto + 1)
-    elif state_auto == 5 and navigation_distance < 0.1:        # drone reached WP, continue to LDG
+    elif state_auto == 5 and navigation_distance < 0.2:        # drone reached WP, continue to LDG
         wp_blind = None
         rospy.loginfo("gate reached")
         state_auto_publisher.publish(state_auto + 1)
-    elif state_auto == 6 and navigation_distance < 0.1:        # drone reached landing location
+    elif state_auto == 6 and navigation_distance < 0.2:        # drone reached landing location
         wp_blind = None
         navigation_active = False
         rospy.loginfo("mission finished")
@@ -312,7 +313,6 @@ if __name__ == '__main__':
 
     rospy.init_node('main_navigation', anonymous=True)
     rate = rospy.Rate(cr.frequency)
-    file_handler = open("main_navigation_log.txt", "a+")
 
     # Publishers
     state_auto_publisher      = rospy.Publisher("/auto/state_auto",      Int32,            queue_size=1, latch=True)
@@ -332,8 +332,8 @@ if __name__ == '__main__':
     wp_visual_old = None
     wp_blind = None
     wp_blind_old = None
+    wp = None
     navigation_active = False
-    navigation_distance = 999
     empty_command = True
     auto_driving_msg = Auto_Driving_Msg()
 
@@ -362,9 +362,6 @@ if __name__ == '__main__':
         # These commands and the sleep are moved from the end (where you might expect),
         # so they will always be executed (also when script results in "continue")
 
-        # state_machine_advancement (if conditions are met: distances, states, ...)
-        [navigation_active, wp_blind] = state_machine_advancement(state_auto, state_bebop, navigation_distance, state_auto_publisher, navigation_active, wp_blind, wp_visual)
-
         if empty_command:
             # send empty commands
             auto_drive_publisher.publish(Auto_Driving_Msg())
@@ -380,11 +377,19 @@ if __name__ == '__main__':
 
         rate.sleep()
 
-        # ensure there is an odometry_merged
-        if odometry_merged is None:
-            rospy.loginfo("No odometry")
-            empty_command = True
-            continue
+        # state_machine_advancement (if conditions are met: distances, states, ...)
+        if wp is not None and odometry_merged is not None:
+            diff_global = [wp.x - odometry_merged.position.x,
+                           wp.y - odometry_merged.position.y,
+                           wp.z - odometry_merged.position.z]
+            navigation_distance = math.sqrt(
+                diff_global[0] * diff_global[0] + diff_global[1] * diff_global[1] + diff_global[2] * diff_global[2])
+        else:
+            navigation_distance = 999
+        rospy.loginfo("navigation_distance")
+        rospy.loginfo(navigation_distance)
+        [navigation_active, wp_blind] = state_machine_advancement(state_auto, state_bebop, navigation_distance, state_auto_publisher, navigation_active, wp_blind, wp_visual)
+
 
         # calculate visual wp
         rospy.loginfo("calculate visual WP")

@@ -86,6 +86,7 @@ def main():
     rospy.Subscriber("/bebop/odom", Odometry, bebop_update)
     rospy.Subscriber("/zed/odom", Odometry, zed_update)
 
+    rospy.loginfo("running")
     rospy.spin()
 
 

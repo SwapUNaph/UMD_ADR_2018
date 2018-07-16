@@ -21,16 +21,57 @@ frequency = 5
 
 # rotate vector by quaternion
 def qv_mult(q1, v1):
-    length = math.sqrt(v1[0]*v1[0]+v1[1]*v1[1]+v1[2]*v1[2])
+    l = length(v1)
     v1 = tfs.unit_vector(v1)
     q2 = list(v1)
     q2.append(0.0)
-    return tfs.quaternion_multiply(tfs.quaternion_multiply(q1, q2), tfs.quaternion_conjugate(q1))[:3] * length
+    return tfs.quaternion_multiply(tfs.quaternion_multiply(q1, q2), tfs.quaternion_conjugate(q1))[:3] * l
+
+
+def axang2quat(vector):
+    l = length(vector)
+    s = math.sin(l / 2)
+    x = vector[0] / l * s
+    y = vector[1] / l * s
+    z = vector[2] / l * s
+    w = math.cos(l / 2)
+    return [x, y, z, w]
+
+
+def length(list):
+    return math.sqrt(list[0] * list[0] + list[1] * list[1] + list[2] * list[2])
+
+
+def find_average(latest_gates):
+    # transpose latest_gates
+    count = len(latest_gates)
+
+    pos = np.array([0, 0, 0])
+    sin = 0
+    cos = 0
+    for gate in latest_gates:
+        pos = pos + gate.pos
+        sin = sin + math.sin(gate.hdg)
+        cos = cos + math.cos(gate.hdg)
+
+    pos = pos/count
+    angle = math.atan2(sin, cos)
+    if angle < 0:
+        angle = angle + 2*math.pi
+
+    return WP(pos, angle)
 
 
 class WP:
     def __init__(self, pos, hdg):
-        self.x = pos[0]
-        self.y = pos[1]
-        self.z = pos[2]
+        self.pos = np.array(pos)
         self.hdg = hdg
+
+    def __str__(self):
+        return str(self.pos) + " and " + str(self.hdg*180/math.pi)
+
+class Gate_Detection_Info:
+    def __init__(self, data):
+        self.tvec = data.tvec
+        self.rvec = data.rvec
+        self.bebop_pose = data.bebop_pose

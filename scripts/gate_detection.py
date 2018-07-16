@@ -82,9 +82,9 @@ def mask_image(rgb, enc):
     # upper_color = np.array([180, 150, 150])  # blue
     # lower_color = np.array([6, 230, 110])  # orange 2D
     # upper_color = np.array([14, 255, 200])  # orange 2D
-    lower_color1 = np.array([0, 180, 150])  # orange 3D
+    lower_color1 = np.array([0, 150, 100])  # orange 3D
     upper_color1 = np.array([20, 255, 255])  # orange 3D
-    lower_color2 = np.array([170, 180, 150])  # orange 3D
+    lower_color2 = np.array([170, 150, 100])  # orange 3D
     upper_color2 = np.array([180, 255, 255])  # orange 3D
 
     mask1 = cv2.inRange(hsv, lower_color1, upper_color1)
@@ -110,6 +110,7 @@ def mask_image(rgb, enc):
 
     # Bitwise-AND mask and original image only for fun
     global image_pub_dev1
+    global bridge
     output_im = bridge.cv2_to_imgmsg(mask, encoding="8UC1")
     image_pub_dev1.publish(output_im)
 
@@ -274,7 +275,7 @@ def stereo_callback(data):
     msg = Gate_Detection_Msg()
     msg.tvec = tvec
     msg.rvec = rvec
-    msg.Pose = this_pose
+    msg.bebop_pose = this_pose
     result_publisher.publish(msg)
 
     # draw a line sticking out of the plane

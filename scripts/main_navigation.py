@@ -82,7 +82,10 @@ def calculate_visual_wp(wp_visual, wp_visual_old, gate_detection_info, wp_visual
 
         current_wp = cr.WP(gate_global_p, heading_of_gate)
 
-        distance = cr.length(gate_global_p - wp_visual_history[-1].pos)
+        distance = 999
+        if wp_visual_history is not None:
+            distance = cr.length(gate_global_p - wp_visual_history[-1].pos)
+
         if distance > 0.5:
             wp_visual_history = [current_wp]
         else:
@@ -321,7 +324,7 @@ if __name__ == '__main__':
 
         # state_machine_advancement (if conditions are met: distances, states, ...)
         if wp is not None and odometry_merged is not None:
-            diff_global = wp - [odometry_merged.position.x, odometry_merged.position.y, odometry_merged.position.z]
+            diff_global = wp.pos - [odometry_merged.position.x, odometry_merged.position.y, odometry_merged.position.z]
             navigation_distance = cr.length(diff_global)
         else:
             navigation_distance = 999

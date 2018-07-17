@@ -7,14 +7,12 @@
 
 import rospy
 from geometry_msgs.msg import Pose
-from std_msgs.msg import Float32MultiArray
 from sensor_msgs.msg import Image, CameraInfo
 import cv2
 import numpy as np
 from cv_bridge import CvBridge, CvBridgeError
 import math
 import matplotlib.pyplot as plt
-import time
 from bebop_auto.msg import Gate_Detection_Msg
 
 import signal
@@ -136,6 +134,10 @@ def stereo_callback(data):
     global result_publisher
     global rvec
     global tvec
+
+    if latest_pose is None:
+        return
+
     this_pose = latest_pose
 
     # convert image msg to matrix
@@ -228,6 +230,7 @@ def stereo_callback(data):
     dist_coeffs = np.zeros((4, 1))
 
     square_side = 1.03
+    square_side = .12
     if len(corners) < 3:
         print "Found only two points or less"
         valid_last_orientation = False
@@ -277,6 +280,7 @@ def stereo_callback(data):
     msg.rvec = rvec
     msg.bebop_pose = this_pose
     result_publisher.publish(msg)
+    print("detected")
 
     # draw a line sticking out of the plane
     (center_point_2D_base, _) = cv2.projectPoints(np.array([(.0, .0, 0)]), rvec, tvec, camera_matrix, dist_coeffs)
@@ -351,6 +355,7 @@ def main():
     global bridge
     bridge = CvBridge()
 
+    rospy.loginfo("running")
     rospy.spin()
 
 if __name__ == '__main__':

@@ -46,7 +46,7 @@ def find_average(latest_gates):
     # transpose latest_gates
     count = len(latest_gates)
 
-    pos = np.array([0, 0, 0])
+    pos = np.array([[0], [0], [0]])
     sin = 0
     cos = 0
     for gate in latest_gates:
@@ -56,8 +56,6 @@ def find_average(latest_gates):
 
     pos = pos/count
     angle = math.atan2(sin, cos)
-    if angle < 0:
-        angle = angle + 2*math.pi
 
     return WP(pos, angle)
 
@@ -72,6 +70,14 @@ class WP:
 
 class Gate_Detection_Info:
     def __init__(self, data):
-        self.tvec = data.tvec
-        self.rvec = data.rvec
+        tvec = np.array(data.tvec)
+        tvec.resize([3, 1])
+        rvec = np.array(data.rvec)
+        rvec.resize([3, 1])
+
+        self.tvec = tvec
+        self.rvec = rvec
         self.bebop_pose = data.bebop_pose
+
+    def __str__(self):
+        return "tvec " + str(self.tvec) + "\nrvec " + str(self.rvec) + "\n" + str(self.bebop_pose)

@@ -56,13 +56,18 @@ def calculate_visual_wp(wp_visual, wp_visual_old, gate_detection_info, wp_visual
     # latest_gates = [[0,0,0,0]]
 
     #
+    rospy.loginfo('gate_detection_info')
+    rospy.loginfo(gate_detection_info)
     if gate_detection_info is None or gate_detection_info.rvec == ():
         wp_visual = None
     else:
         # bebop position and orientation
-        bebop_pos = [gate_detection_info.bebop_pose.position.x, gate_detection_info.bebop_pose.position.y, gate_detection_info.bebop_pose.position.z]
+        bebop_pos = [[gate_detection_info.bebop_pose.position.x], [gate_detection_info.bebop_pose.position.y], [gate_detection_info.bebop_pose.position.z]]
         bebop_q = [gate_detection_info.bebop_pose.orientation.x, gate_detection_info.bebop_pose.orientation.y,
                    gate_detection_info.bebop_pose.orientation.z, gate_detection_info.bebop_pose.orientation.w]
+        # bebop_x_vec = cr.qv_mult(bebop_q, [1, 0, 0])
+        # print 'own_heading'
+        # print math.atan2(-bebop_x_vec[1], bebop_x_vec[0])*180/math.pi
 
         # gate position and orientation
         gate_pos = gate_detection_info.tvec
@@ -71,9 +76,10 @@ def calculate_visual_wp(wp_visual, wp_visual_old, gate_detection_info, wp_visual
         gate_global_p = cr.qv_mult(bebop_q, cr.qv_mult(cr.cam_q, gate_pos) + cr.BZ) + bebop_pos
         gate_global_q = tfs.quaternion_multiply(bebop_q, tfs.quaternion_multiply(cr.cam_q, gate_q))
         gate_normal_vec = cr.qv_mult(gate_global_q, [0, 0, 1])
-        heading_to_gate = math.atan2(gate_pos[1]-bebop_pos[1],gate_pos[0]-bebop_pos[0])
-        heading_of_gate = math.atan2(gate_normal_vec[1],gate_normal_vec[0])
+        heading_to_gate = math.atan2(-(gate_global_p[1]-bebop_pos[1]),gate_global_p[0]-bebop_pos[0])
+        heading_of_gate = math.atan2(-gate_normal_vec[1],gate_normal_vec[0])
         heading_difference = math.fabs(heading_to_gate - heading_of_gate)*180/math.pi
+
         if 90 < heading_difference < 270:
             if heading_of_gate < 0:
                 heading_of_gate = heading_of_gate + math.pi
@@ -90,14 +96,14 @@ def calculate_visual_wp(wp_visual, wp_visual_old, gate_detection_info, wp_visual
             wp_visual_history = [current_wp]
         else:
             wp_visual_history.append(current_wp)
-            if len(wp_visual_history) > 5:
+            if len(wp_visual_history) > 10:
                 del wp_visual_history[0]
 
         wp_visual = cr.find_average(wp_visual_history)
 
     rospy.loginfo("wp_visual")
     rospy.loginfo(wp_visual)
-    return wp_visual, wp_visual_temp
+    return wp_visual, wp_visual_temp, wp_visual_history
 
 
 def calculate_blind_wp(wp_blind, wp_blind_old, wp_visual, wp_visual_old):
@@ -324,7 +330,7 @@ if __name__ == '__main__':
 
         # state_machine_advancement (if conditions are met: distances, states, ...)
         if wp is not None and odometry_merged is not None:
-            diff_global = wp.pos - [odometry_merged.position.x, odometry_merged.position.y, odometry_merged.position.z]
+            diff_global = wp.pos - [[odometry_merged.position.x], [odometry_merged.position.y], [odometry_merged.position.z]]
             navigation_distance = cr.length(diff_global)
         else:
             navigation_distance = 999
@@ -335,7 +341,7 @@ if __name__ == '__main__':
 
         # calculate visual wp
         rospy.loginfo("calculate visual WP")
-        wp_visual, wp_visual_old = calculate_visual_wp(wp_visual, wp_visual_old, gate_detection_info, wp_visual_history)
+        wp_visual, wp_visual_old, wp_visual_history = calculate_visual_wp(wp_visual, wp_visual_old, gate_detection_info, wp_visual_history)
 
         # calculate blind wp
         rospy.loginfo("calculate blind WP")

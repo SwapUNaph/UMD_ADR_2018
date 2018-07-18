@@ -14,6 +14,7 @@ from cv_bridge import CvBridge, CvBridgeError
 import math
 import matplotlib.pyplot as plt
 from bebop_auto.msg import Gate_Detection_Msg
+from std_msgs.msg import Float32MultiArray
 
 import signal
 import sys
@@ -282,6 +283,20 @@ def stereo_callback(data):
     result_publisher.publish(msg)
     print("detected")
 
+    global result_publisher_tvec
+    msg = Float32MultiArray()
+    msg.data = tvec
+    result_publisher_tvec.publish(msg)
+
+    global result_publisher_rvec
+    msg = Float32MultiArray()
+    msg.data = rvec
+    result_publisher_rvec.publish(msg)
+
+    global result_publisher_pose
+    msg = this_pose
+    result_publisher_pose.publish(msg)
+
     # draw a line sticking out of the plane
     (center_point_2D_base, _) = cv2.projectPoints(np.array([(.0, .0, 0)]), rvec, tvec, camera_matrix, dist_coeffs)
     (center_point_2D_back, _) = cv2.projectPoints(np.array([(.0, .0, square_side)]), rvec, tvec, camera_matrix,
@@ -339,6 +354,9 @@ def main():
     global image_pub_dev1
     global image_pub_dev2
     global result_publisher
+    global result_publisher_tvec
+    global result_publisher_rvec
+    global result_publisher_pose
     global latest_pose
     latest_pose = None
 
@@ -351,6 +369,9 @@ def main():
     image_pub_dev2 = rospy.Publisher("/auto/gate_detection_dev2", Image, queue_size=1)
 
     result_publisher = rospy.Publisher("/auto/gate_detection_result", Gate_Detection_Msg, queue_size=1)
+    result_publisher_tvec = rospy.Publisher("/auto/gate_detection_result_tvec", Float32MultiArray, queue_size=1)
+    result_publisher_rvec = rospy.Publisher("/auto/gate_detection_result_rvec", Float32MultiArray, queue_size=1)
+    result_publisher_pose = rospy.Publisher("/auto/gate_detection_result_pose", Pose, queue_size=1)
 
     global bridge
     bridge = CvBridge()

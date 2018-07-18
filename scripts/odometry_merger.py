@@ -19,7 +19,7 @@ def bebop_update(data):
     global cRo, OC
     global zRc, CZ
 
-    no_zed = True
+    no_zed = False
     if no_zed:
         # only publish bebop data, no zed required
         global odometry_merged_publisher

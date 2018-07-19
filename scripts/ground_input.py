@@ -9,9 +9,11 @@ import rospy
 import Tkinter as tk
 import ttk as ttk
 from PIL import ImageTk, Image
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Twist, Pose, PoseStamped, PointStamped, Point
 from std_msgs.msg import Empty
 from nav_msgs.msg import Odometry
+from sensor_msgs.msg import Image
+from bebop_auto.msg import Gate_Detection_Msg, WP_Msg, Auto_Driving_Msg
 from bebop_msgs.msg import Ardrone3CameraStateOrientation
 from bebop_msgs.msg import CommonCommonStateBatteryStateChanged
 from bebop_msgs.msg import CommonCommonStateWifiSignalChanged
@@ -20,8 +22,16 @@ from bebop_msgs.msg import Ardrone3PilotingStateAttitudeChanged
 from bebop_msgs.msg import Ardrone3PilotingStateSpeedChanged
 #from bebop_msgs.msg import OverHeatStateOverHeatChanged
 
+from visualization_msgs.msg import Marker, MarkerArray
+
+import cv2
+import numpy as np
+from cv_bridge import CvBridge, CvBridgeError
+import time
+import math
 import signal
 import sys
+import tf
 
 def signal_handler(signal, frame):
     sys.exit(0)
@@ -39,17 +49,29 @@ class bebop_data:
         rospy.Subscriber("/bebop/states/ardrone3/PilotingState/AttitudeChanged", Ardrone3PilotingStateAttitudeChanged,self.callback, "attitude")
         # rospy.Subscriber("/bebop/states/ardrone3/PilotingState/PositionChanged", Ardrone3PilotingStatePositionChanged,  callback, "position") no updates
         rospy.Subscriber("/bebop/states/ardrone3/PilotingState/SpeedChanged", Ardrone3PilotingStateSpeedChanged,self.callback, "speed")
-        # rospy.Subscriber("/bebop/states/common/OverHeatState/OverHeatChanged",   OverHeatStateOverHeatChanged,callback, "overheat")
-        # rospy.Subscriber("/auto/gate_detection_gate", Image,self.callback, 'Image')
-        rospy.Subscriber("/bebop/image_raw", Image,self.callback, 'Image')
 
-        self.bridge = CvBridge()
-        self.gate_location = [0,0,0,0,0,0]
-        self.pos_data = np.zeros((50,7))
-        
-
+        # rospy.Subscriber("/bebop/states/common/OverHeatState/OverHeatChanged",   OverHeatStateOverHeatChanged,          callback, "overheat")
         # ~states/enable_pilotingstate_flyingstatechanged parameter to true
         # enable the publication of flying state changes to topic states/ARDrone3/PilotingState/FlyingStateChanged
+
+        # rospy.Subscriber("/auto/gate_detection_gate", Image,self.callback, 'Image')
+        rospy.Subscriber("/bebop/image_raw", Image,self.callback, 'Image')
+        rospy.Subscriber("/auto/wp_visual", WP_Msg, self.callback,'wp_visual')
+        rospy.Subscriber("/auto/wp_blind", WP_Msg, self.callback,'wp_blind')
+
+        self.bridge = CvBridge()
+        self.pos_data = np.zeros((1,7))
+        self.max_odom = 200
+        
+
+        self.viz_pub = rospy.Publisher("/auto/rviz/vehicle", MarkerArray, queue_size=1)
+        self.gate_visual_pub = rospy.Publisher("/auto/rviz/gate_visual", MarkerArray, queue_size=1)
+        self.gate_blind_pub = rospy.Publisher("/auto/rviz/gate_blind", MarkerArray, queue_size=1)
+
+
+        # static_transform_publisher x y z qx qy qz qw frame_id child_frame_id  period_in_ms
+        self.tbr = tf.TransformBroadcaster()
+
 
     def callback(self,data,args):
         # rospy.loginfo(rospy.get_caller_id() + "\nI heard %s", data)
@@ -61,18 +83,79 @@ class bebop_data:
             # print("reset pressed")
             pass
         elif args == "odom":
-            print("odometry: ...")
-            print("position")
-            print [data.pose.pose.position.x, data.pose.pose.position.y, data.pose.pose.position.z]
-            print [data.pose.pose.orientation.x, data.pose.pose.orientation.y, data.pose.pose.orientation.z,
-                   data.pose.pose.orientation.w]
-            print [data.twist.twist.linear.x, data.twist.twist.linear.y, data.twist.twist.linear.z]
-            print [data.twist.twist.angular.x, data.twist.twist.angular.y, data.twist.twist.angular.z]
+            self.pos_data = np.insert(self.pos_data, 0, [data.pose.pose.position.x, data.pose.pose.position.y, data.pose.pose.position.z, data.pose.pose.orientation.x, data.pose.pose.orientation.y, data.pose.pose.orientation.z,data.pose.pose.orientation.w],axis=0)
+            if (self.pos_data.shape[0] >= self.max_odom):
+                np.delete(self.pos_data, self.max_odom-1, 0)
 
-            print("---")
+            quat = data.pose.pose.orientation
+            pos = data.pose.pose.position
+            # quat = tf.transformations.quaternion_from_euler(quat.x,quat.y,quat.z,quat.w)
 
-            np.insert(self.pos_data, 0, [data.pose.pose.position.x, data.pose.pose.position.y, data.pose.pose.position.z, data.pose.pose.orientation.x, data.pose.pose.orientation.y, data.pose.pose.orientation.z,data.pose.pose.orientation.w],axis=0)
-            np.delete(self.pos_data, 49, 0)
+            
+            marker_array = MarkerArray()
+
+            point_marker = Marker()
+            point_marker.header.frame_id = "vehicle_frame"
+            point_marker.header.stamp    = rospy.get_rostime()
+            point_marker.ns = "robot"
+            point_marker.id = 0
+            point_marker.type = 2 # sphere
+            point_marker.action = 0
+            point_marker.scale.x = .4
+            point_marker.scale.y = .2
+            point_marker.scale.z = .1
+            point_marker.color.r = 0
+            point_marker.color.g = 0
+            point_marker.color.b = 1
+            point_marker.color.a = 1.0
+            point_marker.lifetime = rospy.Duration(0)
+
+            marker_array.markers.append(point_marker)
+
+            '''
+            # path stuff
+            line_marker = Marker()
+            line_marker.header.frame_id = "my_frame"
+            line_marker.header.stamp    = rospy.get_rostime()
+            line_marker.ns = "robot_odom"
+            line_marker.id = 1
+            line_marker.type = 4
+            line_marker.action = 0
+            point_marker.scale.x = .1
+            point_marker.scale.y = .1
+            point_marker.scale.z = .1
+
+            tempPoint = Point()
+            tempPoint.x = self.pos_data[0,0]
+            tempPoint.y = self.pos_data[0,1]
+            tempPoint.z = self.pos_data[0,2]
+            line_marker.points.append(tempPoint)
+
+            for k in range(1,self.pos_data.shape[0]-1):
+                
+                tempPoint.x = self.pos_data[k,0]
+                tempPoint.y = self.pos_data[k,1]
+                tempPoint.z = self.pos_data[k,2]
+                line_marker.points.append(tempPoint)
+                line_marker.points.append(tempPoint)
+            
+            tempPoint.x = self.pos_data[self.pos_data.shape[0]-1,0]
+            tempPoint.y = self.pos_data[self.pos_data.shape[0]-1,1]
+            tempPoint.z = self.pos_data[self.pos_data.shape[0]-1,2]
+            line_marker.points.append(tempPoint)
+
+
+            line_marker.color.r = 0
+            line_marker.color.g = 0
+            line_marker.color.b = 1
+            line_marker.color.a = 1.0
+            line_marker.lifetime = rospy.Duration(0)
+
+            marker_array.markers.append(line_marker)
+            '''
+
+            self.tbr.sendTransform((0, 0, 0),(0,0,0,1),rospy.get_rostime(),'map',"my_frame")
+            self.tbr.sendTransform((pos.x,pos.y,pos.z),(quat.x,quat.y,quat.z,quat.w),rospy.get_rostime(),'vehicle_frame',"my_frame")
             
         elif args == "cam_orient":
             canvas.coords(cam_ptr, 5.0 / 7.0 * data.pan + 25, -10.0 / 21.0 * data.tilt + 200 / 21)
@@ -85,14 +168,17 @@ class bebop_data:
             bar_rssi.stop()
             value_rssi.set(data.rssi * 2 + 160)
         elif args == "altitude":
-            print("altitude")
-            print data.altitude
+            # print("altitude")
+            # print data.altitude
+            pass
         elif args == "attitude":
-            print("attitude")
-            print [data.roll, data.pitch, data.yaw]
+            # print("attitude")
+            # print [data.roll, data.pitch, data.yaw]
+            pass
         elif args == "speed":
-            print("speed")
-            print [data.speedX, data.speedY, data.speedZ]
+            # print("speed")
+            # print [data.speedX, data.speedY, data.speedZ]
+            pass
         elif args == "overheat":
             print("overheat")
             # print data
@@ -122,6 +208,109 @@ class bebop_data:
             image_space.create_image(0,0, anchor='nw',image=img)
             
         # print(rospy.get_caller_id() + "\n I heard %s", data)
+
+        elif args == 'wp_visual':
+            marker_array = MarkerArray()
+
+            
+            gate_marker_1 = Marker()
+            gate_marker_1.header.frame_id = "gate_frame_visual"
+            gate_marker_1.header.stamp    = rospy.get_rostime()
+            gate_marker_1.ns = "gate_main"
+            gate_marker_1.id = 1
+            gate_marker_1.type = 1
+            gate_marker_1.action = 0
+
+            gate_marker_1.scale.x = .05
+            gate_marker_1.scale.y = 1.0
+            gate_marker_1.scale.z = 1.0
+            gate_marker_1.color.r = 1.0
+            gate_marker_1.color.g = .5
+            gate_marker_1.color.b = 0.0
+            gate_marker_1.color.a = 1.0
+            gate_marker_1.lifetime = rospy.Duration(0)
+            marker_array.markers.append(gate_marker_1)
+            
+            '''stuff ffor moving arm
+            # 
+            theta = math.pi/4.0
+            size = .8
+            gate_marker_2 = Marker()
+            gate_marker_2.header.frame_id = "gate_frame_visual"
+            gate_marker_2.header.stamp    = rospy.get_rostime()
+            gate_marker_2.ns = "gate_arm"
+            gate_marker_2.id = 2
+            gate_marker_2.type = 1
+            gate_marker_2.action = 0
+            gate_marker_2.pose.position.x = -.05
+            gate_marker_2.pose.position.y = -.5*size*math.cos(theta)
+            gate_marker_2.pose.position.z = .5*size*math.sin(theta)
+
+            quat = tf.transformations.quaternion_from_euler(theta, 0, 0)
+            gate_marker_2.pose.orientation.x = quat[0]
+            gate_marker_2.pose.orientation.y = quat[1]
+            gate_marker_2.pose.orientation.z = quat[2]
+            gate_marker_2.pose.orientation.w = quat[3]
+
+            gate_marker_2.scale.x = .05
+            gate_marker_2.scale.y = .05
+            gate_marker_2.scale.z = size
+            gate_marker_2.color.r = 0
+            gate_marker_2.color.g = 1.0
+            gate_marker_2.color.b = 0
+            gate_marker_2.color.a = 1
+            gate_marker_2.lifetime = rospy.Duration(0)            
+            # marker_array.markers.append(gate_marker_2)
+            '''
+
+            # data.pos
+            # data.hdg
+
+            self.gate_visual_pub.publish(marker_array)
+            
+            # self.tbr.sendTransform((data.t[0],data.t[1],data.t[2]),(quat[0],quat[1],quat[2],quat[3]),rospy.get_rostime(),'gate_frame',"my_frame")
+            quat = tf.transformations.quaternion_from_euler(0, 0, data.hdg)
+            self.tbr.sendTransform((data.pos[0],data.pos[1],data.pos[2]),(quat[0],quat[1],quat[2],quat[3]),rospy.get_rostime(),'gate_frame_visual',"my_frame")
+
+
+
+        elif args == 'wp_blind':
+            marker_array = MarkerArray()
+
+            quat = tf.transformations.quaternion_from_euler(data.r[0],data.r[1],data.r[2])
+            
+            gate_marker_1 = Marker()
+            gate_marker_1.header.frame_id = "gate_frame_blind"
+            gate_marker_1.header.stamp    = rospy.get_rostime()
+            gate_marker_1.ns = "wp_blind"
+            gate_marker_1.id = 1
+            gate_marker_1.type = 2
+            gate_marker_1.action = 0
+            # gate_marker_1.pose.position.x = data.t[0]
+            # gate_marker_1.pose.position.y = data.t[1]
+            # gate_marker_1.pose.position.z = data.t[2]
+            # gate_marker_1.pose.orientation.x = data.r[0]
+            # gate_marker_1.pose.orientation.y = data.r[1]
+            # gate_marker_1.pose.orientation.z = data.r[2]
+            # gate_marker_1.pose.orientation.w = 1
+            gate_marker_1.scale.x = .25
+            gate_marker_1.scale.y = .25
+            gate_marker_1.scale.z = .25
+            gate_marker_1.color.r = .5
+            gate_marker_1.color.g = 0
+            gate_marker_1.color.b = 1
+            gate_marker_1.color.a = 1.0
+            gate_marker_1.lifetime = rospy.Duration(0)
+            marker_array.markers.append(gate_marker_1)
+            
+
+            self.gate_blind_pub.publish(marker_array)
+            
+            # self.tbr.sendTransform((data.t[0],data.t[1],data.t[2]),(quat[0],quat[1],quat[2],quat[3]),rospy.get_rostime(),'gate_frame',"my_frame")
+            # quat = tf.transformations.quaternion_from_euler(0, 0, data.hdg)
+            quat = [0,0,0,1]
+            self.tbr.sendTransform((data.pos[0],data.pos[1],data.pos[2]),(quat[0],quat[1],quat[2],quat[3]),rospy.get_rostime(),'gate_frame_blind',"my_frame")
+
 
 def main():
     signal.signal(signal.SIGINT, signal_handler)

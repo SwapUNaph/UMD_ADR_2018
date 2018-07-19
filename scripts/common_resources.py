@@ -46,7 +46,7 @@ def find_average(latest_gates):
     # transpose latest_gates
     count = len(latest_gates)
 
-    pos = np.array([0, 0, 0])
+    pos = np.array([[0], [0], [0]])
     sin = 0
     cos = 0
     for gate in latest_gates:
@@ -56,8 +56,6 @@ def find_average(latest_gates):
 
     pos = pos/count
     angle = math.atan2(sin, cos)
-    if angle < 0:
-        angle = angle + 2*math.pi
 
     return WP(pos, angle)
 
@@ -72,6 +70,52 @@ class WP:
 
 class Gate_Detection_Info:
     def __init__(self, data):
-        self.tvec = data.tvec
-        self.rvec = data.rvec
+        tvec = np.array(data.tvec)
+        tvec.resize([3, 1])
+        rvec = np.array(data.rvec)
+        rvec.resize([3, 1])
+
+        self.tvec = tvec
+        self.rvec = rvec
         self.bebop_pose = data.bebop_pose
+
+    def __str__(self):
+        return "tvec " + str(self.tvec) + "\nrvec " + str(self.rvec) + "\n" + str(self.bebop_pose)
+
+
+
+
+class PID:
+    def __init__(self, P=2.0, I=0.0, D=1.0, Derivator=0, Integrator=0, Integrator_max=1, Integrator_min=-1):
+        self.Kp=P
+        self.Ki=I
+        self.Kd=D
+        self.Derivator=Derivator
+        self.Integrator=Integrator
+        self.Integrator_max=Integrator_max
+        self.Integrator_min=Integrator_min
+        self.error=0.0
+
+    def update(self,err):
+        self.error = err
+
+        self.P_value = self.Kp * self.error
+        self.D_value = self.Kd * ( self.error - self.Derivator)
+        self.Derivator = self.error
+
+        self.Integrator = self.Integrator + self.error
+
+        if self.Integrator > self.Integrator_max:
+            self.Integrator = self.Integrator_max
+        elif self.Integrator < self.Integrator_min:
+            self.Integrator = self.Integrator_min
+
+        self.I_value = self.Integrator * self.Ki
+
+        return [self.P_value, self.I_value, self.D_value]
+        
+
+    def reset(self,set_point):
+        self.set_point = set_point
+        self.Integrator=0
+        self.Derivator=0

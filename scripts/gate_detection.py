@@ -7,15 +7,14 @@
 
 import rospy
 from geometry_msgs.msg import Pose
-from std_msgs.msg import Float32MultiArray
 from sensor_msgs.msg import Image, CameraInfo
 import cv2
 import numpy as np
 from cv_bridge import CvBridge, CvBridgeError
 import math
 import matplotlib.pyplot as plt
-import time
 from bebop_auto.msg import Gate_Detection_Msg
+from std_msgs.msg import Float32MultiArray
 
 import signal
 import sys
@@ -82,9 +81,9 @@ def mask_image(rgb, enc):
     # upper_color = np.array([180, 150, 150])  # blue
     # lower_color = np.array([6, 230, 110])  # orange 2D
     # upper_color = np.array([14, 255, 200])  # orange 2D
-    lower_color1 = np.array([0, 180, 150])  # orange 3D
+    lower_color1 = np.array([0, 150, 100])  # orange 3D
     upper_color1 = np.array([20, 255, 255])  # orange 3D
-    lower_color2 = np.array([170, 180, 150])  # orange 3D
+    lower_color2 = np.array([170, 150, 100])  # orange 3D
     upper_color2 = np.array([180, 255, 255])  # orange 3D
 
     mask1 = cv2.inRange(hsv, lower_color1, upper_color1)
@@ -110,6 +109,7 @@ def mask_image(rgb, enc):
 
     # Bitwise-AND mask and original image only for fun
     global image_pub_dev1
+    global bridge
     output_im = bridge.cv2_to_imgmsg(mask, encoding="8UC1")
     image_pub_dev1.publish(output_im)
 
@@ -135,6 +135,10 @@ def stereo_callback(data):
     global result_publisher
     global rvec
     global tvec
+
+    if latest_pose is None:
+        return
+
     this_pose = latest_pose
 
     # convert image msg to matrix
@@ -227,6 +231,7 @@ def stereo_callback(data):
     dist_coeffs = np.zeros((4, 1))
 
     square_side = 1.03
+    square_side = .12
     if len(corners) < 3:
         print "Found only two points or less"
         valid_last_orientation = False
@@ -274,8 +279,23 @@ def stereo_callback(data):
     msg = Gate_Detection_Msg()
     msg.tvec = tvec
     msg.rvec = rvec
-    msg.Pose = this_pose
+    msg.bebop_pose = this_pose
     result_publisher.publish(msg)
+    print("detected")
+
+    global result_publisher_tvec
+    msg = Float32MultiArray()
+    msg.data = tvec
+    result_publisher_tvec.publish(msg)
+
+    global result_publisher_rvec
+    msg = Float32MultiArray()
+    msg.data = rvec
+    result_publisher_rvec.publish(msg)
+
+    global result_publisher_pose
+    msg = this_pose
+    result_publisher_pose.publish(msg)
 
     # draw a line sticking out of the plane
     (center_point_2D_base, _) = cv2.projectPoints(np.array([(.0, .0, 0)]), rvec, tvec, camera_matrix, dist_coeffs)
@@ -334,6 +354,9 @@ def main():
     global image_pub_dev1
     global image_pub_dev2
     global result_publisher
+    global result_publisher_tvec
+    global result_publisher_rvec
+    global result_publisher_pose
     global latest_pose
     latest_pose = None
 
@@ -346,10 +369,14 @@ def main():
     image_pub_dev2 = rospy.Publisher("/auto/gate_detection_dev2", Image, queue_size=1)
 
     result_publisher = rospy.Publisher("/auto/gate_detection_result", Gate_Detection_Msg, queue_size=1)
+    result_publisher_tvec = rospy.Publisher("/auto/gate_detection_result_tvec", Float32MultiArray, queue_size=1)
+    result_publisher_rvec = rospy.Publisher("/auto/gate_detection_result_rvec", Float32MultiArray, queue_size=1)
+    result_publisher_pose = rospy.Publisher("/auto/gate_detection_result_pose", Pose, queue_size=1)
 
     global bridge
     bridge = CvBridge()
 
+    rospy.loginfo("running")
     rospy.spin()
 
 if __name__ == '__main__':

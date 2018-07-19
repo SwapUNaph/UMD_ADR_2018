@@ -34,6 +34,7 @@ def publish_status(st):
 
     msg = Empty()
     pub.publish(msg)
+    pub.publish(msg)
     print('publish to /bebop/' + st)
     rospy.loginfo('publish to /bebop/' + st)
 
@@ -77,6 +78,7 @@ def main():
     # Global variables for autonomy mode, and the status of the drone and the state machine
     global autonomy_active
     autonomy_active = False
+    flight_command_active = False
     global state_bebop
     state_bebop = 0
     global state_auto
@@ -153,8 +155,7 @@ def main():
     print("GCS communicating")
     rospy.loginfo("GCS communicating")
 
-    done = False
-    while not done:
+    while True:
         # read in axis values
         axis_roll = joystick.get_axis(0)
         axis_pitch = joystick.get_axis(1)
@@ -193,6 +194,7 @@ def main():
                                             publish_status("takeoff")
                                             print("Takeoff")
                                             rospy.loginfo("Takeoff")
+                                            flight_command_active = True
                                         else:
                                             print("center throttle: " + "%.2f" % -axis_throttleL)
                                             rospy.loginfo("center throttle: " + "%.2f" % -axis_throttleL)
@@ -209,6 +211,7 @@ def main():
                                         publish_status("land")
                                         print("Landing")
                                         rospy.loginfo("Landing")
+                                        flight_command_active = False
                                     else:
                                         print("not hovering or taking off or flying")
                                         rospy.loginfo("not hovering or taking off or flying")
@@ -221,6 +224,7 @@ def main():
                                     if True:# axis_throttleL == 0:  # throttle centered
                                         autonomy_active = False
                                         autonomy_pub(autonomy_active)
+                                        flight_command_active = True
                                     else:
                                         print("center throttle: " + "%.2f" % -axis_throttleL)
                                         rospy.loginfo("center throttle: " + "%.2f" % -axis_throttleL)
@@ -233,6 +237,7 @@ def main():
                                     if axis_throttleL == 0:  # throttle centered
                                         autonomy_active = True
                                         autonomy_pub(autonomy_active)
+                                        flight_command_active = False
                                     else:
                                         print("center throttle: " + "%.2f" % -axis_throttleL)
                                         rospy.loginfo("center throttle: " + "%.2f" % -axis_throttleL)
@@ -240,13 +245,11 @@ def main():
                                     print("already in automatic mode")
                                     rospy.loginfo("already in automatic mode")
 
-                            elif i == 11:  # quit
-                                done == True
-
                             elif i == 12:  # emergency
                                 publish_status("reset")
                                 print("Emergency")
                                 rospy.loginfo("Emergency")
+                                flight_command_active = False
 
                             btn_status_old[i] = 1  # reset this button press
 
@@ -261,7 +264,7 @@ def main():
                            # send flt_cmd every step
 
         # if in manual mode and hovering or flying, publish commands
-        if (not autonomy_active) and (state_bebop == 2 or state_bebop == 3):
+        if flight_command_active: #(not autonomy_active) and (state_bebop == 2 or state_bebop == 3):
             publish_cmd(-axis_pitch, -axis_roll, -axis_throttleL, -axis_yaw)
             rospy.loginfo("ground publish driving msg")
             rospy.loginfo(-axis_pitch)

@@ -7,6 +7,7 @@
 
 import rospy
 from geometry_msgs.msg import Pose
+from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Image, CameraInfo
 import cv2
 import numpy as np
@@ -324,8 +325,8 @@ def stereo_callback(data):
 
 def pose_callback(data):
     global latest_pose
-    latest_pose = data
-
+    #latest_pose = data
+    latest_pose = data.pose.pose
 
 def camera_info_update(data):
     global camera_matrix
@@ -361,7 +362,8 @@ def main():
     latest_pose = None
 
     rospy.Subscriber("/zed/left/image_rect_color", Image, stereo_callback)
-    rospy.Subscriber("/auto/odometry_merged", Pose, pose_callback)
+    #rospy.Subscriber("/auto/odometry_merged", Pose, pose_callback)
+    rospy.Subscriber("/bebop/odom", Odometry, pose_callback)
 
     image_pub_threshold = rospy.Publisher("/auto/gate_detection_threshold", Image, queue_size=1)
     image_pub_gate = rospy.Publisher("/auto/gate_detection_gate", Image, queue_size=1)

@@ -13,7 +13,8 @@ import time
 from std_msgs.msg import Int32
 from geometry_msgs.msg import Pose
 from bebop_msgs.msg import Ardrone3PilotingStateFlyingStateChanged
-from bebop_auto.msg import Auto_Driving_Msg, Gate_Detection_Msg
+from bebop_auto.msg import Auto_Driving_Msg, Gate_Detection_Msg, WP_Msg
+from nav_msgs.msg import Odometry
 from tf import transformations as tfs
 import common_resources as cr
 
@@ -103,6 +104,12 @@ def calculate_visual_wp(wp_visual, wp_visual_old, gate_detection_info, wp_visual
 
     rospy.loginfo("wp_visual")
     rospy.loginfo(wp_visual)
+
+    msg = WP_Msg()
+    msg.pos = wp_visual.pos
+    msg.hdg = wp_visual.hdg
+    wp_visual_publisher.publish(msg)
+
     return wp_visual, wp_visual_temp, wp_visual_history
 
 
@@ -114,9 +121,9 @@ def calculate_blind_wp(wp_blind, wp_blind_old, wp_visual, wp_visual_old):
             rospy.loginfo("set fake target")
 
             # implementation exactly reverse as in matlab. Invert necessary when not required in matlab vice versa
-            bebop_pos = [odometry_merged.position.x, odometry_merged.position.y, odometry_merged.position.z]
-            bebop_q = [odometry_merged.orientation.x, odometry_merged.orientation.y, odometry_merged.orientation.z,
-                 odometry_merged.orientation.w]
+            bebop_pos = [odometry_merged.pose.pose.position.x, odometry_merged.pose.pose.position.y, odometry_merged.pose.pose.position.z]
+            bebop_q = [odometry_merged.pose.pose.orientation.x, odometry_merged.pose.pose.orientation.y, odometry_merged.pose.pose.orientation.z,
+                 odometry_merged.pose.pose.orientation.w]
 
             dx0 = [1, 0, 0]
             dx = cr.qv_mult(bebop_q, dx0)
@@ -149,6 +156,12 @@ def calculate_blind_wp(wp_blind, wp_blind_old, wp_visual, wp_visual_old):
 
     rospy.loginfo("wp_blind")
     rospy.loginfo(wp_blind)
+
+    msg = WP_Msg()
+    msg.pos = wp_blind.pos
+    msg.hdg = wp_blind.hdg
+    wp_blind_publisher.publish(msg)
+
     return wp_blind, wp_blind_temp
 
 
@@ -183,32 +196,33 @@ def navigate(odometry_merged, wp):
     # diff_bebop = cr.qv_mult(qi, diff_global)
     # rospy.loginfo("heading to goal " + str(math.atan2(-diff_bebop[1], diff_bebop[0]) * 180 / math.pi))
 
-
     X_limit = .25
     Y_limit = .4
     Z_limit = .75
     R_limit = 1
 
     quat = odometry_merged.pose.pose.orientation
-    angle = tf.transformations.euler_from_quaternion([quat.x,quat.y,quat.z,quat.w])[2]
+    angle = tfs.euler_from_quaternion([quat.x,quat.y,quat.z,quat.w])[2]
 
     global_vel = odometry_merged.twist.twist.linear
     velocity = [global_vel.x*math.cos(angle) - global_vel.y*math.sin(angle),
                 -global_vel.y*math.cos(angle) - global_vel.x*math.sin(angle),
                 global_vel.z]
     # velocity = odometry_merged.twist.twist.linear
-    
 
-    diff_global = [wp.pos[0] - odometry_merged.pose.pose.position.x, wp.pos[1] - odometry_merged.pose.pose.position.y, wp.pos[3] - odometry_merged.position.x,path.position.z]
-    
-    dist = math.hypot(diff_global[0],diff_global[1])
+    diff_global = [wp.pos[0] - odometry_merged.pose.pose.position.x,
+                   wp.pos[1] - odometry_merged.pose.pose.position.y,
+                   wp.pos[3] - odometry_merged.position.x,
+                   path.position.z]
+
+    dist = math.hypot(diff_global[0], diff_global[1])
     
     quat = odometry_merged.pose.pose.orientation
-    angle = tf.transformations.euler_from_quaternion([quat.x,quat.y,quat.z,quat.w])[2]
+    angle = tfs.euler_from_quaternion([quat.x, quat.y, quat.z, quat.w])[2]
 
     gate_theta = wp.hdg
 
-    pos_theta = math.atan2(diff_global[1],diff_global[0])
+    pos_theta = math.atan2(diff_global[1], diff_global[0])
 
     d_theta = gate_theta-pos_theta
     if d_theta > 180:
@@ -218,11 +232,9 @@ def navigate(odometry_merged, wp):
     else:
         pass
 
-
-    y_vel_des = -dist*math.sin(d_theta)
+    y_vel_des = -dist * math.sin(d_theta)
     x_vel_des = -dist*math.cos(d_theta)
     z_error = -diff_global[2]
-
     
     r_error = pos_theta - euler[3]
     if r_error > 180:
@@ -230,28 +242,24 @@ def navigate(odometry_merged, wp):
     elif r_error < 180:
         r_error = -360+r_error
 
-
     y_vel_error = y_vel_des-velocity[1]
     x_vel_error = x_vel_des-velocity[0]
-    
-    msg = Auto_Driving_Msg()
 
     Xcmd = X_PID.update(x_vel_error)
     Ycmd = Y_PID.update(y_vel_error)
 
     # print ' P: ',Xcmd[0],' I: ', Xcmd[1],' D: ', Xcmd[2]
     # print ' P: ',Ycmd[0],' I: ', Ycmd[1],' D: ', Ycmd[2]
-    
-    msg.x = max(min(Xcmd[0]+Xcmd[1]+Xcmd[2], X_limit),-X_limit)
-    msg.y = max(min(Ycmd[0]+Ycmd[1]+Ycmd[2], Y_limit),-Y_limit)
-    msg.z = max(min(Z_PID.update(z_error), Z_limit),-Z_limit)
-    msg.r = max(min(R_PID.update(t_error), R_limit),-R_limit)
-    
 
-    driver_publisher.publish(msg)
+    msg = Auto_Driving_Msg()
+    msg.x = limit_value(Xcmd[0] + Xcmd[1] + Xcmd[2], X_limit)
+    msg.y = limit_value(Ycmd[0] + Ycmd[1] + Ycmd[2], Y_limit)
+    msg.z = limit_value(Z_PID.update(z_error), Z_limit)
+    msg.r = limit_value(R_PID.update(t_error), R_limit)
+    
+    return msg
     # rospy.loginfo("calculated")
     # rospy.loginfo(auto_driving_msg)
-    return auto_driving_msg
 
 
 def limit_value(value, limit):
@@ -348,13 +356,16 @@ if __name__ == '__main__':
 
 
     # Publishers
-    state_auto_publisher      = rospy.Publisher("/auto/state_auto",      Int32,            queue_size=1, latch=True)
-    auto_drive_publisher      = rospy.Publisher("/auto/auto_drive",      Auto_Driving_Msg, queue_size=1, latch=True)
+    state_auto_publisher = rospy.Publisher("/auto/state_auto",  Int32,            queue_size=1, latch=True)
+    auto_drive_publisher = rospy.Publisher("/auto/auto_drive",  Auto_Driving_Msg, queue_size=1, latch=True)
+    wp_visual_publisher  = rospy.Publisher("/auto/wp_visual",   WP_Msg,           queue_size=1, latch=True)
+    wp_blind_publisher   = rospy.Publisher("/auto/wp_blind",    WP_Msg,           queue_size=1, latch=True)
 
     # Subscribers
     rospy.Subscriber("/bebop/states/ardrone3/PilotingState/FlyingStateChanged", Ardrone3PilotingStateFlyingStateChanged, callback_states_changed, "state_bebop")
     rospy.Subscriber("/auto/state_auto", Int32, callback_states_changed, "state_auto")
-    rospy.Subscriber("/auto/odometry_merged", Pose, callback_odometry_merged_changed)
+    #rospy.Subscriber("/auto/odometry_merged", Pose, callback_odometry_merged_changed)
+    rospy.Subscriber("/bebop/odom", Odometry, callback_odometry_merged_changed)
     rospy.Subscriber("/auto/gate_detection_result", Gate_Detection_Msg, callback_visual_detection_changed)
 
     # initializes startup by publishing state 0
@@ -397,7 +408,7 @@ if __name__ == '__main__':
 
         # state_machine_advancement (if conditions are met: distances, states, ...)
         if wp is not None and odometry_merged is not None:
-            diff_global = wp.pos - [[odometry_merged.position.x], [odometry_merged.position.y], [odometry_merged.position.z]]
+            diff_global = wp.pos - [[odometry_merged.pose.pose.position.x], [odometry_merged.pose.pose.position.y], [odometry_merged.pose.pose.position.z]]
             navigation_distance = cr.length(diff_global)
         else:
             navigation_distance = 999
@@ -413,6 +424,7 @@ if __name__ == '__main__':
         # calculate blind wp
         rospy.loginfo("calculate blind WP")
         wp_blind, wp_blind_old = calculate_blind_wp(wp_blind, wp_blind_old, wp_visual, wp_visual_old)
+        pubclih
 
         # select applicable waypoint
         wp = select_waypoint(wp_visual, wp_blind)

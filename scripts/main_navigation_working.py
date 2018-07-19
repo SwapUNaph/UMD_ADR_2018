@@ -14,6 +14,7 @@ from std_msgs.msg import Int32
 from geometry_msgs.msg import Pose
 from bebop_msgs.msg import Ardrone3PilotingStateFlyingStateChanged
 from bebop_auto.msg import Auto_Driving_Msg, Gate_Detection_Msg
+from nav_msgs.msg import Odometry
 from tf import transformations as tfs
 import common_resources as cr
 
@@ -56,18 +57,13 @@ def calculate_visual_wp(wp_visual, wp_visual_old, gate_detection_info, wp_visual
     # latest_gates = [[0,0,0,0]]
 
     #
-    rospy.loginfo('gate_detection_info')
-    rospy.loginfo(gate_detection_info)
     if gate_detection_info is None or gate_detection_info.rvec == ():
         wp_visual = None
     else:
         # bebop position and orientation
-        bebop_pos = [[gate_detection_info.bebop_pose.position.x], [gate_detection_info.bebop_pose.position.y], [gate_detection_info.bebop_pose.position.z]]
+        bebop_pos = [gate_detection_info.bebop_pose.position.x, gate_detection_info.bebop_pose.position.y, gate_detection_info.bebop_pose.position.z]
         bebop_q = [gate_detection_info.bebop_pose.orientation.x, gate_detection_info.bebop_pose.orientation.y,
                    gate_detection_info.bebop_pose.orientation.z, gate_detection_info.bebop_pose.orientation.w]
-        # bebop_x_vec = cr.qv_mult(bebop_q, [1, 0, 0])
-        # print 'own_heading'
-        # print math.atan2(-bebop_x_vec[1], bebop_x_vec[0])*180/math.pi
 
         # gate position and orientation
         gate_pos = gate_detection_info.tvec
@@ -76,10 +72,9 @@ def calculate_visual_wp(wp_visual, wp_visual_old, gate_detection_info, wp_visual
         gate_global_p = cr.qv_mult(bebop_q, cr.qv_mult(cr.cam_q, gate_pos) + cr.BZ) + bebop_pos
         gate_global_q = tfs.quaternion_multiply(bebop_q, tfs.quaternion_multiply(cr.cam_q, gate_q))
         gate_normal_vec = cr.qv_mult(gate_global_q, [0, 0, 1])
-        heading_to_gate = math.atan2(-(gate_global_p[1]-bebop_pos[1]),gate_global_p[0]-bebop_pos[0])
-        heading_of_gate = math.atan2(-gate_normal_vec[1],gate_normal_vec[0])
+        heading_to_gate = math.atan2(gate_pos[1]-bebop_pos[1],gate_pos[0]-bebop_pos[0])
+        heading_of_gate = math.atan2(gate_normal_vec[1],gate_normal_vec[0])
         heading_difference = math.fabs(heading_to_gate - heading_of_gate)*180/math.pi
-
         if 90 < heading_difference < 270:
             if heading_of_gate < 0:
                 heading_of_gate = heading_of_gate + math.pi
@@ -88,22 +83,19 @@ def calculate_visual_wp(wp_visual, wp_visual_old, gate_detection_info, wp_visual
 
         current_wp = cr.WP(gate_global_p, heading_of_gate)
 
-        distance = 999
-        if wp_visual_history is not None:
-            distance = cr.length(gate_global_p - wp_visual_history[-1].pos)
-
+        distance = cr.length(gate_global_p - wp_visual_history[-1].pos)
         if distance > 0.5:
             wp_visual_history = [current_wp]
         else:
             wp_visual_history.append(current_wp)
-            if len(wp_visual_history) > 10:
+            if len(wp_visual_history) > 5:
                 del wp_visual_history[0]
 
         wp_visual = cr.find_average(wp_visual_history)
 
     rospy.loginfo("wp_visual")
     rospy.loginfo(wp_visual)
-    return wp_visual, wp_visual_temp, wp_visual_history
+    return wp_visual, wp_visual_temp
 
 
 def calculate_blind_wp(wp_blind, wp_blind_old, wp_visual, wp_visual_old):
@@ -114,13 +106,13 @@ def calculate_blind_wp(wp_blind, wp_blind_old, wp_visual, wp_visual_old):
             rospy.loginfo("set fake target")
 
             # implementation exactly reverse as in matlab. Invert necessary when not required in matlab vice versa
-            bebop_pos = [odometry_merged.position.x, odometry_merged.position.y, odometry_merged.position.z]
-            bebop_q = [odometry_merged.orientation.x, odometry_merged.orientation.y, odometry_merged.orientation.z,
-                 odometry_merged.orientation.w]
+            bebop_pos = [odometry_merged.pose.pose.position.x, odometry_merged.pose.pose.position.y, odometry_merged.pose.pose.position.z]
+            bebop_q = [odometry_merged.pose.pose.orientation.x, odometry_merged.pose.pose.orientation.y, odometry_merged.pose.pose.orientation.z,
+                 odometry_merged.pose.pose.orientation.w]
 
             dx0 = [1, 0, 0]
             dx = cr.qv_mult(bebop_q, dx0)
-            old_heading = math.atan2(-dx[1], dx(0))
+            old_heading = math.atan2(-dx[1], dx[0])
             new_heading = old_heading + math.pi/2
             if new_heading > 2*math.pi:
                 new_heading = new_heading - 2*math.pi
@@ -165,92 +157,34 @@ def select_waypoint(wp_visual, wp_blind):
 
 
 def navigate(odometry_merged, wp):
-
-    # rospy.loginfo("fly from")
-    # rospy.loginfo(odometry_merged)
-    # rospy.loginfo("fly to")
-    # rospy.loginfo(wp)
+    rospy.loginfo("fly from")
+    rospy.loginfo(odometry_merged.pose.pose)
+    rospy.loginfo("fly to")
+    rospy.loginfo(wp)
     # calculate path to WP
-    # diff_global = wp.pos - [odometry_merged.pose.pose.position.x, odometry_merged.pose.pose.position.y, odometry_merged.pose.pose.position.z]
+    diff_global = wp.pos - [odometry_merged.pose.pose.position.x, odometry_merged.pose.pose.position.y, odometry_merged.pose.pose.position.z]
 
-    # navigation_distance = cr.length(diff_global)
-    # rospy.loginfo("distance " + str(navigation_distance))
+    navigation_distance = cr.length(diff_global)
+    rospy.loginfo("distance " + str(navigation_distance))
 
     # implementation exactly reverse as in matlab. Invert necessary when not required in matlab vice versa
-    # q = [odometry_merged.orientation.x, odometry_merged.orientation.y, odometry_merged.orientation.z, odometry_merged.orientation.w]
-    # qi = [-q[0], -q[1], -q[2], q[3]]
+    q = [odometry_merged.pose.pose.orientation.x, odometry_merged.pose.pose.orientation.y, odometry_merged.pose.pose.orientation.z, odometry_merged.pose.pose.orientation.w]
+    qi = [-q[0], -q[1], -q[2], q[3]]
 
-    # diff_bebop = cr.qv_mult(qi, diff_global)
+    diff_bebop = cr.qv_mult(qi, diff_global)
     # rospy.loginfo("heading to goal " + str(math.atan2(-diff_bebop[1], diff_bebop[0]) * 180 / math.pi))
 
+    # change driving message
+    limit = 0.05
+    gain = 0.05 / 0.5
 
-    X_limit = .25
-    Y_limit = .4
-    Z_limit = .75
-    R_limit = 1
-
-    quat = odometry_merged.pose.pose.orientation
-    angle = tf.transformations.euler_from_quaternion([quat.x,quat.y,quat.z,quat.w])[2]
-
-    global_vel = odometry_merged.twist.twist.linear
-    velocity = [global_vel.x*math.cos(angle) - global_vel.y*math.sin(angle),
-                -global_vel.y*math.cos(angle) - global_vel.x*math.sin(angle),
-                global_vel.z]
-    # velocity = odometry_merged.twist.twist.linear
-    
-
-    diff_global = [wp.pos[0] - odometry_merged.pose.pose.position.x, wp.pos[1] - odometry_merged.pose.pose.position.y, wp.pos[3] - odometry_merged.position.x,path.position.z]
-    
-    dist = math.hypot(diff_global[0],diff_global[1])
-    
-    quat = odometry_merged.pose.pose.orientation
-    angle = tf.transformations.euler_from_quaternion([quat.x,quat.y,quat.z,quat.w])[2]
-
-    gate_theta = wp.hdg
-
-    pos_theta = math.atan2(diff_global[1],diff_global[0])
-
-    d_theta = gate_theta-pos_theta
-    if d_theta > 180:
-        d_theta = 360-d_theta
-    elif d_theta < 180:
-        d_theta = -360+d_theta
-    else:
-        pass
-
-
-    y_vel_des = -dist*math.sin(d_theta)
-    x_vel_des = -dist*math.cos(d_theta)
-    z_error = -diff_global[2]
-
-    
-    r_error = pos_theta - euler[3]
-    if r_error > 180:
-        r_error = 360-r_error
-    elif r_error < 180:
-        r_error = -360+r_error
-
-
-    y_vel_error = y_vel_des-velocity[1]
-    x_vel_error = x_vel_des-velocity[0]
-    
-    msg = Auto_Driving_Msg()
-
-    Xcmd = X_PID.update(x_vel_error)
-    Ycmd = Y_PID.update(y_vel_error)
-
-    # print ' P: ',Xcmd[0],' I: ', Xcmd[1],' D: ', Xcmd[2]
-    # print ' P: ',Ycmd[0],' I: ', Ycmd[1],' D: ', Ycmd[2]
-    
-    msg.x = max(min(Xcmd[0]+Xcmd[1]+Xcmd[2], X_limit),-X_limit)
-    msg.y = max(min(Ycmd[0]+Ycmd[1]+Ycmd[2], Y_limit),-Y_limit)
-    msg.z = max(min(Z_PID.update(z_error), Z_limit),-Z_limit)
-    msg.r = max(min(R_PID.update(t_error), R_limit),-R_limit)
-    
-
-    driver_publisher.publish(msg)
-    # rospy.loginfo("calculated")
-    # rospy.loginfo(auto_driving_msg)
+    auto_driving_msg = Auto_Driving_Msg()
+    auto_driving_msg.x = limit_value(gain * diff_bebop[0], limit)
+    auto_driving_msg.y = limit_value(gain * diff_bebop[1], limit)
+    auto_driving_msg.z = limit_value(gain * diff_bebop[2], limit)
+    auto_driving_msg.r = 0
+    rospy.loginfo("calculated")
+    rospy.loginfo(auto_driving_msg)
     return auto_driving_msg
 
 
@@ -337,15 +271,6 @@ if __name__ == '__main__':
     navigation_active = False
     empty_command = True
     auto_driving_msg = Auto_Driving_Msg()
-    global X_PID
-    global Y_PID
-    global Z_PID
-    global R_PID 
-    X_PID = cr.PID(.08,0,0)
-    Y_PID = cr.PID(.1,0,.5)
-    Z_PID = cr.PID(1,0,0)
-    R_PID = cr.PID(.5,0,1)
-
 
     # Publishers
     state_auto_publisher      = rospy.Publisher("/auto/state_auto",      Int32,            queue_size=1, latch=True)
@@ -354,7 +279,8 @@ if __name__ == '__main__':
     # Subscribers
     rospy.Subscriber("/bebop/states/ardrone3/PilotingState/FlyingStateChanged", Ardrone3PilotingStateFlyingStateChanged, callback_states_changed, "state_bebop")
     rospy.Subscriber("/auto/state_auto", Int32, callback_states_changed, "state_auto")
-    rospy.Subscriber("/auto/odometry_merged", Pose, callback_odometry_merged_changed)
+    #rospy.Subscriber("/auto/odometry_merged", Pose, callback_odometry_merged_changed)
+    rospy.Subscriber("/bebop/odom", Odometry, callback_odometry_merged_changed)
     rospy.Subscriber("/auto/gate_detection_result", Gate_Detection_Msg, callback_visual_detection_changed)
 
     # initializes startup by publishing state 0
@@ -397,7 +323,7 @@ if __name__ == '__main__':
 
         # state_machine_advancement (if conditions are met: distances, states, ...)
         if wp is not None and odometry_merged is not None:
-            diff_global = wp.pos - [[odometry_merged.position.x], [odometry_merged.position.y], [odometry_merged.position.z]]
+            diff_global = wp.pos - [odometry_merged.pose.pose.position.x, odometry_merged.pose.pose.position.y, odometry_merged.pose.pose.position.z]
             navigation_distance = cr.length(diff_global)
         else:
             navigation_distance = 999
@@ -405,10 +331,14 @@ if __name__ == '__main__':
         rospy.loginfo(navigation_distance)
         [navigation_active, wp_blind] = state_machine_advancement(state_auto, state_bebop, navigation_distance, state_auto_publisher, navigation_active, wp_blind, wp_visual)
 
+        if odometry_merged is None:
+            rospy.loginfo("No position")
+            empty_command = True
+            continue
 
         # calculate visual wp
         rospy.loginfo("calculate visual WP")
-        wp_visual, wp_visual_old, wp_visual_history = calculate_visual_wp(wp_visual, wp_visual_old, gate_detection_info, wp_visual_history)
+        wp_visual, wp_visual_old = calculate_visual_wp(wp_visual, wp_visual_old, gate_detection_info, wp_visual_history)
 
         # calculate blind wp
         rospy.loginfo("calculate blind WP")

@@ -33,11 +33,16 @@ def bebop_update(data):
             [data.pose.pose.orientation.x, data.pose.pose.orientation.y, data.pose.pose.orientation.z,
              data.pose.pose.orientation.w])[:3, :3]
         OB = np.array([[data.pose.pose.position.x], [data.pose.pose.position.y], [data.pose.pose.position.z]])
+        bqo = tfs.quaternion_from_matrix(np.vstack((np.hstack((bRo, [[0], [0], [0]])), [0, 0, 0, 1])))
 
         #rospy.loginfo("bRo")
         #rospy.loginfo(bRo)
         #rospy.loginfo("OB")
         #rospy.loginfo(OB)
+
+        file = open('/home/nvidia/log_odom_dry.txt', 'a+')
+        file.write("%f, %f, %f, %f, %f, %f, %f, %f\n" % (OB[0], OB[1], OB[2], bqo[3], bqo[0], bqo[1], bqo[2], 1))
+        file.close()
 
         # calculate position of camera_origin in bebop_origin coordinate system
         if zRc is not None:
@@ -90,8 +95,8 @@ def zed_update(data):
         odometry_merged_publisher.publish(msg)
 
 
-        file = open('log_odom_dry.txt', 'a+')
-        file.write("%f, %f, %f, %f, %f, %f, %f\n" % (OB[0], OB[1], OB[2], bqo[3], bqo[0], bqo[1], bqo[2]))
+        file = open('/home/nvidia/log_odom_dry.txt', 'a+')
+        file.write("%f, %f, %f, %f, %f, %f, %f, %f\n" % (OB[0], OB[1], OB[2], bqo[3], bqo[0], bqo[1], bqo[2], 2))
         file.close()
 
 

@@ -115,7 +115,7 @@ class bebop_data:
             '''
             # path stuff
             line_marker = Marker()
-            line_marker.header.frame_id = "my_frame"
+            line_marker.header.frame_id = "odom"
             line_marker.header.stamp    = rospy.get_rostime()
             line_marker.ns = "robot_odom"
             line_marker.id = 1
@@ -154,8 +154,8 @@ class bebop_data:
             marker_array.markers.append(line_marker)
             '''
 
-            self.tbr.sendTransform((0, 0, 0),(0,0,0,1),rospy.get_rostime(),'map',"my_frame")
-            self.tbr.sendTransform((pos.x,pos.y,pos.z),(quat.x,quat.y,quat.z,quat.w),rospy.get_rostime(),'vehicle_frame',"my_frame")
+            self.tbr.sendTransform((0, 0, 0),(0,0,0,1),rospy.get_rostime(),'map',"odom")
+            self.tbr.sendTransform((pos.x,pos.y,pos.z),(quat.x,quat.y,quat.z,quat.w),rospy.get_rostime(),'vehicle_frame', "odom")
             
         elif args == "cam_orient":
             canvas.coords(cam_ptr, 5.0 / 7.0 * data.pan + 25, -10.0 / 21.0 * data.tilt + 200 / 21)
@@ -268,9 +268,9 @@ class bebop_data:
 
             self.gate_visual_pub.publish(marker_array)
             
-            # self.tbr.sendTransform((data.t[0],data.t[1],data.t[2]),(quat[0],quat[1],quat[2],quat[3]),rospy.get_rostime(),'gate_frame',"my_frame")
+            # self.tbr.sendTransform((data.t[0],data.t[1],data.t[2]),(quat[0],quat[1],quat[2],quat[3]),rospy.get_rostime(),'gate_frame',"odom")
             quat = tf.transformations.quaternion_from_euler(0, 0, data.hdg)
-            self.tbr.sendTransform((data.pos[0],data.pos[1],data.pos[2]),(quat[0],quat[1],quat[2],quat[3]),rospy.get_rostime(),'gate_frame_visual',"my_frame")
+            self.tbr.sendTransform((data.pos[0],data.pos[1],data.pos[2]),(quat[0],quat[1],quat[2],quat[3]),rospy.get_rostime(),'gate_frame_visual',"odom")
 
 
 
@@ -306,10 +306,10 @@ class bebop_data:
 
             self.gate_blind_pub.publish(marker_array)
             
-            # self.tbr.sendTransform((data.t[0],data.t[1],data.t[2]),(quat[0],quat[1],quat[2],quat[3]),rospy.get_rostime(),'gate_frame',"my_frame")
+            # self.tbr.sendTransform((data.t[0],data.t[1],data.t[2]),(quat[0],quat[1],quat[2],quat[3]),rospy.get_rostime(),'gate_frame',"odom")
             # quat = tf.transformations.quaternion_from_euler(0, 0, data.hdg)
             quat = [0,0,0,1]
-            self.tbr.sendTransform((data.pos[0],data.pos[1],data.pos[2]),(quat[0],quat[1],quat[2],quat[3]),rospy.get_rostime(),'gate_frame_blind',"my_frame")
+            self.tbr.sendTransform((data.pos[0],data.pos[1],data.pos[2]),(quat[0],quat[1],quat[2],quat[3]),rospy.get_rostime(),'gate_frame_blind',"odom")
 
 
 def main():

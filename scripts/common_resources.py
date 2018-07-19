@@ -66,7 +66,7 @@ class WP:
         self.hdg = hdg
 
     def __str__(self):
-        return str(self.pos) + " and " + str(self.hdg*180/math.pi)
+        return str(self.pos) + " and " + str(self.hdg)
 
 class Gate_Detection_Info:
     def __init__(self, data):

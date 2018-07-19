@@ -111,7 +111,7 @@ def calculate_blind_wp(wp_blind, wp_blind_old, wp_visual, wp_visual_old):
 
             dx0 = [1, 0, 0]
             dx = cr.qv_mult(bebop_q, dx0)
-            old_heading = math.atan2(-dx[1], dx(0))
+            old_heading = math.atan2(-dx[1], dx[0])
             new_heading = old_heading + math.pi/2
             if new_heading > 2*math.pi:
                 new_heading = new_heading - 2*math.pi

@@ -74,6 +74,45 @@ def main():
     pygame.joystick.init()
     clock = pygame.time.Clock()
 
+    # Global variables for autonomy mode, and the status of the drone and the state machine
+    global autonomy_active
+    autonomy_active = False
+    global state_bebop
+    state_bebop = 0
+    global state_auto
+    state_auto = None
+
+    rospy.Subscriber("/bebop/states/ardrone3/PilotingState/FlyingStateChanged", Ardrone3PilotingStateFlyingStateChanged,
+                     callback_state_bebop_changed)
+    rospy.Subscriber("/auto/state_auto", Int32, callback_state_auto_changed)
+
+    # create a global publisher for driving manually
+    global cmd_vel_pub
+    cmd_vel_pub = rospy.Publisher('/bebop/cmd_vel', Twist, queue_size=1, latch=True)
+    state_auto_pub = rospy.Publisher('/auto/state_auto', Int32, queue_size=1, latch=True)
+
+    # allow starting gcs without joystick
+    start_without_joystick = False
+    if start_without_joystick:
+        while state_auto is None:
+            rospy.loginfo("waiting None")
+            time.sleep(1)
+        while state_auto == 0:
+            rospy.loginfo("waiting 0")
+            state_auto_pub.publish(1)
+            time.sleep(1)
+        while state_auto == 1:
+            rospy.loginfo("waiting 1")
+            time.sleep(1)
+
+            state_auto_pub.publish(2)
+
+        print("GCS communicating")
+        rospy.loginfo("GCS communicating")
+
+        while True:
+            rospy.spin()
+
     # Verify that there is exactly one joystick connected.  Then initialize joystick.
     while pygame.joystick.get_count() != 1:
         print("Connect exactly one joystick")
@@ -98,35 +137,18 @@ def main():
                       joystick.get_button(12),
                       joystick.get_button(13)]
 
-    # Global variables for autonomy mode, and the status of the drone and the state machine
-    global autonomy_active
-    autonomy_active = False
-    global state_bebop
-    state_bebop = 0
-    global state_auto
-    state_auto = None
-
-    rospy.Subscriber("/bebop/states/ardrone3/PilotingState/FlyingStateChanged", Ardrone3PilotingStateFlyingStateChanged,
-                     callback_state_bebop_changed)
-    rospy.Subscriber("/auto/state_auto", Int32, callback_state_auto_changed)
-
-    # create a global publisher for driving manually
-    global cmd_vel_pub
-    cmd_vel_pub = rospy.Publisher('/bebop/cmd_vel', Twist, queue_size=1, latch=True)
-
     # Wait until connection between ground and air is established
-    pub = rospy.Publisher('/auto/state_auto', Int32, queue_size=1, latch=True)
     while state_auto is None:
         rospy.loginfo("waiting None")
         time.sleep(1)
     while state_auto == 0:
         rospy.loginfo("waiting 0")
-        pub.publish(1)
+        state_auto_pub.publish(1)
         time.sleep(1)
     while state_auto == 1:
         rospy.loginfo("waiting 1")
         time.sleep(1)
-    pub.publish(2)
+    state_auto_pub.publish(2)
 
     print("GCS communicating")
     rospy.loginfo("GCS communicating")

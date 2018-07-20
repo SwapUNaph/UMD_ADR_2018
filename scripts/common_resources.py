@@ -60,11 +60,20 @@ def find_average(latest_gates):
     return WP(pos, angle)
 
 
+def min_value(value, minimum):
+    if -minimum < value < 0:
+        return -minimum
+    elif 0 < value < minimum:
+        return minimum
+    else:
+        return value
+
+
 def limit_value(value, limit):
     if value > limit:
         return limit
     elif value < -limit:
-        return limit
+        return -limit
     else:
         return value
 
@@ -75,7 +84,7 @@ class WP:
         self.hdg = hdg
 
     def __str__(self):
-        return str(self.pos) + " and " + str(self.hdg)
+        return str(list(self.pos) + [self.hdg])
 
 
 class Gate_Detection_Info:

@@ -232,7 +232,10 @@ def navigate(odometry_merged, wp):
     else:
         pass
 
-    y_vel_des = -dist * math.sin(d_theta)
+    y_pos_error = -dist * math.sin(d_theta)
+    
+    y_vel_des = nav_PID_y_pos.update(y_pos_error)
+
     x_vel_des = cr.min_value(dist * math.cos(d_theta), 0.15)
     z_error =   diff_global[2]
     
@@ -244,7 +247,7 @@ def navigate(odometry_merged, wp):
 
     # print d_theta,' ',pos_theta,' ',angle,' ',r_error
 
-    y_vel_error = y_vel_des-velocity[1]
+    y_vel_error = sum(y_vel_des)-velocity[1]
     x_vel_error = x_vel_des-velocity[0]
 
     nav_cmd_x = nav_PID_x.update(x_vel_error)
@@ -270,7 +273,10 @@ def navigate(odometry_merged, wp):
                  str(sum(nav_cmd_x)) + ", " + \
                  str(msg.x) + ", " + \
                  str(d_theta) + ", " + \
-                 str(y_vel_des) + ", " + \
+                 str(y_pos_error) + ", " + \
+                 str(y_vel_des[1]) + ", " + \
+                 str(y_vel_des[2]) + ", " + \
+                 str(sum(y_vel_des)) + ", " + \
                  str(velocity[1]) + ", " + \
                  str(y_vel_error) + ", " + \
                  str(nav_cmd_y[0]) + ", " + \
@@ -369,6 +375,7 @@ if __name__ == '__main__':
     wp_blind_old = None
     wp = None
     navigation_active = False
+    nav_PID_y_pos = cr.PID(1, 0, .3)
     nav_PID_x = cr.PID(0.08, 0, 0.0)
     nav_PID_y = cr.PID(0.15, 0, 0.8)
     nav_PID_z = cr.PID(1.00, 0, 0.0)

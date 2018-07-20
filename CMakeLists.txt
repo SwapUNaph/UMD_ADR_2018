@@ -54,6 +54,7 @@ add_message_files(
   Auto_Driving_Msg.msg
   Gate_Detection_Msg.msg
   WP_Msg.msg
+  Float32_Vector_Msg.msg
 )
 
 ## Generate services in the 'srv' folder

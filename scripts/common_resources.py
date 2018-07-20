@@ -60,6 +60,15 @@ def find_average(latest_gates):
     return WP(pos, angle)
 
 
+def limit_value(value, limit):
+    if value > limit:
+        return limit
+    elif value < -limit:
+        return limit
+    else:
+        return value
+
+
 class WP:
     def __init__(self, pos, hdg):
         self.pos = np.array(pos)
@@ -67,6 +76,7 @@ class WP:
 
     def __str__(self):
         return str(self.pos) + " and " + str(self.hdg)
+
 
 class Gate_Detection_Info:
     def __init__(self, data):
@@ -80,42 +90,44 @@ class Gate_Detection_Info:
         self.bebop_pose = data.bebop_pose
 
     def __str__(self):
-        return "tvec " + str(self.tvec) + "\nrvec " + str(self.rvec) + "\n" + str(self.bebop_pose)
-
-
+        return "\ntvec " + str(self.tvec) + "\nrvec " + str(self.rvec) + "\n" + str(self.bebop_pose)
 
 
 class PID:
-    def __init__(self, P=2.0, I=0.0, D=1.0, Derivator=0, Integrator=0, Integrator_max=1, Integrator_min=-1):
-        self.Kp=P
-        self.Ki=I
-        self.Kd=D
-        self.Derivator=Derivator
-        self.Integrator=Integrator
-        self.Integrator_max=Integrator_max
-        self.Integrator_min=Integrator_min
-        self.error=0.0
+    def __init__(self, p=2.0, i=0.0, d=1.0, derivator=0, integrator=0, integrator_max=1, integrator_min=-1):
+        self.kp = p
+        self.ki = i
+        self.kd = d
+        self.derivator = derivator
+        self.integrator = integrator
+        self.integrator_max = integrator_max
+        self.integrator_min = integrator_min
+        self.error = 0.0
 
-    def update(self,err):
+        self.p_value = None
+        self.i_value = None
+        self.d_value = None
+        self.set_point = None
+
+    def update(self, err):
         self.error = err
 
-        self.P_value = self.Kp * self.error
-        self.D_value = self.Kd * ( self.error - self.Derivator)
-        self.Derivator = self.error
+        self.p_value = self.kp * self.error
+        self.d_value = self.kd * (self.error - self.derivator)
+        self.derivator = self.error
 
-        self.Integrator = self.Integrator + self.error
+        self.integrator = self.integrator + self.error
 
-        if self.Integrator > self.Integrator_max:
-            self.Integrator = self.Integrator_max
-        elif self.Integrator < self.Integrator_min:
-            self.Integrator = self.Integrator_min
+        if self.integrator > self.integrator_max:
+            self.integrator = self.integrator_max
+        elif self.integrator < self.integrator_min:
+            self.integrator = self.integrator_min
 
-        self.I_value = self.Integrator * self.Ki
+        self.i_value = self.integrator * self.ki
 
-        return [self.P_value, self.I_value, self.D_value]
-        
+        return [self.p_value, self.i_value, self.d_value]
 
-    def reset(self,set_point):
+    def reset(self, set_point):
         self.set_point = set_point
-        self.Integrator=0
-        self.Derivator=0
+        self.integrator = 0
+        self.derivator = 0

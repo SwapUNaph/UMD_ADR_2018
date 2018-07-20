@@ -67,7 +67,7 @@ class bebop_data:
         self.viz_pub = rospy.Publisher("/auto/rviz/vehicle", MarkerArray, queue_size=1)
         self.gate_visual_pub = rospy.Publisher("/auto/rviz/gate_visual", MarkerArray, queue_size=1)
         self.gate_blind_pub = rospy.Publisher("/auto/rviz/gate_blind", MarkerArray, queue_size=1)
-
+        self.command_viz_pub = rospy.Publisher("/auto/rviz/commands", MarkerArray, queue_size=1)
 
         # static_transform_publisher x y z qx qy qz qw frame_id child_frame_id  period_in_ms
         self.tbr = tf.TransformBroadcaster()
@@ -192,7 +192,87 @@ class bebop_data:
             value_Y.set(data.linear.y)
             value_Z.set(data.linear.z)
             value_R.set(data.angular.r)
+
+            marker_array = MarkerArray()
+
+            gate_marker_1 = Marker()
+            gate_marker_1.header.frame_id = "vehicle_frame"
+            gate_marker_1.header.stamp    = rospy.get_rostime()
+            gate_marker_1.ns = "x_effort"
+            gate_marker_1.id = 1
+            gate_marker_1.type = 2
+            gate_marker_1.action = 0
+            gate_marker_1.pose.position.x = data.linear.x/2
+            gate_marker_1.scale.x = data.linear.x
+            gate_marker_1.scale.y = .1
+            gate_marker_1.scale.z = .1
+            # gate_marker_1.color.r = .5
+            # gate_marker_1.color.g = 0
+            # gate_marker_1.color.b = 1
+            gate_marker_1.color.a = 1.0
+            gate_marker_1.lifetime = rospy.Duration(0)
+            marker_array.markers.append(gate_marker_1)
+
+            gate_marker_2 = Marker()
+            gate_marker_2.header.frame_id = "vehicle_frame"
+            gate_marker_2.header.stamp    = rospy.get_rostime()
+            gate_marker_2.ns = "y_effort"
+            gate_marker_2.id = 1
+            gate_marker_2.type = 2
+            gate_marker_2.action = 0
+            gate_marker_2.pose.position.x = data.linear.y/2
+            gate_marker_2.scale.x = .1
+            gate_marker_2.scale.y = data.linear.y
+            gate_marker_2.scale.z = .1
+            # gate_marker_2.color.r = .5
+            # gate_marker_2.color.g = 0
+            # gate_marker_2.color.b = 1
+            gate_marker_2.color.a = 1.0
+            gate_marker_2.lifetime = rospy.Duration(0)
+            marker_array.markers.append(gate_marker_2)
+
+            gate_marker_3 = Marker()
+            gate_marker_3.header.frame_id = "vehicle_frame"
+            gate_marker_3.header.stamp    = rospy.get_rostime()
+            gate_marker_3.ns = "z_effort"
+            gate_marker_3.id = 1
+            gate_marker_3.type = 2
+            gate_marker_3.action = 0
+            gate_marker_3.pose.position.x = data.linear.x/2
+            gate_marker_3.scale.x = .1
+            gate_marker_3.scale.y = .1
+            gate_marker_3.scale.z = data.linear.x
+            # gate_marker_3.color.r = .5
+            # gate_marker_3.color.g = 0
+            # gate_marker_3.color.b = 1
+            gate_marker_3.color.a = 1.0
+            gate_marker_3.lifetime = rospy.Duration(0)
+            marker_array.markers.append(gate_marker_3)
+
+            gate_marker_4 = Marker()
+            gate_marker_4.header.frame_id = "vehicle_frame"
+            gate_marker_4.header.stamp    = rospy.get_rostime()
+            gate_marker_4.ns = "r_effort"
+            gate_marker_4.id = 1
+            gate_marker_4.type = 2
+            gate_marker_4.action = 0
+            gate_marker_4.pose.position.x = .5
+            gate_marker_4.pose.position.y = data.angular.z/2
+            gate_marker_4.scale.x = .1
+            gate_marker_4.scale.y = data.angular.z
+            gate_marker_4.scale.z = .1
+            # gate_marker_4.color.r = .5
+            # gate_marker_4.color.g = 0
+            # gate_marker_4.color.b = 1
+            gate_marker_4.color.a = 1.0
+            gate_marker_4.lifetime = rospy.Duration(0)
+            marker_array.markers.append(gate_marker_4)
+            
+            self.command_viz_pub.publish(marker_array)
+
+
         elif args == 'Image':
+            '''
             global img
             global image_space
             rgb = self.bridge.imgmsg_to_cv2(data, desired_encoding=data.encoding)
@@ -206,8 +286,7 @@ class bebop_data:
             res2 = PIL.Image.fromarray(res)
             img = ImageTk.PhotoImage(res2)
             image_space.create_image(0,0, anchor='nw',image=img)
-            
-        # print(rospy.get_caller_id() + "\n I heard %s", data)
+            '''
 
         elif args == 'wp_visual':
             marker_array = MarkerArray()

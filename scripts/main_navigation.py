@@ -235,31 +235,33 @@ def navigate(odometry_merged, wp):
 
     d_theta = gate_theta-pos_theta
     if d_theta > math.pi:
-        d_theta = 2*math.pi-d_theta
-    elif d_theta < -math.pi:
         d_theta = -2*math.pi+d_theta
+    elif d_theta < -math.pi:
+        d_theta = 2*math.pi-d_theta
     else:
         pass
 
 
 
     y_vel_des = -dist * math.sin(d_theta)
-    x_vel_des = -dist*math.cos(d_theta)
-    z_error = -diff_global[2]
+    x_vel_des = dist * math.cos(d_theta)
+    z_error =   -diff_global[2]
     
-    r_error = pos_theta - angle
+    r_error = angle - pos_theta
     if r_error > math.pi:
-        r_error = 2*math.pi-r_error
-    elif r_error < -math.pi:
         r_error = -2*math.pi+r_error
+    elif r_error < -math.pi:
+        r_error = 2*math.pi-r_error
 
-    print d_theta,' ',pos_theta,' ',angle,' ',r_error
+    # print d_theta,' ',pos_theta,' ',angle,' ',r_error
 
     y_vel_error = y_vel_des-velocity[1]
     x_vel_error = x_vel_des-velocity[0]
 
     Xcmd = X_PID.update(x_vel_error)
     Ycmd = Y_PID.update(y_vel_error)
+    Zcmd = Y_PID.update(z_error)
+    Rcmd = Y_PID.update(r_error)
 
     # print ' P: ',Xcmd[0],' I: ', Xcmd[1],' D: ', Xcmd[2]
     # print ' P: ',Ycmd[0],' I: ', Ycmd[1],' D: ', Ycmd[2]
@@ -267,9 +269,16 @@ def navigate(odometry_merged, wp):
     msg = Auto_Driving_Msg()
     msg.x = limit_value(Xcmd[0] + Xcmd[1] + Xcmd[2], X_limit)
     msg.y = limit_value(Ycmd[0] + Ycmd[1] + Ycmd[2], Y_limit)
-    msg.z = limit_value(Z_PID.update(z_error), Z_limit)
-    msg.r = limit_value(R_PID.update(r_error), R_limit)
+    msg.z = limit_value(Zcmd[0] + Zcmd[1] + Zcmd[2], Z_limit)
+    msg.r = limit_value(Rcmd[0] + Rcmd[1] + Rcmd[2], R_limit)
     
+
+    global nav_log_publisher
+    # nav_log_publisher.publish([d_theta,x_vel_des,velocity[0],x_vel_error,(Xcmd[0]+Xcmd[1]+Xcmd[2]),msg.x])
+    # nav_log_publisher.publish([d_theta,y_vel_des,velocity[1],y_vel_error,(Ycmd[0]+Ycmd[1]+Ycmd[2]),msg.y])
+    # nav_log_publisher.publish([diff_global,z_error,(Zcmd[0]+Zcmd[1]+Zcmd[2]),msg.z])
+    nav_log_publisher.publish([pos_theta,angle,r_error,(Rcmd[0]+Rcmd[1]+Rcmd[2]),msg.r])
+
     return msg
     # rospy.loginfo("calculated")
     # rospy.loginfo(auto_driving_msg)
@@ -358,6 +367,8 @@ if __name__ == '__main__':
     navigation_active = False
     empty_command = True
     auto_driving_msg = Auto_Driving_Msg()
+
+
     global X_PID
     global Y_PID
     global Z_PID
@@ -366,6 +377,9 @@ if __name__ == '__main__':
     Y_PID = cr.PID(.1,0,.5)
     Z_PID = cr.PID(1,0,0)
     R_PID = cr.PID(.5,0,1)
+
+    global nav_log_publisher
+    nav_log_publisher = rospy.Publisher("/auto/navigation_logger",  float32[])
 
 
     # Publishers

@@ -163,7 +163,7 @@ class PID2:
         self.error = err
 
         self.p_value = self.kp * self.error
-        self.d_value = self.kd * (self.error - (self.derivator + self.derivator2) * 0.5)
+        self.d_value = self.kd * (self.error - self.derivator)*.65 + (self.error - self.derivator2)*.35
         self.derivator = self.error
         self.derivator2 = self.derivator
 

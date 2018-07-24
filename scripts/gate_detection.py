@@ -8,12 +8,13 @@
 import rospy
 from geometry_msgs.msg import Pose
 from nav_msgs.msg import Odometry
+from std_msgs.msg import String
 from sensor_msgs.msg import Image, CameraInfo
 import cv2
 import numpy as np
-from cv_bridge import CvBridge, CvBridgeError
+from cv_bridge import CvBridge
+import time
 import math
-import matplotlib.pyplot as plt
 from bebop_auto.msg import Gate_Detection_Msg
 from std_msgs.msg import Float32MultiArray
 
@@ -68,8 +69,8 @@ def isect_lines(line1, line2):
                 y = y3 + s * (y4 - y3)
 
             except ZeroDivisionError:
-                return -1,-1, -1
-                print "ZeroDivisionError in isect_lines"
+                return -1, -1, -1
+                rospy.loginfo("ZeroDivisionError in isect_lines")
     return x, y
 
 
@@ -82,9 +83,9 @@ def mask_image(rgb, enc):
     # upper_color = np.array([180, 150, 150])  # blue
     # lower_color = np.array([6, 230, 110])  # orange 2D
     # upper_color = np.array([14, 255, 200])  # orange 2D
-    lower_color1 = np.array([0, 150, 100])  # orange 3D
-    upper_color1 = np.array([20, 255, 255])  # orange 3D
-    lower_color2 = np.array([170, 150, 100])  # orange 3D
+    lower_color1 = np.array([0, 100, 130])  # orange 3D
+    upper_color1 = np.array([13, 255, 255])  # orange 3D
+    lower_color2 = np.array([175, 100, 130])  # orange 3D
     upper_color2 = np.array([180, 255, 255])  # orange 3D
 
     mask1 = cv2.inRange(hsv, lower_color1, upper_color1)
@@ -121,9 +122,9 @@ def mask_image(rgb, enc):
 
 
     global image_pub_threshold
-    # res = cv2.bitwise_and(rgb, rgb, mask=sobel_8u)
-    # output_im = bridge.cv2_to_imgmsg(laplacian, encoding="8UC1")
-    # image_pub_threshold.publish(output_im)
+    res = cv2.bitwise_and(rgb, rgb, mask=mask)
+    output_im = bridge.cv2_to_imgmsg(res, encoding="rgb8")
+    image_pub_threshold.publish(output_im)
 
     return mask
 
@@ -136,9 +137,11 @@ def stereo_callback(data):
     global result_publisher
     global rvec
     global tvec
+    global image_pub_gate
 
-    if latest_pose is None:
-        return
+    #if latest_pose is None:
+    #    print("No position")
+    #    return
 
     this_pose = latest_pose
 
@@ -155,8 +158,10 @@ def stereo_callback(data):
     lines = cv2.HoughLinesP(mask, 5, np.pi / 180, 2000, minLineLength=minLineLength, maxLineGap=maxLineGap)
 
     if lines is None:
-        print "no lines"
+        rospy.loginfo("no lines")
         result_publisher.publish(Gate_Detection_Msg())
+        output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
+        image_pub_gate.publish(output_im)
         return
 
     # lines have been found
@@ -194,8 +199,10 @@ def stereo_callback(data):
                     # cv2.circle(rgb, (int(x), int(y)), 1, (255, 255, 255), -1)
 
     if len(corners_long) == 0:  # no corners have been found
-        print "no corners"
+        rospy.loginfo("no corners")
         result_publisher.publish(Gate_Detection_Msg())
+        output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
+        image_pub_gate.publish(output_im)
         return
 
     # corners were found, find average and center
@@ -232,15 +239,19 @@ def stereo_callback(data):
     dist_coeffs = np.zeros((4, 1))
 
     square_side = 1.03
-    square_side = .12
+    square_side = 1.4
     if len(corners) < 3:
-        print "Found only two points or less"
+        rospy.loginfo("Found only two points or less")
         valid_last_orientation = False
         result_publisher.publish(Gate_Detection_Msg())
+        output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
+        image_pub_gate.publish(output_im)
         return
     elif len(corners) == 3 and not valid_last_orientation:
-        print "3 points without a guess"
+        rospy.loginfo("3 points without a guess")
         result_publisher.publish(Gate_Detection_Msg())
+        output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
+        image_pub_gate.publish(output_im)
         return
 
     if len(corners) == 3:
@@ -257,7 +268,7 @@ def stereo_callback(data):
                                              dist_coeffs, rvec, tvec, True,
                                              flags=cv2.SOLVEPNP_ITERATIVE)
         valid_last_orientation = True
-        print success
+        rospy.loginfo(success)
 
     elif len(corners) == 4:
         corner_points = np.array([[corners[0][0], corners[0][1]], [corners[1][0], corners[1][1]],
@@ -280,9 +291,9 @@ def stereo_callback(data):
     msg = Gate_Detection_Msg()
     msg.tvec = tvec
     msg.rvec = rvec
-    msg.bebop_pose = this_pose
+    msg.bebop_pose = Pose()
     result_publisher.publish(msg)
-    print("detected")
+    rospy.loginfo("detected")
 
     global result_publisher_tvec
     msg = Float32MultiArray()
@@ -295,7 +306,7 @@ def stereo_callback(data):
     result_publisher_rvec.publish(msg)
 
     global result_publisher_pose
-    msg = this_pose
+    msg = Pose()
     result_publisher_pose.publish(msg)
 
     # draw a line sticking out of the plane
@@ -318,9 +329,10 @@ def stereo_callback(data):
     # Display the resulting frame
     # cv2.imshow('frame', rgb)
 
-    global image_pub_gate
     output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
     image_pub_gate.publish(output_im)
+
+    time.sleep(0.05)
 
 
 def pose_callback(data):
@@ -362,7 +374,6 @@ def main():
     latest_pose = None
 
     rospy.Subscriber("/zed/left/image_rect_color", Image, stereo_callback)
-    #rospy.Subscriber("/auto/odometry_merged", Pose, pose_callback)
     rospy.Subscriber("/bebop/odom", Odometry, pose_callback)
 
     image_pub_threshold = rospy.Publisher("/auto/gate_detection_threshold", Image, queue_size=1)

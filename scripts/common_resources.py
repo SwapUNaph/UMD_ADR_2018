@@ -31,9 +31,9 @@ def qv_mult(q1, v1):
 def axang2quat(vector):
     l = length(vector)
     s = math.sin(l / 2)
-    x = vector[0] / l * s
-    y = vector[1] / l * s
-    z = vector[2] / l * s
+    x = vector[0][0] / l * s
+    y = vector[1][0] / l * s
+    z = vector[2][0] / l * s
     w = math.cos(l / 2)
     return [x, y, z, w]
 
@@ -43,10 +43,9 @@ def length(list):
 
 
 def find_average(latest_gates):
-    # transpose latest_gates
     count = len(latest_gates)
 
-    pos = np.array([[0], [0], [0]])
+    pos = np.array([0, 0, 0])
     sin = 0
     cos = 0
     for gate in latest_gates:

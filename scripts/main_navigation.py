@@ -47,18 +47,7 @@ def callback_odometry_merged_changed(data):
 def calculate_visual_wp(wp_visual, wp_visual_old, gate_detection_info, wp_visual_history):
     wp_visual_temp = wp_visual
 
-
-    # from tf import transformations as tfs
-
-
-    # maybe average over latest gates
-    # global latest_gates
-    # latest_gates = [[0,0,0,0]]
-
-    #
-    rospy.loginfo('gate_detection_info')
-    rospy.loginfo(gate_detection_info)
-    if gate_detection_info is None or gate_detection_info.rvec == ():
+    if gate_detection_info is None or (gate_detection_info.bebop_pose.position.x == 0 and gate_detection_info.bebop_pose.position.y == 0 and gate_detection_info.bebop_pose.position.z == 0):
         wp_visual = None
     else:
         # bebop position and orientation
@@ -67,8 +56,23 @@ def calculate_visual_wp(wp_visual, wp_visual_old, gate_detection_info, wp_visual
                    gate_detection_info.bebop_pose.orientation.z, gate_detection_info.bebop_pose.orientation.w]
 
         # gate position and orientation
+
+        rospy.loginfo("tvec")
+        rospy.loginfo(gate_detection_info.tvec)
+        rospy.loginfo("rvec")
+        rospy.loginfo(gate_detection_info.rvec)
+
         gate_pos = gate_detection_info.tvec
         gate_q = cr.axang2quat(gate_detection_info.rvec)
+
+        rospy.loginfo("bebop_pos")
+        rospy.loginfo(bebop_pos)
+        rospy.loginfo("bebop_q")
+        rospy.loginfo(bebop_q)
+        rospy.loginfo("gate_pos")
+        rospy.loginfo(gate_pos)
+        rospy.loginfo("gate_q")
+        rospy.loginfo(gate_q)
 
         gate_global_p = cr.qv_mult(bebop_q, cr.qv_mult(cr.cam_q, gate_pos) + cr.BZ) + bebop_pos
         gate_global_q = tfs.quaternion_multiply(bebop_q, tfs.quaternion_multiply(cr.cam_q, gate_q))
@@ -77,13 +81,24 @@ def calculate_visual_wp(wp_visual, wp_visual_old, gate_detection_info, wp_visual
         heading_of_gate = math.atan2(gate_normal_vec[1],gate_normal_vec[0])
         heading_difference = math.fabs(heading_to_gate - heading_of_gate)*180/math.pi
 
+        rospy.loginfo("gate_global_p")
+        rospy.loginfo(gate_global_p)
+        rospy.loginfo("gate_global_q")
+        rospy.loginfo(gate_global_q)
+        rospy.loginfo("gate_normal_vec")
+        rospy.loginfo(gate_normal_vec)
+
         if 90 < heading_difference < 270:
             if heading_of_gate < 0:
                 heading_of_gate = heading_of_gate + math.pi
             else:
                 heading_of_gate = heading_of_gate - math.pi
 
+        gate_global_p = [gate_global_p[0][0], gate_global_p[1][0], gate_global_p[2][0]]
         current_wp = cr.WP(gate_global_p, heading_of_gate)
+
+        rospy.loginfo("current_wp")
+        rospy.loginfo(current_wp)
 
         distance = 999
         if wp_visual_history is not None:
@@ -95,6 +110,9 @@ def calculate_visual_wp(wp_visual, wp_visual_old, gate_detection_info, wp_visual
             wp_visual_history.append(current_wp)
             if len(wp_visual_history) > 10:
                 del wp_visual_history[0]
+
+        rospy.loginfo("distance")
+        rospy.loginfo(distance)
 
         wp_visual = cr.find_average(wp_visual_history)
 
@@ -108,6 +126,28 @@ def calculate_visual_wp(wp_visual, wp_visual_old, gate_detection_info, wp_visual
         msg.pos.z = wp_visual.pos[2]
         msg.hdg = wp_visual.hdg
     wp_visual_publisher.publish(msg)
+
+    if wp_visual is not None:
+        log_string = str(current_wp.pos[0]) + ", " + \
+                     str(current_wp.pos[1]) + ", " + \
+                     str(current_wp.pos[2]) + ", " + \
+                     str(current_wp.hdg) + ", " + \
+                     str(msg.pos.x) + ", " + \
+                     str(msg.pos.y) + ", " + \
+                     str(msg.pos.z) + ", " + \
+                     str(msg.hdg) + ", " + \
+                     str(bebop_pos[0][0]) + ", " + \
+                     str(bebop_pos[1][0]) + ", " + \
+                     str(bebop_pos[2][0]) + ", " + \
+                     str(bebop_q[3]) + ", " + \
+                     str(bebop_q[0]) + ", " + \
+                     str(bebop_q[1]) + ", " + \
+                     str(bebop_q[2]) + ", " + \
+                     str(heading_to_gate)
+    else:
+        log_string = "0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0"
+
+    visual_log_publisher.publish(log_string)
 
     return wp_visual, wp_visual_temp, wp_visual_history
 
@@ -134,14 +174,14 @@ def calculate_blind_wp(wp_blind, wp_blind_old, wp_visual, wp_visual_old):
                 dx = cr.qv_mult(bebop_q, dx0)
 
                 old_heading = math.atan2(dx[1], dx[0])
-                new_heading = old_heading - math.pi/4
+                new_heading = old_heading - 0*math.pi/4
 
                 if new_heading > math.pi:
                     new_heading = new_heading - 2*math.pi
                 elif new_heading < -math.pi:
                     new_heading = new_heading + 2 * math.pi
 
-                blind_position = [1.5, 0, 0]
+                blind_position = [0.5, 0, 1.3]
                 blind_position_global = cr.qv_mult(bebop_q, blind_position) + bebop_pos
                 blind_position_global = blind_position_global.tolist()
 
@@ -158,7 +198,7 @@ def calculate_blind_wp(wp_blind, wp_blind_old, wp_visual, wp_visual_old):
         rospy.loginfo("state 6, set new blind")
         # continue in gate direction for 0.5m
 
-        extra_distance = 0.5 * np.array([[math.cos(wp_blind_old.hdg)], [math.sin(wp_blind_old.hdg)], [0]])
+        extra_distance = 0.6 * np.array([[math.cos(wp_blind_old.hdg)], [math.sin(wp_blind_old.hdg)], [0]])
         wp_blind = cr.WP(wp_blind_old.pos + extra_distance, wp_blind_old.hdg)
 
         rospy.loginfo("land at: " + str(wp_blind))
@@ -207,7 +247,7 @@ def navigate(odometry_merged, wp):
     # diff_bebop = cr.qv_mult(qi, diff_global)
     # rospy.loginfo("heading to goal " + str(math.atan2(-diff_bebop[1], diff_bebop[0]) * 180 / math.pi))
 
-    nav_limit_x = .1 #.25
+    nav_limit_x = .05 #.25
     nav_limit_y = .15 #.4
     nav_limit_z = .1 #.75
     nav_limit_r = .5 #1
@@ -288,14 +328,14 @@ def navigate(odometry_merged, wp):
                  str(msg.y) + ", " + \
                  str(diff_global[2]) + ", " + \
                  str(z_error) + ", " + \
-                 str(nav_cmd_z[2]) + ", " + \
+                 str(nav_cmd_z[0]) + ", " + \
                  str(nav_cmd_z[2]) + ", " + \
                  str(sum(nav_cmd_z)) + ", " + \
                  str(msg.z) + ", " + \
                  str(pos_theta) + ", " + \
                  str(angle) + ", " + \
                  str(r_error) + ", " + \
-                 str(nav_cmd_r[2]) + ", " + \
+                 str(nav_cmd_r[0]) + ", " + \
                  str(nav_cmd_r[2]) + ", " + \
                  str(sum(nav_cmd_r)) + ", " + \
                  str(msg.r)
@@ -398,6 +438,7 @@ if __name__ == '__main__':
     wp_visual_publisher  = rospy.Publisher("/auto/wp_visual",         WP_Msg,             queue_size=1, latch=True)
     wp_blind_publisher   = rospy.Publisher("/auto/wp_blind",          WP_Msg,             queue_size=1, latch=True)
     nav_log_publisher    = rospy.Publisher("/auto/navigation_logger", String,             queue_size=1, latch=True)
+    visual_log_publisher = rospy.Publisher("/auto/visual_logger",     String,             queue_size=1, latch=True)
 
     # Subscribers
     rospy.Subscriber("/bebop/states/ardrone3/PilotingState/FlyingStateChanged", Ardrone3PilotingStateFlyingStateChanged, callback_states_changed, "state_bebop")

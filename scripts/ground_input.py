@@ -38,10 +38,25 @@ def signal_handler(signal, frame):
 
 class bebop_data:
     def __init__(self):
+        self.bridge = CvBridge()
+        self.pos_data = np.zeros((1,7))
+        self.max_odom = 200
+        
+
+        self.viz_pub = rospy.Publisher("/auto/rviz/vehicle", MarkerArray, queue_size=1)
+        self.gate_visual_pub = rospy.Publisher("/auto/rviz/gate_visual", MarkerArray, queue_size=1)
+        self.gate_blind_pub = rospy.Publisher("/auto/rviz/gate_blind", MarkerArray, queue_size=1)
+        self.command_viz_pub = rospy.Publisher("/auto/rviz/commands", MarkerArray, queue_size=1)
+
+        # static_transform_publisher x y z qx qy qz qw frame_id child_frame_id  period_in_ms
+        self.tbr = tf.TransformBroadcaster()
+
+
+
         rospy.Subscriber("/bebop/camera_control", Twist, self.callback, "cam_ctrl")
         rospy.Subscriber("/bebop/reset", Empty, self.callback, "reset")
         rospy.Subscriber("/bebop/odom", Odometry, self.callback, "odom")
-        rospy.Subscriber("/bebop/cmd_vels", Twist, self.callback, "cmds")
+        rospy.Subscriber("/auto/auto_drive", Auto_Driving_Msg, self.callback, "cmds")
         rospy.Subscriber("/bebop/states/ardrone3/CameraState/Orientation", Ardrone3CameraStateOrientation, self.callback,"cam_orient")
         rospy.Subscriber("/bebop/states/common/CommonState/BatteryStateChanged", CommonCommonStateBatteryStateChanged,self.callback, "battery")
         rospy.Subscriber("/bebop/states/common/CommonState/WifiSignalChanged", CommonCommonStateWifiSignalChanged,self.callback, "wifi")
@@ -59,18 +74,7 @@ class bebop_data:
         rospy.Subscriber("/auto/wp_visual", WP_Msg, self.callback,'wp_visual')
         rospy.Subscriber("/auto/wp_blind", WP_Msg, self.callback,'wp_blind')
 
-        self.bridge = CvBridge()
-        self.pos_data = np.zeros((1,7))
-        self.max_odom = 200
         
-
-        self.viz_pub = rospy.Publisher("/auto/rviz/vehicle", MarkerArray, queue_size=1)
-        self.gate_visual_pub = rospy.Publisher("/auto/rviz/gate_visual", MarkerArray, queue_size=1)
-        self.gate_blind_pub = rospy.Publisher("/auto/rviz/gate_blind", MarkerArray, queue_size=1)
-        self.command_viz_pub = rospy.Publisher("/auto/rviz/commands", MarkerArray, queue_size=1)
-
-        # static_transform_publisher x y z qx qy qz qw frame_id child_frame_id  period_in_ms
-        self.tbr = tf.TransformBroadcaster()
 
 
     def callback(self,data,args):
@@ -88,6 +92,7 @@ class bebop_data:
                 np.delete(self.pos_data, self.max_odom-1, 0)
 
             quat = data.pose.pose.orientation
+            # print quat
             pos = data.pose.pose.position
             # quat = tf.transformations.quaternion_from_euler(quat.x,quat.y,quat.z,quat.w)
 
@@ -97,13 +102,15 @@ class bebop_data:
             point_marker = Marker()
             point_marker.header.frame_id = "vehicle_frame"
             point_marker.header.stamp    = rospy.get_rostime()
-            point_marker.ns = "robot"
+            point_marker.ns = "vehicle"
             point_marker.id = 0
             point_marker.type = 2 # sphere
             point_marker.action = 0
+            point_marker.pose.orientation.w = 1
             point_marker.scale.x = .4
             point_marker.scale.y = .2
             point_marker.scale.z = .1
+            # point_marker.pose.orientation.w = 1
             point_marker.color.r = 0
             point_marker.color.g = 0
             point_marker.color.b = 1
@@ -112,18 +119,16 @@ class bebop_data:
 
             marker_array.markers.append(point_marker)
 
-            '''
+            
             # path stuff
             line_marker = Marker()
             line_marker.header.frame_id = "odom"
             line_marker.header.stamp    = rospy.get_rostime()
-            line_marker.ns = "robot_odom"
+            line_marker.ns = "vehicle"
             line_marker.id = 1
             line_marker.type = 4
             line_marker.action = 0
             point_marker.scale.x = .1
-            point_marker.scale.y = .1
-            point_marker.scale.z = .1
 
             tempPoint = Point()
             tempPoint.x = self.pos_data[0,0]
@@ -132,18 +137,18 @@ class bebop_data:
             line_marker.points.append(tempPoint)
 
             for k in range(1,self.pos_data.shape[0]-1):
-                
+                tempPoint = Point()
                 tempPoint.x = self.pos_data[k,0]
                 tempPoint.y = self.pos_data[k,1]
                 tempPoint.z = self.pos_data[k,2]
                 line_marker.points.append(tempPoint)
                 line_marker.points.append(tempPoint)
             
+            tempPoint = Point()
             tempPoint.x = self.pos_data[self.pos_data.shape[0]-1,0]
             tempPoint.y = self.pos_data[self.pos_data.shape[0]-1,1]
             tempPoint.z = self.pos_data[self.pos_data.shape[0]-1,2]
             line_marker.points.append(tempPoint)
-
 
             line_marker.color.r = 0
             line_marker.color.g = 0
@@ -152,20 +157,25 @@ class bebop_data:
             line_marker.lifetime = rospy.Duration(0)
 
             marker_array.markers.append(line_marker)
-            '''
+            
+            self.viz_pub.publish(marker_array)
 
-            self.tbr.sendTransform((0, 0, 0),(0,0,0,1),rospy.get_rostime(),'map',"odom")
+            # self.tbr.sendTransform((0, 0, 0),(0,0,0,1),rospy.get_rostime(),'map',"odom")
             self.tbr.sendTransform((pos.x,pos.y,pos.z),(quat.x,quat.y,quat.z,quat.w),rospy.get_rostime(),'vehicle_frame', "odom")
             
+
+            # print marker_array
+            
         elif args == "cam_orient":
-            canvas.coords(cam_ptr, 5.0 / 7.0 * data.pan + 25, -10.0 / 21.0 * data.tilt + 200 / 21)
+            # canvas.coords(cam_ptr, 5.0 / 7.0 * data.pan + 25, -10.0 / 21.0 * data.tilt + 200 / 21)
+            pass
         elif args == "battery":
             # canvas.itemconfig(bar_batt, mode=determinate)
             bar_batt.stop()
             value_batt.set(data.percent)
         elif args == "wifi":
             # canvas.itemconfig(bar_rssi, mode=determinate)
-            bar_rssi.stop()
+            # bar_rssi.stop()
             value_rssi.set(data.rssi * 2 + 160)
         elif args == "altitude":
             # print("altitude")
@@ -183,32 +193,38 @@ class bebop_data:
             print("overheat")
             # print data
         elif args == 'cmds':
-            global value_Z
-            global value_R
-            global value_X
-            global value_Y
+            # global value_Z
+            # global value_R
+            # global value_X
+            # global value_Y
+            # global bar_throttle
+            # global bar_yaw
 
-            value_X.set(data.linear.x)
-            value_Y.set(data.linear.y)
-            value_Z.set(data.linear.z)
-            value_R.set(data.angular.r)
+            bar_throttle.stop()
+            bar_yaw.stop()
+
+            value_X.set(data.x*50+50)
+            value_Y.set(data.y*25+25)
+            value_Z.set(data.z*50+50)
+            value_R.set(data.r*50+50)
 
             marker_array = MarkerArray()
 
             gate_marker_1 = Marker()
             gate_marker_1.header.frame_id = "vehicle_frame"
             gate_marker_1.header.stamp    = rospy.get_rostime()
-            gate_marker_1.ns = "x_effort"
-            gate_marker_1.id = 1
-            gate_marker_1.type = 2
+            gate_marker_1.ns = "effort"
+            gate_marker_1.id = 0
+            gate_marker_1.type = 1
             gate_marker_1.action = 0
-            gate_marker_1.pose.position.x = data.linear.x/2
-            gate_marker_1.scale.x = data.linear.x
-            gate_marker_1.scale.y = .1
-            gate_marker_1.scale.z = .1
-            # gate_marker_1.color.r = .5
-            # gate_marker_1.color.g = 0
-            # gate_marker_1.color.b = 1
+            gate_marker_1.pose.orientation.w = 1
+            gate_marker_1.pose.position.x = data.x*5/2.0
+            gate_marker_1.scale.x = data.x*5
+            gate_marker_1.scale.y = .04
+            gate_marker_1.scale.z = .04
+            gate_marker_1.color.r = 1
+            gate_marker_1.color.g = 0
+            gate_marker_1.color.b = 1
             gate_marker_1.color.a = 1.0
             gate_marker_1.lifetime = rospy.Duration(0)
             marker_array.markers.append(gate_marker_1)
@@ -216,17 +232,18 @@ class bebop_data:
             gate_marker_2 = Marker()
             gate_marker_2.header.frame_id = "vehicle_frame"
             gate_marker_2.header.stamp    = rospy.get_rostime()
-            gate_marker_2.ns = "y_effort"
+            gate_marker_2.ns = "effort"
             gate_marker_2.id = 1
-            gate_marker_2.type = 2
+            gate_marker_2.type = 1
             gate_marker_2.action = 0
-            gate_marker_2.pose.position.x = data.linear.y/2
-            gate_marker_2.scale.x = .1
-            gate_marker_2.scale.y = data.linear.y
-            gate_marker_2.scale.z = .1
-            # gate_marker_2.color.r = .5
-            # gate_marker_2.color.g = 0
-            # gate_marker_2.color.b = 1
+            gate_marker_2.pose.orientation.w = 1
+            gate_marker_2.pose.position.y = data.y*5/2.0
+            gate_marker_2.scale.x = .04
+            gate_marker_2.scale.y = data.y*5
+            gate_marker_2.scale.z = .04
+            gate_marker_2.color.r = 1
+            gate_marker_2.color.g = 0
+            gate_marker_2.color.b = 1
             gate_marker_2.color.a = 1.0
             gate_marker_2.lifetime = rospy.Duration(0)
             marker_array.markers.append(gate_marker_2)
@@ -234,17 +251,18 @@ class bebop_data:
             gate_marker_3 = Marker()
             gate_marker_3.header.frame_id = "vehicle_frame"
             gate_marker_3.header.stamp    = rospy.get_rostime()
-            gate_marker_3.ns = "z_effort"
-            gate_marker_3.id = 1
-            gate_marker_3.type = 2
+            gate_marker_3.ns = "effort"
+            gate_marker_3.id = 2
+            gate_marker_3.type = 1
             gate_marker_3.action = 0
-            gate_marker_3.pose.position.x = data.linear.x/2
-            gate_marker_3.scale.x = .1
-            gate_marker_3.scale.y = .1
-            gate_marker_3.scale.z = data.linear.x
-            # gate_marker_3.color.r = .5
-            # gate_marker_3.color.g = 0
-            # gate_marker_3.color.b = 1
+            gate_marker_3.pose.orientation.w = 1
+            gate_marker_3.pose.position.z = data.z*5/2.0
+            gate_marker_3.scale.x = .04
+            gate_marker_3.scale.y = .04
+            gate_marker_3.scale.z = data.z*5
+            gate_marker_3.color.r = 1
+            gate_marker_3.color.g = 0
+            gate_marker_3.color.b = 1
             gate_marker_3.color.a = 1.0
             gate_marker_3.lifetime = rospy.Duration(0)
             marker_array.markers.append(gate_marker_3)
@@ -252,18 +270,19 @@ class bebop_data:
             gate_marker_4 = Marker()
             gate_marker_4.header.frame_id = "vehicle_frame"
             gate_marker_4.header.stamp    = rospy.get_rostime()
-            gate_marker_4.ns = "r_effort"
-            gate_marker_4.id = 1
-            gate_marker_4.type = 2
+            gate_marker_4.ns = "effort"
+            gate_marker_4.id = 3
+            gate_marker_4.type = 1
             gate_marker_4.action = 0
+            gate_marker_4.pose.orientation.w = 1
             gate_marker_4.pose.position.x = .5
-            gate_marker_4.pose.position.y = data.angular.z/2
-            gate_marker_4.scale.x = .1
-            gate_marker_4.scale.y = data.angular.z
-            gate_marker_4.scale.z = .1
-            # gate_marker_4.color.r = .5
-            # gate_marker_4.color.g = 0
-            # gate_marker_4.color.b = 1
+            gate_marker_4.pose.position.y = data.r/2
+            gate_marker_4.scale.x = .04
+            gate_marker_4.scale.y = data.z
+            gate_marker_4.scale.z = .04
+            gate_marker_4.color.r = 1
+            gate_marker_4.color.g = 0
+            gate_marker_4.color.b = 1
             gate_marker_4.color.a = 1.0
             gate_marker_4.lifetime = rospy.Duration(0)
             marker_array.markers.append(gate_marker_4)
@@ -295,14 +314,15 @@ class bebop_data:
             gate_marker_1 = Marker()
             gate_marker_1.header.frame_id = "gate_frame_visual"
             gate_marker_1.header.stamp    = rospy.get_rostime()
-            gate_marker_1.ns = "gate_main"
-            gate_marker_1.id = 1
+            gate_marker_1.ns = "gate"
+            gate_marker_1.id = 0
             gate_marker_1.type = 1
             gate_marker_1.action = 0
-
+            gate_marker_1.pose.position.z = .7
+            gate_marker_1.pose.orientation.w = 1
             gate_marker_1.scale.x = .05
-            gate_marker_1.scale.y = 1.0
-            gate_marker_1.scale.z = 1.0
+            gate_marker_1.scale.y = 1.4
+            gate_marker_1.scale.z = .05
             gate_marker_1.color.r = 1.0
             gate_marker_1.color.g = .5
             gate_marker_1.color.b = 0.0
@@ -310,6 +330,79 @@ class bebop_data:
             gate_marker_1.lifetime = rospy.Duration(0)
             marker_array.markers.append(gate_marker_1)
             
+            gate_marker_2 = Marker()
+            gate_marker_2.header.frame_id = "gate_frame_visual"
+            gate_marker_2.header.stamp    = rospy.get_rostime()
+            gate_marker_2.ns = "gate"
+            gate_marker_2.id = 1
+            gate_marker_2.type = 1
+            gate_marker_2.action = 0
+            gate_marker_2.pose.position.y = .7
+            gate_marker_2.pose.position.z = 0
+            gate_marker_2.pose.orientation.w = 1
+            gate_marker_2.scale.x = .05
+            gate_marker_2.scale.y = .04
+            gate_marker_2.scale.z = 1.4
+            gate_marker_2.color.r = 1.0
+            gate_marker_2.color.g = .5
+            gate_marker_2.color.b = 0.0
+            gate_marker_2.color.a = 1.0
+            gate_marker_2.lifetime = rospy.Duration(0)
+            marker_array.markers.append(gate_marker_2)
+
+            gate_marker_3 = Marker()
+            gate_marker_3.header.frame_id = "gate_frame_visual"
+            gate_marker_3.header.stamp    = rospy.get_rostime()
+            gate_marker_3.ns = "gate"
+            gate_marker_3.id = 2
+            gate_marker_3.type = 1
+            gate_marker_3.action = 0
+            gate_marker_3.pose.position.y = -.7
+            gate_marker_3.pose.orientation.w = 1
+            gate_marker_3.scale.x = .05
+            gate_marker_3.scale.y = .05
+            gate_marker_3.scale.z = 1.4
+            gate_marker_3.color.r = 1.0
+            gate_marker_3.color.g = .5
+            gate_marker_3.color.b = 0.0
+            gate_marker_3.color.a = 1.0
+            gate_marker_3.lifetime = rospy.Duration(0)
+            marker_array.markers.append(gate_marker_3)
+
+            gate_marker_4 = Marker()
+            gate_marker_4.header.frame_id = "gate_frame_visual"
+            gate_marker_4.header.stamp    = rospy.get_rostime()
+            gate_marker_4.ns = "gate"
+            gate_marker_4.id = 3
+            gate_marker_4.type = 1
+            gate_marker_4.action = 0
+            gate_marker_4.pose.position.z = -.7
+            gate_marker_4.pose.orientation.w = 1
+            gate_marker_4.scale.x = .05
+            gate_marker_4.scale.y = 1.4
+            gate_marker_4.scale.z = .05
+            gate_marker_4.color.r = 1.0
+            gate_marker_4.color.g = .5
+            gate_marker_4.color.b = 0.0
+            gate_marker_4.color.a = 1.0
+            gate_marker_4.lifetime = rospy.Duration(0)
+            marker_array.markers.append(gate_marker_4)
+
+            gate_marker_n = Marker()
+            gate_marker_n.header.frame_id = "gate_frame_visual"
+            gate_marker_n.header.stamp    = rospy.get_rostime()
+            gate_marker_n.ns = "gate"
+            gate_marker_n.id = 4
+            gate_marker_n.type = 1
+            gate_marker_n.action = 0
+            gate_marker_n.pose.orientation.w = 1
+            gate_marker_n.scale.x = 2
+            gate_marker_n.scale.y = .05
+            gate_marker_n.scale.z = .05
+            gate_marker_n.color.r = 1.0
+            gate_marker_n.color.a = 1.0
+            gate_marker_n.lifetime = rospy.Duration(0)
+            marker_array.markers.append(gate_marker_n)
             '''stuff ffor moving arm
             # 
             theta = math.pi/4.0
@@ -349,29 +442,24 @@ class bebop_data:
             
             # self.tbr.sendTransform((data.t[0],data.t[1],data.t[2]),(quat[0],quat[1],quat[2],quat[3]),rospy.get_rostime(),'gate_frame',"odom")
             quat = tf.transformations.quaternion_from_euler(0, 0, data.hdg)
-            self.tbr.sendTransform((data.pos[0],data.pos[1],data.pos[2]),(quat[0],quat[1],quat[2],quat[3]),rospy.get_rostime(),'gate_frame_visual',"odom")
+            self.tbr.sendTransform((data.pos.x,data.pos.y,data.pos.z),(quat[0],quat[1],quat[2],quat[3]),rospy.get_rostime(),'gate_frame_visual',"odom")
 
 
 
         elif args == 'wp_blind':
             marker_array = MarkerArray()
 
-            quat = tf.transformations.quaternion_from_euler(data.r[0],data.r[1],data.r[2])
+            # quat = [0,0,0,1]
+            quat = tf.transformations.quaternion_from_euler(0, 0, data.hdg)
             
             gate_marker_1 = Marker()
             gate_marker_1.header.frame_id = "gate_frame_blind"
             gate_marker_1.header.stamp    = rospy.get_rostime()
-            gate_marker_1.ns = "wp_blind"
-            gate_marker_1.id = 1
+            gate_marker_1.ns = "wp"
+            gate_marker_1.id = 0
             gate_marker_1.type = 2
             gate_marker_1.action = 0
-            # gate_marker_1.pose.position.x = data.t[0]
-            # gate_marker_1.pose.position.y = data.t[1]
-            # gate_marker_1.pose.position.z = data.t[2]
-            # gate_marker_1.pose.orientation.x = data.r[0]
-            # gate_marker_1.pose.orientation.y = data.r[1]
-            # gate_marker_1.pose.orientation.z = data.r[2]
-            # gate_marker_1.pose.orientation.w = 1
+            gate_marker_1.pose.orientation.w = 1
             gate_marker_1.scale.x = .25
             gate_marker_1.scale.y = .25
             gate_marker_1.scale.z = .25
@@ -381,14 +469,35 @@ class bebop_data:
             gate_marker_1.color.a = 1.0
             gate_marker_1.lifetime = rospy.Duration(0)
             marker_array.markers.append(gate_marker_1)
+
+
+            gate_marker_4 = Marker()
+            gate_marker_4.header.frame_id = "gate_frame_blind"
+            gate_marker_4.header.stamp    = rospy.get_rostime()
+            gate_marker_4.ns = "wp"
+            gate_marker_4.id = 1
+            gate_marker_4.type = 1
+            gate_marker_4.action = 0
+            gate_marker_4.pose.position.x = -.5
+            # gate_marker_4.pose.position.y = 0
+            gate_marker_4.pose.orientation.w = 1
+            gate_marker_4.scale.x = 1
+            gate_marker_4.scale.y = .05
+            gate_marker_4.scale.z = .05
+            gate_marker_4.color.r = 1
+            gate_marker_4.color.g = 0
+            gate_marker_4.color.b = 1
+            gate_marker_4.color.a = 1.0
+            gate_marker_4.lifetime = rospy.Duration(0)
+            marker_array.markers.append(gate_marker_4)
             
 
             self.gate_blind_pub.publish(marker_array)
             
             # self.tbr.sendTransform((data.t[0],data.t[1],data.t[2]),(quat[0],quat[1],quat[2],quat[3]),rospy.get_rostime(),'gate_frame',"odom")
             # quat = tf.transformations.quaternion_from_euler(0, 0, data.hdg)
-            quat = [0,0,0,1]
-            self.tbr.sendTransform((data.pos[0],data.pos[1],data.pos[2]),(quat[0],quat[1],quat[2],quat[3]),rospy.get_rostime(),'gate_frame_blind',"odom")
+            
+            self.tbr.sendTransform((data.pos.x,data.pos.y,data.pos.z),(quat[0],quat[1],quat[2],quat[3]),rospy.get_rostime(),'gate_frame_blind',"odom")
 
 
 def main():
@@ -437,7 +546,7 @@ def main():
 
     state_frame.grid(row=1, column=0)
     cmds_frame.grid(row=2, column=0)
-    image_frame.grid(row=0, column=1,rowspan=4)
+    # image_frame.grid(row=0, column=1,rowspan=4)
     # plot_frame.grid(row=0, column=1,rowspan=5)
     
 
@@ -447,8 +556,8 @@ def main():
     global value_rssi
     global value_batt
     
-    label_rssi = tk.Label(state_frame, text='RSSI')
-    label_batt = tk.Label(state_frame, text='Battery')
+    label_rssi = tk.Label(state_frame, text='Battery')
+    label_batt = tk.Label(state_frame, text='RSSI')
     label_state = tk.Label(state_frame, text='State')
     
     label_state.grid(row=0)
@@ -477,6 +586,8 @@ def main():
     global value_R
     global value_X
     global value_Y
+    global bar_throttle
+    global bar_yaw
     
     value_X = tk.DoubleVar()
     value_Y = tk.DoubleVar()
@@ -488,28 +599,27 @@ def main():
     canvas.create_line(0, 25, 100, 25)
     canvas.create_line(50, 0, 50, 50)
     canvas.create_oval(value_X.get()*50-5, value_Y.get()*25-5, value_X.get()*50+5, value_Y.get()*25+5,fill='red')
-    bar_throttle = ttk.Progressbar(cmds_frame, orient=tk.HORIZONTAL, length=100, mode='determinate', variable=value_Z)
-    bar_yaw = ttk.Progressbar(cmds_frame, orient=tk.HORIZONTAL, length=100, mode='determinate', variable=value_R)
-    bar_throttle.start(interval=10)
-    bar_yaw.start(interval=10)
     canvas.grid(row=0,column=0,columnspan=2)
 
+    bar_throttle = ttk.Progressbar(cmds_frame, orient=tk.HORIZONTAL, length=100, mode='determinate', variable=value_Z)
+    bar_yaw      = ttk.Progressbar(cmds_frame, orient=tk.HORIZONTAL, length=100, mode='determinate', variable=value_R)
+    bar_throttle.start(interval=10)
+    bar_yaw.start(interval=10)
     bar_throttle.grid(row=1,column=1)
     bar_yaw.grid(row=2,column=1)
+
     label_Z = tk.Label(cmds_frame, text='Throttle')
     label_R = tk.Label(cmds_frame, text='Rotation')
     label_Z.grid(row=1,column=0)
     label_R.grid(row=2,column=0)
 
-
-
     # image Panel        
     # global img
-    global image_space
+    # global image_space
     # img = tk.PhotoImage(file='/home/derek/Pictures/dot.png') 
-    image_space = tk.Canvas(image_frame, width=600, height=400)  
+    # image_space = tk.Canvas(image_frame, width=600, height=400)  
     # image_space.create_image(100,100, anchor='nw', image=img)
-    image_space.pack()
+    # image_space.pack()
     
     bebop_data()
 

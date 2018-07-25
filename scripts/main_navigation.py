@@ -324,11 +324,8 @@ def navigate_throu(odometry_merged, wp):
     quat = odometry_merged.pose.pose.orientation
     angle = tfs.euler_from_quaternion(bebop_q)[2]
 
-    global_vel = odometry_merged.twist.twist.linear
-    velocity = [global_vel.x*math.cos(angle) - global_vel.y*math.sin(angle),
-                +global_vel.y*math.cos(angle) + global_vel.x*math.sin(angle),
-                global_vel.z]
-
+    velocity = odometry_merged.twist.twist.linear
+    
     diff_global = wp.pos - [odometry_merged.pose.pose.position.x, odometry_merged.pose.pose.position.y, odometry_merged.pose.pose.position.z]
 
     dist = math.hypot(diff_global[0], diff_global[1])
@@ -362,8 +359,8 @@ def navigate_throu(odometry_merged, wp):
         r_error = 2*math.pi-r_error
 
 
-    y_vel_error = cr.limit_value(sum(y_vel_des), 0.5) - velocity[1]
-    x_vel_error = x_vel_des-velocity[0]
+    y_vel_error = cr.limit_value(sum(y_vel_des), 0.5) - velocity.y
+    x_vel_error = x_vel_des-velocity.x
 
     nav_cmd_x = nav_throu_PID_x.update(x_vel_error)
     nav_cmd_y = nav_throu_PID_y.update(y_vel_error)
@@ -379,7 +376,7 @@ def navigate_throu(odometry_merged, wp):
 
     log_string = str(d_theta) + ", " + \
                  str(x_vel_des) + ", " + \
-                 str(velocity[0]) + ", " + \
+                 str(velocity.x) + ", " + \
                  str(x_vel_error) + ", " + \
                  str(nav_cmd_x[0]) + ", " + \
                  str(nav_cmd_x[2]) + ", " + \
@@ -390,7 +387,7 @@ def navigate_throu(odometry_merged, wp):
                  str(y_vel_des[0]) + ", " + \
                  str(y_vel_des[2]) + ", " + \
                  str(sum(y_vel_des)) + ", " + \
-                 str(velocity[1]) + ", " + \
+                 str(velocity.y) + ", " + \
                  str(y_vel_error) + ", " + \
                  str(nav_cmd_y[0]) + ", " + \
                  str(nav_cmd_y[2]) + ", " + \
@@ -428,12 +425,19 @@ def navigate_point(odometry_merged, wp, wp_look):
     rospy.loginfo("fly to")
     rospy.loginfo(wp)
 
-    global_vel = odometry_merged.twist.twist.linear
+    
+    angle = tfs.euler_from_quaternion(bebop_q)[2]
+    velocity = odometry_merged.twist.twist.linear
+
+    global_vel = [velocity.x*math.cos(-angle) - velocity.y*math.sin(-angle),
+                  velocity.y*math.cos(-angle) + velocity.x*math.sin(-angle),
+                  velocity.z]
+    # global_vel = 
 
     diff_global = wp.pos - [odometry_merged.pose.pose.position.x, odometry_merged.pose.pose.position.y, odometry_merged.pose.pose.position.z]
     diff_global_look = wp_look.pos - [odometry_merged.pose.pose.position.x, odometry_merged.pose.pose.position.y, odometry_merged.pose.pose.position.z]
 
-    angle = tfs.euler_from_quaternion(bebop_q)[2]
+    
     pos_theta = math.atan2(diff_global_look[1], diff_global_look[0])
     
     r_error = -(angle - pos_theta)
@@ -448,8 +452,8 @@ def navigate_point(odometry_merged, wp, wp_look):
     x_vel_des = nav_point_PID_x_pos.update(x_pos_error)
     y_vel_des = nav_point_PID_y_pos.update(y_pos_error)
 
-    x_vel_error = cr.limit_value(sum(x_vel_des), 0.5) - global_vel.x
-    y_vel_error = cr.limit_value(sum(y_vel_des), 0.5) - global_vel.y
+    x_vel_error = cr.limit_value(sum(x_vel_des), 0.5) - global_vel[0]
+    y_vel_error = cr.limit_value(sum(y_vel_des), 0.5) - global_vel[1]
 
     z_error = diff_global[2]
     
@@ -458,8 +462,8 @@ def navigate_point(odometry_merged, wp, wp_look):
     nav_cmd_z = nav_point_PID_z.update(z_error)
     nav_cmd_r = nav_point_PID_r.update(r_error)
 
-    nav_cmd_x_veh = sum(nav_cmd_x)*math.cos(-angle) - sum(nav_cmd_y)*math.sin(-angle)
-    nav_cmd_y_veh = sum(nav_cmd_y)*math.cos(-angle) + sum(nav_cmd_x)*math.sin(-angle)
+    nav_cmd_x_veh = sum(nav_cmd_x)*math.cos(angle) - sum(nav_cmd_y)*math.sin(angle)
+    nav_cmd_y_veh = sum(nav_cmd_y)*math.cos(angle) + sum(nav_cmd_x)*math.sin(angle)
 
     msg = Auto_Driving_Msg()
     msg.x = cr.limit_value(nav_cmd_x_veh, nav_limit_x)
@@ -471,7 +475,7 @@ def navigate_point(odometry_merged, wp, wp_look):
                  str(x_vel_des[0]) + ", " + \
                  str(x_vel_des[2]) + ", " + \
                  str(sum(x_vel_des)) + ", " + \
-                 str(global_vel.x) + ", " + \
+                 str(global_vel[0]) + ", " + \
                  str(x_vel_error) + ", " + \
                  str(nav_cmd_x[0]) + ", " + \
                  str(nav_cmd_x[2]) + ", " + \
@@ -481,7 +485,7 @@ def navigate_point(odometry_merged, wp, wp_look):
                  str(y_vel_des[0]) + ", " + \
                  str(y_vel_des[2]) + ", " + \
                  str(sum(y_vel_des)) + ", " + \
-                 str(global_vel.y) + ", " + \
+                 str(global_vel[1]) + ", " + \
                  str(y_vel_error) + ", " + \
                  str(nav_cmd_y[0]) + ", " + \
                  str(nav_cmd_y[2]) + ", " + \

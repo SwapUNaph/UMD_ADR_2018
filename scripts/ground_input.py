@@ -308,6 +308,9 @@ class bebop_data:
             '''
 
         elif args == 'wp_visual':
+
+        	if data.hdg == 0.0 and data.pos.z ==0:
+        		return
             marker_array = MarkerArray()
 
             
@@ -447,9 +450,12 @@ class bebop_data:
 
 
         elif args == 'wp_blind':
+
+        	if data.hdg == 0.0 and data.pos.z ==0:
+        		return
             marker_array = MarkerArray()
 
-            # quat = [0,0,0,1]
+            
             quat = tf.transformations.quaternion_from_euler(0, 0, data.hdg)
             
             gate_marker_1 = Marker()
@@ -491,7 +497,8 @@ class bebop_data:
             gate_marker_4.lifetime = rospy.Duration(0)
             marker_array.markers.append(gate_marker_4)
             
-
+            # print 'sending blind wp'
+            
             self.gate_blind_pub.publish(marker_array)
             
             # self.tbr.sendTransform((data.t[0],data.t[1],data.t[2]),(quat[0],quat[1],quat[2],quat[3]),rospy.get_rostime(),'gate_frame',"odom")

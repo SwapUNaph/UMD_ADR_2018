@@ -273,11 +273,15 @@ def navigate_throu(odometry_merged, wp):
     else:
         pass
 
-    y_pos_error = -dist * math.sin(d_theta)
-    
+    y_pos_error = -dist * math.sin(d_theta)    
     y_vel_des = nav_throu_PID_y_pos.update(y_pos_error)
 
-    x_vel_des = cr.min_value(dist * math.cos(d_theta), 0.15)
+    x_pos_error = cr.min_value(dist * math.cos(d_theta), 0.15)
+    x_vel_des = x_pos_error
+
+    if abs(.4*x_pos_error)^3+.5 > y_pos_error:
+        x_vel_des = 0        
+
     z_error = diff_global[2]
     
     r_error = -(angle - pos_theta)

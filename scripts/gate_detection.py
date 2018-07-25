@@ -82,11 +82,11 @@ def mask_image(rgb, enc):
     # lower_color = np.array([40, 0, 0])       # blue
     # upper_color = np.array([180, 150, 150])  # blue
     # lower_color = np.array([6, 230, 110])  # orange 2D
-    # upper_color = np.array([14, 255, 200])  # orange 2D
-    lower_color1 = np.array([0, 100, 130])  # orange 3D
-    upper_color1 = np.array([13, 255, 255])  # orange 3D
-    lower_color2 = np.array([175, 100, 130])  # orange 3D
-    upper_color2 = np.array([180, 255, 255])  # orange 3D
+    # upper_color = np.array([14, 25, 200])  # orange 2D
+    lower_color1 = np.array([0, 90, 80])  # orange 3D
+    upper_color1 = np.array([13, 255, 150])  # orange 3D
+    lower_color2 = np.array([170, 90, 80])  # orange 3D 150
+    upper_color2 = np.array([180, 255, 150])  # orange 3D
 
     mask1 = cv2.inRange(hsv, lower_color1, upper_color1)
     mask2 = cv2.inRange(hsv, lower_color2, upper_color2)
@@ -152,10 +152,10 @@ def stereo_callback(data):
     mask = mask_image(rgb, data.encoding)
 
     # probabilistic hough transform
-    minLineLength = 200
+    minLineLength = 100
     maxLineGap = 50
 
-    lines = cv2.HoughLinesP(mask, 5, np.pi / 180, 2000, minLineLength=minLineLength, maxLineGap=maxLineGap)
+    lines = cv2.HoughLinesP(mask, 5, np.pi / 180, 500, minLineLength=minLineLength, maxLineGap=maxLineGap)
 
     if lines is None:
         rospy.loginfo("no lines")

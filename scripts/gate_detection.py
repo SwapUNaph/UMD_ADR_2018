@@ -139,11 +139,15 @@ def stereo_callback(data):
     global tvec
     global image_pub_gate
 
-    #if latest_pose is None:
-    #    print("No position")
-    #    return
+    debug_on = False
 
-    this_pose = latest_pose
+    if debug_on:
+        this_pose = Pose()
+    else:
+        if latest_pose is None:
+            print("No position")
+            return
+        this_pose = latest_pose
 
     # convert image msg to matrix
     rgb = bridge.imgmsg_to_cv2(data, desired_encoding=data.encoding)
@@ -291,7 +295,7 @@ def stereo_callback(data):
     msg = Gate_Detection_Msg()
     msg.tvec = tvec
     msg.rvec = rvec
-    msg.bebop_pose = Pose()
+    msg.bebop_pose = this_pose
     result_publisher.publish(msg)
     rospy.loginfo("detected")
 
@@ -306,7 +310,7 @@ def stereo_callback(data):
     result_publisher_rvec.publish(msg)
 
     global result_publisher_pose
-    msg = Pose()
+    msg = this_pose
     result_publisher_pose.publish(msg)
 
     # draw a line sticking out of the plane
@@ -357,7 +361,7 @@ def main():
 
     global camera_matrix
     camera_matrix = None
-    rospy.Subscriber("/zed/left/camera_info", CameraInfo, camera_info_update)
+    rospy.Subscriber("/zed/rgb/camera_info", CameraInfo, camera_info_update)
 
     global valid_last_orientation
     valid_last_orientation = False
@@ -373,7 +377,7 @@ def main():
     global latest_pose
     latest_pose = None
 
-    rospy.Subscriber("/zed/left/image_rect_color", Image, stereo_callback)
+    rospy.Subscriber("/zed/rgb/image_rect_color", Image, stereo_callback)
     rospy.Subscriber("/bebop/odom", Odometry, pose_callback)
 
     image_pub_threshold = rospy.Publisher("/auto/gate_detection_threshold", Image, queue_size=1)

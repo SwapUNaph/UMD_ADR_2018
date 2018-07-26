@@ -102,7 +102,7 @@ class Gate_Detection_Info:
 
 
 class PID:
-    def __init__(self, p=2.0, i=0.0, d=1.0, derivator=0, integrator=0, integrator_max=1, integrator_min=-1):
+    def __init__(self, p=2.0, i=0.0, d=1.0, derivator=0, integrator=0, integrator_max=.5, integrator_min=-.5):
         self.kp = p
         self.ki = i
         self.kd = d
@@ -142,7 +142,7 @@ class PID:
 
 
 class PID2:
-    def __init__(self, p=2.0, i=0.0, d=1.0, derivator=0, integrator=0, integrator_max=1, integrator_min=-1):
+    def __init__(self, p=2.0, i=0.0, d=1.0, derivator=0, integrator=0, integrator_max=.5, integrator_min=-.5):
         self.kp = p
         self.ki = i
         self.kd = d
@@ -162,7 +162,7 @@ class PID2:
         self.error = err
 
         self.p_value = self.kp * self.error
-        self.d_value = self.kd * (self.error - self.derivator)*.65 + (self.error - self.derivator2)*.35
+        self.d_value = self.kd * ((self.error - self.derivator)*.65 + (self.error - self.derivator2)*.35)
         self.derivator = self.error
         self.derivator2 = self.derivator
 

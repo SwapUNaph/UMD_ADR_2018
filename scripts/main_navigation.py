@@ -53,7 +53,7 @@ def callback_odometry_merged_changed(data):
     global wp_blind_old
     global wp_look
     global navigation_active
-
+    global gate_detection_info
 
     # state_machine_advancement (if conditions are met: distances, states, ...)
     if wp is not None and odometry_merged is not None:
@@ -110,6 +110,7 @@ def callback_odometry_merged_changed(data):
 
 
 def calculate_visual_wp(wp_visual, wp_visual_old, gate_detection_info, wp_visual_history):
+    wp_current = None
     wp_visual_temp = wp_visual
 
     if gate_detection_info is None or (gate_detection_info.bebop_pose.position.x == 0 and gate_detection_info.bebop_pose.position.y == 0 and gate_detection_info.bebop_pose.position.z == 0):
@@ -160,26 +161,27 @@ def calculate_visual_wp(wp_visual, wp_visual_old, gate_detection_info, wp_visual
                 heading_of_gate = heading_of_gate - math.pi
 
         gate_global_p = [gate_global_p[0][0], gate_global_p[1][0], gate_global_p[2][0]]
-        current_wp = cr.WP(gate_global_p, heading_of_gate)
-
-        rospy.loginfo("current_wp")
-        rospy.loginfo(current_wp)
+        wp_current = cr.WP(gate_global_p, heading_of_gate)
 
         distance = 999
         if wp_visual_history is not None:
             distance = cr.length(gate_global_p - wp_visual_history[-1].pos)
 
         if distance > 0.5:
-            wp_visual_history = [current_wp]
+            wp_visual_history = [wp_current]
         else:
-            wp_visual_history.append(current_wp)
+            wp_visual_history.append(wp_current)
             if len(wp_visual_history) > 10:
                 del wp_visual_history[0]
 
         rospy.loginfo("distance")
         rospy.loginfo(distance)
 
-        wp_visual = cr.find_average(wp_visual_history)
+        if len(wp_visual_history) >= 5:
+            wp_visual = cr.find_average(wp_visual_history)
+
+    rospy.loginfo("wp_current")
+    rospy.loginfo(wp_current)
 
     rospy.loginfo("wp_visual")
     rospy.loginfo(wp_visual)
@@ -192,11 +194,19 @@ def calculate_visual_wp(wp_visual, wp_visual_old, gate_detection_info, wp_visual
         msg.hdg = wp_visual.hdg
     wp_visual_publisher.publish(msg)
 
+    msg = WP_Msg()
+    if wp_current is not None:
+        msg.pos.x = wp_current.pos[0]
+        msg.pos.y = wp_current.pos[1]
+        msg.pos.z = wp_current.pos[2]
+        msg.hdg = wp_current.hdg
+    wp_current_publisher.publish(msg)
+
     if wp_visual is not None:
-        log_string = str(current_wp.pos[0]) + ", " + \
-                     str(current_wp.pos[1]) + ", " + \
-                     str(current_wp.pos[2]) + ", " + \
-                     str(current_wp.hdg) + ", " + \
+        log_string = str(wp_current.pos[0]) + ", " + \
+                     str(wp_current.pos[1]) + ", " + \
+                     str(wp_current.pos[2]) + ", " + \
+                     str(wp_current.hdg) + ", " + \
                      str(msg.pos.x) + ", " + \
                      str(msg.pos.y) + ", " + \
                      str(msg.pos.z) + ", " + \
@@ -239,18 +249,18 @@ def calculate_blind_wp(wp_blind, wp_blind_old, wp_visual, wp_visual_old, wp_look
                 dx = cr.qv_mult(bebop_q, dx0)
 
                 old_heading = math.atan2(dx[1], dx[0])
-                new_heading = old_heading - 0*math.pi/4
+                new_heading = 0 #old_heading + 2.0*math.pi/4
 
                 if new_heading > math.pi:
                     new_heading = new_heading - 2*math.pi
                 elif new_heading < -math.pi:
                     new_heading = new_heading + 2 * math.pi
 
-                blind_position = [2.0, -1.0, 1.0] #1.3
+                blind_position = [1.5, 0.0, 0.0] # front, left , up
                 blind_position_global = cr.qv_mult(bebop_q, blind_position) + bebop_pos
                 blind_position_global = blind_position_global.tolist()
 
-                look_position = [-5, 5, 0] # front, left, up
+                look_position = [0, -3, 0] # front, left, up
                 look_position_global = cr.qv_mult(bebop_q, look_position) + bebop_pos
                 look_position_global = look_position_global.tolist()
 
@@ -268,12 +278,14 @@ def calculate_blind_wp(wp_blind, wp_blind_old, wp_visual, wp_visual_old, wp_look
     if state_auto == 6 and wp_blind is None:
         rospy.loginfo("state 6, set new blind")
         # continue in gate direction for 0.5m
-
-        extra_distance = 0.6 * np.array([[math.cos(wp_blind_old.hdg)], [math.sin(wp_blind_old.hdg)], [0]])
+        print wp_blind_old
+        extra_distance = 0.5 * np.array([math.cos(wp_blind_old.hdg), math.sin(wp_blind_old.hdg), 0])
         wp_blind = cr.WP(wp_blind_old.pos + extra_distance, wp_blind_old.hdg)
+        print extra_distance
+        print wp_blind
 
-        extra_distance = 10 * np.array([[math.cos(wp_blind_old.hdg)], [math.sin(wp_blind_old.hdg)], [0]])
-        wp_look = cr.WP(wp_blind_old.pos + extra_distance, wp_blind_old.hdg)
+        extra_distance = 10 * np.array([math.cos(wp_blind_old.hdg + 0*math.pi/2), math.sin(wp_blind_old.hdg + 0*math.pi/2), 0])
+        wp_look = cr.WP(wp_blind_old.pos + extra_distance, 0)
 
         rospy.loginfo("land at: " + str(wp_blind))
 
@@ -347,7 +359,7 @@ def navigate_throu(odometry_merged, wp):
     x_pos_error = cr.min_value(dist * math.cos(d_theta), 0.15)
     x_vel_des = x_pos_error
 
-    if abs(.4 * x_pos_error) ** 3 + .5 < y_pos_error:
+    if abs(.5 * x_pos_error) ** 3 + .2 < y_pos_error:
         x_vel_des = 0        
 
     z_error = diff_global[2]
@@ -359,7 +371,7 @@ def navigate_throu(odometry_merged, wp):
         r_error = 2*math.pi-r_error
 
 
-    y_vel_error = cr.limit_value(sum(y_vel_des), 0.5) - velocity.y
+    y_vel_error = cr.limit_value(sum(y_vel_des), 0.2) - velocity.y
     x_vel_error = x_vel_des-velocity.x
 
     nav_cmd_x = nav_throu_PID_x.update(x_vel_error)
@@ -379,13 +391,13 @@ def navigate_throu(odometry_merged, wp):
                  str(velocity.x) + ", " + \
                  str(x_vel_error) + ", " + \
                  str(nav_cmd_x[0]) + ", " + \
-                 str(nav_cmd_x[2]) + ", " + \
+                 str(nav_cmd_x[1]) + ", " + \
                  str(sum(nav_cmd_x)) + ", " + \
                  str(msg.x) + ", " + \
                  str(d_theta) + ", " + \
                  str(y_pos_error) + ", " + \
                  str(y_vel_des[0]) + ", " + \
-                 str(y_vel_des[2]) + ", " + \
+                 str(y_vel_des[1]) + ", " + \
                  str(sum(y_vel_des)) + ", " + \
                  str(velocity.y) + ", " + \
                  str(y_vel_error) + ", " + \
@@ -405,7 +417,8 @@ def navigate_throu(odometry_merged, wp):
                  str(nav_cmd_r[0]) + ", " + \
                  str(nav_cmd_r[2]) + ", " + \
                  str(sum(nav_cmd_r)) + ", " + \
-                 str(msg.r)
+                 str(msg.r) + ", " + \
+                 str(0)
     nav_log_publisher.publish(log_string)
 
     return msg
@@ -429,15 +442,13 @@ def navigate_point(odometry_merged, wp, wp_look):
     angle = tfs.euler_from_quaternion(bebop_q)[2]
     velocity = odometry_merged.twist.twist.linear
 
-    global_vel = [velocity.x*math.cos(-angle) - velocity.y*math.sin(-angle),
-                  velocity.y*math.cos(-angle) + velocity.x*math.sin(-angle),
+    global_vel = [velocity.x*math.cos(angle) - velocity.y*math.sin(angle),
+                  velocity.y*math.cos(angle) + velocity.x*math.sin(angle),
                   velocity.z]
-    # global_vel = 
 
     diff_global = wp.pos - [odometry_merged.pose.pose.position.x, odometry_merged.pose.pose.position.y, odometry_merged.pose.pose.position.z]
     diff_global_look = wp_look.pos - [odometry_merged.pose.pose.position.x, odometry_merged.pose.pose.position.y, odometry_merged.pose.pose.position.z]
 
-    
     pos_theta = math.atan2(diff_global_look[1], diff_global_look[0])
     
     r_error = -(angle - pos_theta)
@@ -452,8 +463,8 @@ def navigate_point(odometry_merged, wp, wp_look):
     x_vel_des = nav_point_PID_x_pos.update(x_pos_error)
     y_vel_des = nav_point_PID_y_pos.update(y_pos_error)
 
-    x_vel_error = cr.limit_value(sum(x_vel_des), 0.5) - global_vel[0]
-    y_vel_error = cr.limit_value(sum(y_vel_des), 0.5) - global_vel[1]
+    x_vel_error = cr.limit_value(sum(x_vel_des), 0.1) - global_vel[0]
+    y_vel_error = cr.limit_value(sum(y_vel_des), 0.1) - global_vel[1]
 
     z_error = diff_global[2]
     
@@ -462,8 +473,8 @@ def navigate_point(odometry_merged, wp, wp_look):
     nav_cmd_z = nav_point_PID_z.update(z_error)
     nav_cmd_r = nav_point_PID_r.update(r_error)
 
-    nav_cmd_x_veh = sum(nav_cmd_x)*math.cos(angle) - sum(nav_cmd_y)*math.sin(angle)
-    nav_cmd_y_veh = sum(nav_cmd_y)*math.cos(angle) + sum(nav_cmd_x)*math.sin(angle)
+    nav_cmd_x_veh = sum(nav_cmd_x)*math.cos(-angle) - sum(nav_cmd_y)*math.sin(-angle)
+    nav_cmd_y_veh = sum(nav_cmd_y)*math.cos(-angle) + sum(nav_cmd_x)*math.sin(-angle)
 
     msg = Auto_Driving_Msg()
     msg.x = cr.limit_value(nav_cmd_x_veh, nav_limit_x)
@@ -478,7 +489,7 @@ def navigate_point(odometry_merged, wp, wp_look):
                  str(global_vel[0]) + ", " + \
                  str(x_vel_error) + ", " + \
                  str(nav_cmd_x[0]) + ", " + \
-                 str(nav_cmd_x[2]) + ", " + \
+                 str(nav_cmd_x[1]) + ", " + \
                  str(sum(nav_cmd_x)) + ", " + \
                  str(msg.x) + ", " + \
                  str(y_pos_error) + ", " + \
@@ -488,7 +499,7 @@ def navigate_point(odometry_merged, wp, wp_look):
                  str(global_vel[1]) + ", " + \
                  str(y_vel_error) + ", " + \
                  str(nav_cmd_y[0]) + ", " + \
-                 str(nav_cmd_y[2]) + ", " + \
+                 str(nav_cmd_y[1]) + ", " + \
                  str(sum(nav_cmd_y)) + ", " + \
                  str(msg.y) + ", " + \
                  str(diff_global[2]) + ", " + \
@@ -547,13 +558,14 @@ def state_machine_advancement(state_auto, state_bebop, navigation_distance, stat
         wp_look = None
         rospy.loginfo("visually detected gate")
         state_auto_publisher.publish(state_auto + 1)
-    elif state_auto == 4 and navigation_distance < 0.1: # we reached the blind point and can't see the gate -> land
-        wp_blind = None
-        wp_look = None
-        navigation_active = "off"
-        rospy.loginfo("can't change to visual. Landing")
-        state_auto_publisher.publish(7)
-    elif state_auto == 5 and navigation_distance < 0.2:        # drone reached gate, continue in gate direction
+    elif state_auto == 4 and navigation_distance < 0.2: # we reached the blind point and can't see the gate -> land
+        #wp_blind = None
+        #wp_look = None
+        #navigation_active = "off"
+        #rospy.loginfo("can't change to visual. Landing")
+        #state_auto_publisher.publish(state_auto + 2)
+        pass
+    elif state_auto == 5 and navigation_distance < 0.3:        # drone reached gate, continue in gate direction
         navigation_active = "point"
         wp_blind = None
         rospy.loginfo("gate reached")
@@ -595,21 +607,21 @@ if __name__ == '__main__':
     wp_look = None
     wp = None
     navigation_active = "off"
-    nav_point_PID_x_pos = cr.PID2(.7, 0, 2.5)
-    nav_point_PID_y_pos = cr.PID2(.7, 0, 2.5)
-    nav_point_PID_x     = cr.PID2(0.1, 0, 1.0)
-    nav_point_PID_y     = cr.PID2(0.1, 0, 1.0)
+    nav_point_PID_x_pos = cr.PID2(.7, 0.1, 4.0)
+    nav_point_PID_y_pos = cr.PID2(.7, 0.1, 4.0)
+    nav_point_PID_x     = cr.PID2(0.8, 0, 0.0)
+    nav_point_PID_y     = cr.PID2(0.8, 0, 0.0)
     nav_point_PID_z     = cr.PID(1.0, 0, 0.0)
     nav_point_PID_r     = cr.PID(0.5, 0, 1.0)
-    nav_throu_PID_y_pos = cr.PID2(.7, 0, 3)
-    nav_throu_PID_x     = cr.PID(0.07, 0, 0.0)
-    nav_throu_PID_y     = cr.PID2(0.12, 0, 1.0)
+    nav_throu_PID_y_pos = cr.PID2(.7, 0.1, 3.0)
+    nav_throu_PID_x     = cr.PID(0.3, 0, 0.0)
+    nav_throu_PID_y     = cr.PID2(0.3, 0, 0.0)
     nav_throu_PID_z     = cr.PID(1.0, 0, 0.0)
-    nav_throu_PID_r     = cr.PID(1.2, 0, 1.0)
-    nav_limit_x = .05 #.25
-    nav_limit_y = .15 #.4
-    nav_limit_z = .1 #.75
-    nav_limit_r = .5 #1
+    nav_throu_PID_r     = cr.PID(0.8, 0, 1.0)
+    nav_limit_x = .1 #.25
+    nav_limit_y = .1 #.4
+    nav_limit_z = .2 #.75
+    nav_limit_r = 1.0 #1
     empty_command = True
     auto_driving_msg = Auto_Driving_Msg()
     min_distance = 999
@@ -620,8 +632,10 @@ if __name__ == '__main__':
     wp_visual_publisher  = rospy.Publisher("/auto/wp_visual",         WP_Msg,             queue_size=1, latch=True)
     wp_blind_publisher   = rospy.Publisher("/auto/wp_blind",          WP_Msg,             queue_size=1, latch=True)
     wp_look_publisher    = rospy.Publisher("/auto/wp_look",           WP_Msg,             queue_size=1, latch=True)
+    wp_current_publisher = rospy.Publisher("/auto/wp_current",        WP_Msg,             queue_size=1, latch=True)
     nav_log_publisher    = rospy.Publisher("/auto/navigation_logger", String,             queue_size=1, latch=True)
     visual_log_publisher = rospy.Publisher("/auto/visual_logger",     String,             queue_size=1, latch=True)
+    dev_log_publisher    = rospy.Publisher("/auto/dev_logger",        String,             queue_size=1, latch=True)
 
     # Subscribers
     rospy.Subscriber("/bebop/states/ardrone3/PilotingState/FlyingStateChanged", Ardrone3PilotingStateFlyingStateChanged, callback_states_changed, "state_bebop")

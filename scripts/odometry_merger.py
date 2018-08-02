@@ -33,11 +33,26 @@ def bebop_update(data):
             [data.pose.pose.orientation.x, data.pose.pose.orientation.y, data.pose.pose.orientation.z,
              data.pose.pose.orientation.w])[:3, :3]
         OB = np.array([[data.pose.pose.position.x], [data.pose.pose.position.y], [data.pose.pose.position.z]])
+        bqo = tfs.quaternion_from_matrix(np.vstack((np.hstack((bRo, [[0], [0], [0]])), [0, 0, 0, 1])))
+
+        #rospy.loginfo("bRo")
+        #rospy.loginfo(bRo)
+        #rospy.loginfo("OB")
+        #rospy.loginfo(OB)
+
+        file = open('/home/nvidia/log_odom_dry.txt', 'a+')
+        file.write("%f, %f, %f, %f, %f, %f, %f, %f\n" % (OB[0], OB[1], OB[2], bqo[3], bqo[0], bqo[1], bqo[2], 1))
+        file.close()
 
         # calculate position of camera_origin in bebop_origin coordinate system
         if zRc is not None:
             cRo = np.matmul(np.matmul(linalg.inv(zRc), cr.zRb), bRo)
             OC = OB + np.matmul(linalg.inv(bRo), cr.BZ) - np.matmul(linalg.inv(cRo), CZ)
+
+            #rospy.loginfo("cRo")
+            #rospy.loginfo(cRo)
+            #rospy.loginfo("OC")
+            #rospy.loginfo(OC)
 
 
 def zed_update(data):
@@ -52,11 +67,21 @@ def zed_update(data):
          data.pose.pose.orientation.w])[:3, :3]
     CZ = np.array([[data.pose.pose.position.x], [data.pose.pose.position.y], [data.pose.pose.position.z]])
 
+    #rospy.loginfo("zRc")
+    #rospy.loginfo(zRc)
+    #rospy.loginfo("CZ")
+    #rospy.loginfo(CZ)
+
     if cRo is not None:
         # calculate position of bebop in bebop_origin coordinate system
         bRo = np.matmul(np.matmul(linalg.inv(cr.zRb), zRc), cRo)
         OB = OC + np.matmul(linalg.inv(cRo), CZ) - np.matmul(linalg.inv(bRo),  cr.BZ)
         bqo = tfs.quaternion_from_matrix(np.vstack((np.hstack((bRo, [[0], [0], [0]])), [0, 0, 0, 1])))
+
+        #rospy.loginfo("bRo new")
+        #rospy.loginfo(bRo)
+        #rospy.loginfo("OB new")
+        #rospy.loginfo(OB)
 
         global odometry_merged_publisher
         msg = Pose()
@@ -68,6 +93,11 @@ def zed_update(data):
         msg.orientation.y = bqo[1]
         msg.orientation.z = bqo[2]
         odometry_merged_publisher.publish(msg)
+
+
+        file = open('/home/nvidia/log_odom_dry.txt', 'a+')
+        file.write("%f, %f, %f, %f, %f, %f, %f, %f\n" % (OB[0], OB[1], OB[2], bqo[3], bqo[0], bqo[1], bqo[2], 2))
+        file.close()
 
 
 def main():

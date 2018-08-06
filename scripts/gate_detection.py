@@ -17,6 +17,8 @@ import time
 import math
 from bebop_auto.msg import Gate_Detection_Msg
 from std_msgs.msg import Float32MultiArray
+import matplotlib.pyplot as plt
+from sklearn.cluster import MeanShift, estimate_bandwidth
 
 import signal
 import sys
@@ -139,7 +141,7 @@ def stereo_callback(data):
     global tvec
     global image_pub_gate
 
-    debug_on = False
+    debug_on = True
 
     if debug_on:
         this_pose = Pose()
@@ -172,170 +174,254 @@ def stereo_callback(data):
 
     # calculate angles of all lines and create a border frame in the picture of the gate location
     angles = []
+    distances = []
+    indexes = list(reversed(range(len(lines))))
 
     borders = [5000, 0, 5000, 0]
     for counter, line in enumerate(lines):
         for x1, y1, x2, y2 in line:
             angles.append(math.atan2(y2 - y1, x2 - x1) * 180 / np.pi)  # between -90 and 90
-            cv2.line(rgb, (x1, y1), (x2, y2), (0, 0, 255), 2)
+            distances.append((x1*(y2-y1)-y1*(x2-x1))/math.sqrt((x1-x2)**2+(y1-y2)**2))
+            # cv2.line(rgb, (x1, y1), (x2, y2), (0, 0, 255), 2)
             borders[0] = min(borders[0], x1, x2)
             borders[1] = max(borders[1], x1, x2)
             borders[2] = min(borders[2], y1, y2)
             borders[3] = max(borders[3], y1, y2)
 
+    #
+    # plt.clf()
+    # plt.plot(angles,distances,'bo')
+    # plt.axis([-90, 90, -1500, 1500])
+    # plt.grid()
+
+    angles2 = angles[:]
+
+    # cluster lines and find centers
+    # while there are still lines to cluster, use the first in the list and look for all lines in vicinity
+    lines_short = []
+    while len(indexes) > 0:
+        angle_m = angles2.pop(0)
+        distance_m = distances.pop(0)
+        votes = indexes.pop(0)
+        i = 0
+        # print angle_m, distance_m, votes
+        while i < len(indexes):  # go through whole list once
+            angle_1 = angles2[i]
+            distance_1 = distances[i]
+            vote_1 = indexes[i]
+            a_dist = abs(angle_m-angle_1)
+            if a_dist > 90:
+                a_dist = 180 - a_dist
+                if angle_1 < 0:
+                    angle_1 = angle_1 + 180
+                else:
+                    angle_1 = angle_1 - 180
+                distance_1 = - distance_1
+            d_dist = abs(distance_m - distance_1) / (1500 / 90)
+            dist = math.sqrt(d_dist**2 + a_dist**2)  # calculate distances of houghlines
+
+            if dist < 6:  # if distance is small enough, recalculate point center and add one vote, then delete from list
+                # print angle_m, distance_m
+                # print angle_1, distance_1
+                angle_m = (angle_m * votes + angle_1 * vote_1) / (votes + vote_1)
+                distance_m = (distance_m * votes + distance_1 * vote_1) / (votes + vote_1)
+                # print angle_m, distance_m
+                votes = votes + vote_1
+                del angles2[i]
+                del distances[i]
+                del indexes[i]
+            else:  # otherwise continue with next item
+                i = i + 1
+        lines_short.append([angle_m, distance_m, votes])
+
+
+
+    for angle, distance, votes in lines_short:
+        # plt.plot(angle, distance, 'ro')
+        print angle, distance, votes
+        y1 = -distance/math.cos(angle*math.pi/180)
+        cv2.line(rgb, (0, int(y1)), (2000, int(y1 + 2000*math.tan(angle*math.pi/180))), (0, 0, 255), 2)
+    print('new')
+    # for i1, d1 in enumerate(cluster_centers):
+    #     for i2, d2 in enumerate(cluster_centers[:i1]):
+    #         angle1 = (d1[0] - 45) * math.pi / 180
+    #         dist1 = d1[1] * scale
+    #         angle2 = (d2[0] - 45) * math.pi / 180
+    #         dist2 = d2[1] * scale
+    #
+    #         print angle1, dist1, angle2, dist2
+
+
+
+
+    # scale = 1500/90
+    # cluster_data = np.column_stack(([x+45 for x in angles], [x/scale for x in distances]))
+    # bandwidth = estimate_bandwidth(cluster_data, quantile=0.25)
+    # ms = MeanShift(bandwidth=bandwidth)
+    # #ms = MeanShift()
+    # ms.fit(cluster_data)
+    # cluster_centers = ms.cluster_centers_
+
+
     # border = np.array([[borders[0],borders[2]],[borders[0],borders[3]],[borders[1],borders[3]],[borders[1],borders[2]]], np.int32)
     # border = border.reshape((-1, 1, 2))
     # cv2.polylines(rgb, [border], True, (100,100,100), 5)
 
+
     # intersect every line with every other line
-    corners_long = []
-    for i1, l1 in enumerate(lines):
-        for i2, l2 in enumerate(lines[:i1]):
-            angles_diff = math.fabs(angles[i1] - angles[i2])
-            if 10 < angles_diff < 170:  # only intersect if they are not clos to parallel
-                x, y = isect_lines(l1, l2)
-                # only use those intersections that lie within bounding box of gate
-                if (borders[0] - 0.2 * (borders[1] - borders[0]) < x < borders[1] + 0.2 * (
-                        borders[1] - borders[0]) and
-                        borders[2] - 0.2 * (borders[3] - borders[2]) < y < borders[3] + 0.2 * (
-                                borders[3] - borders[2])):
-                    corners_long.append([x, y])
-                    # cv2.circle(rgb, (int(x), int(y)), 1, (255, 255, 255), -1)
-
-    if len(corners_long) == 0:  # no corners have been found
-        rospy.loginfo("no corners")
-        result_publisher.publish(Gate_Detection_Msg())
-        output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
-        image_pub_gate.publish(output_im)
-        return
-
-    # corners were found, find average and center
-    # while there are still corners to sort, use the first in the list and look for all corners in vicinity
-    corners = []
-    while len(corners_long) > 0:
-        xm, ym = corners_long.pop(0)
-        votes = 1
-        i = 0
-        while i < len(corners_long):  # go through whole list once
-            x1, y1 = corners_long[i]
-            dist = math.sqrt((xm - x1) * (xm - x1) + (ym - y1) * (ym - y1))  # calculate distance of each point
-            if dist < 60:  # if distance is small enough, recalculate point center and add one vote, then delete from list
-                xm = (xm * votes + corners_long[i][0]) / (votes + 1)
-                ym = (ym * votes + corners_long[i][1]) / (votes + 1)
-                votes = votes + 1
-                del corners_long[i]
-            else:  # otherwise continue with next item
-                i = i + 1
-        corners.append([xm, ym, votes])
-
-    for x, y, v in corners:
-        cv2.circle(rgb, (int(x), int(y)), 10, (0, 0, 255), -1)
-
-    # delete the corners with the least number of votes
-    while len(corners) > 4:
-        votes = zip(*corners)[2]
-        del corners[votes.index(min(votes))]
-
-    for x, y, v in corners:
-        cv2.circle(rgb, (int(x), int(y)), 10, (255, 0, 0), -1)
-
-    # Assume no lens distortion
-    dist_coeffs = np.zeros((4, 1))
-
-    square_side = 1.03
-    square_side = 1.4
-    if len(corners) < 3:
-        rospy.loginfo("Found only two points or less")
-        valid_last_orientation = False
-        result_publisher.publish(Gate_Detection_Msg())
-        output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
-        image_pub_gate.publish(output_im)
-        return
-    elif len(corners) == 3 and not valid_last_orientation:
-        rospy.loginfo("3 points without a guess")
-        result_publisher.publish(Gate_Detection_Msg())
-        output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
-        image_pub_gate.publish(output_im)
-        return
-
-    if len(corners) == 3:
-        corner_points = np.array([[corners[0][0], corners[0][1]], [corners[1][0], corners[1][1]],
-                                  [corners[2][0], corners[2][1]]], dtype="double")
-        # 3D model points.
-        model_points = np.array([
-            (+square_side / 2, +square_side / 2, 0.0),
-            (+square_side / 2, -square_side / 2, 0.0),
-            (-square_side / 2, +square_side / 2, 0.0)])
-
-        (success, rvec, tvec) = cv2.solvePnP(model_points, corner_points,
-                                             camera_matrix,
-                                             dist_coeffs, rvec, tvec, True,
-                                             flags=cv2.SOLVEPNP_ITERATIVE)
-        valid_last_orientation = True
-        rospy.loginfo(success)
-
-    elif len(corners) == 4:
-        corner_points = np.array([[corners[0][0], corners[0][1]], [corners[1][0], corners[1][1]],
-                                  [corners[2][0], corners[2][1]], [corners[3][0], corners[3][1]]],
-                                 dtype="double")
-        # 3D model points.
-        model_points = np.array([
-            (+square_side / 2, +square_side / 2, 0.0),
-            (+square_side / 2, -square_side / 2, 0.0),
-            (-square_side / 2, +square_side / 2, 0.0),
-            (-square_side / 2, -square_side / 2, 0.0)])
-        (success, rvec, tvec) = cv2.solvePnP(model_points, corner_points, camera_matrix,
-                                             dist_coeffs, flags=cv2.SOLVEPNP_ITERATIVE)
-        valid_last_orientation = True
-
-    # print "Rotation Vector:\n {0}".format(rvec)
-    # print "Translation Vector:\n {0}".format(tvec)
-
-    # publish results
-    msg = Gate_Detection_Msg()
-    msg.tvec = tvec
-    msg.rvec = rvec
-    msg.bebop_pose = this_pose
-    result_publisher.publish(msg)
-    rospy.loginfo("detected")
-
-    global result_publisher_tvec
-    msg = Float32MultiArray()
-    msg.data = tvec
-    result_publisher_tvec.publish(msg)
-
-    global result_publisher_rvec
-    msg = Float32MultiArray()
-    msg.data = rvec
-    result_publisher_rvec.publish(msg)
-
-    global result_publisher_pose
-    msg = this_pose
-    result_publisher_pose.publish(msg)
-
-    # draw a line sticking out of the plane
-    (center_point_2D_base, _) = cv2.projectPoints(np.array([(.0, .0, 0)]), rvec, tvec, camera_matrix, dist_coeffs)
-    (center_point_2D_back, _) = cv2.projectPoints(np.array([(.0, .0, square_side)]), rvec, tvec, camera_matrix,
-                                                  dist_coeffs)
-    (center_point_2D_frnt, _) = cv2.projectPoints(np.array([(.0, .0, -square_side)]), rvec, tvec, camera_matrix,
-                                                  dist_coeffs)
-
-    p1 = (int(center_point_2D_back[0][0][0]), int(center_point_2D_back[0][0][1]))
-    p2 = (int(center_point_2D_frnt[0][0][0]), int(center_point_2D_frnt[0][0][1]))
-    p3 = (int(center_point_2D_base[0][0][0]), int(center_point_2D_base[0][0][1]))
-
-    if max(p1) < 10000 and max(p2) < 10000 and min(p1) > 0 and min(p2) > 0:
-        cv2.line(rgb, p1, p3, (0, 255, 255), 10)
-        cv2.line(rgb, p2, p3, (0, 255, 255), 10)
-    if max(p3) < 10000 and min(p3) > 0:
-        cv2.circle(rgb, p3, 10, (0, 0, 0), -1)
-
-    # Display the resulting frame
-    # cv2.imshow('frame', rgb)
+    # corners_long = []
+    # for i1, l1 in enumerate(lines):
+    #     for i2, l2 in enumerate(lines[:i1]):
+    #         angles_diff = math.fabs(angles[i1] - angles[i2])
+    #         if 10 < angles_diff < 170:  # only intersect if they are not clos to parallel
+    #             x, y = isect_lines(l1, l2)
+    #             # only use those intersections that lie within bounding box of gate
+    #             if (borders[0] - 0.2 * (borders[1] - borders[0]) < x < borders[1] + 0.2 * (
+    #                     borders[1] - borders[0]) and
+    #                     borders[2] - 0.2 * (borders[3] - borders[2]) < y < borders[3] + 0.2 * (
+    #                             borders[3] - borders[2])):
+    #                 corners_long.append([x, y])
+    #                 # cv2.circle(rgb, (int(x), int(y)), 1, (255, 255, 255), -1)
+    #
+    # if len(corners_long) == 0:  # no corners have been found
+    #     rospy.loginfo("no corners")
+    #     result_publisher.publish(Gate_Detection_Msg())
+    #     output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
+    #     image_pub_gate.publish(output_im)
+    #     return
+    #
+    # # corners were found, find average and center
+    # # while there are still corners to sort, use the first in the list and look for all corners in vicinity
+    # corners = []
+    # while len(corners_long) > 0:
+    #     xm, ym = corners_long.pop(0)
+    #     votes = 1
+    #     i = 0
+    #     while i < len(corners_long):  # go through whole list once
+    #         x1, y1 = corners_long[i]
+    #         dist = math.sqrt((xm - x1) * (xm - x1) + (ym - y1) * (ym - y1))  # calculate distance of each point
+    #         if dist < 60:  # if distance is small enough, recalculate point center and add one vote, then delete from list
+    #             xm = (xm * votes + corners_long[i][0]) / (votes + 1)
+    #             ym = (ym * votes + corners_long[i][1]) / (votes + 1)
+    #             votes = votes + 1
+    #             del corners_long[i]
+    #         else:  # otherwise continue with next item
+    #             i = i + 1
+    #     corners.append([xm, ym, votes])
+    #
+    # for x, y, v in corners:
+    #     pass
+    #     # cv2.circle(rgb, (int(x), int(y)), 10, (0, 0, 255), -1)
+    #
+    # # delete the corners with the least number of votes
+    # while len(corners) > 4:
+    #     votes = zip(*corners)[2]
+    #     del corners[votes.index(min(votes))]
+    #
+    # for x, y, v in corners:
+    #     pass
+    #     # cv2.circle(rgb, (int(x), int(y)), 10, (255, 0, 0), -1)
+    #
+    # # Assume no lens distortion
+    # dist_coeffs = np.zeros((4, 1))
+    #
+    # square_side = 1.03
+    # square_side = 1.4
+    # if len(corners) < 3:
+    #     rospy.loginfo("Found only two points or less")
+    #     valid_last_orientation = False
+    #     result_publisher.publish(Gate_Detection_Msg())
+    #     output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
+    #     image_pub_gate.publish(output_im)
+    #     return
+    # elif len(corners) == 3 and not valid_last_orientation:
+    #     rospy.loginfo("3 points without a guess")
+    #     result_publisher.publish(Gate_Detection_Msg())
+    #     output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
+    #     image_pub_gate.publish(output_im)
+    #     return
+    #
+    # if len(corners) == 3:
+    #     corner_points = np.array([[corners[0][0], corners[0][1]], [corners[1][0], corners[1][1]],
+    #                               [corners[2][0], corners[2][1]]], dtype="double")
+    #     # 3D model points.
+    #     model_points = np.array([
+    #         (+square_side / 2, +square_side / 2, 0.0),
+    #         (+square_side / 2, -square_side / 2, 0.0),
+    #         (-square_side / 2, +square_side / 2, 0.0)])
+    #
+    #     (success, rvec, tvec) = cv2.solvePnP(model_points, corner_points,
+    #                                          camera_matrix,
+    #                                          dist_coeffs, rvec, tvec, True,
+    #                                          flags=cv2.SOLVEPNP_ITERATIVE)
+    #     valid_last_orientation = True
+    #     rospy.loginfo(success)
+    #
+    # elif len(corners) == 4:
+    #     corner_points = np.array([[corners[0][0], corners[0][1]], [corners[1][0], corners[1][1]],
+    #                               [corners[2][0], corners[2][1]], [corners[3][0], corners[3][1]]],
+    #                              dtype="double")
+    #     # 3D model points.
+    #     model_points = np.array([
+    #         (+square_side / 2, +square_side / 2, 0.0),
+    #         (+square_side / 2, -square_side / 2, 0.0),
+    #         (-square_side / 2, +square_side / 2, 0.0),
+    #         (-square_side / 2, -square_side / 2, 0.0)])
+    #     (success, rvec, tvec) = cv2.solvePnP(model_points, corner_points, camera_matrix,
+    #                                          dist_coeffs, flags=cv2.SOLVEPNP_ITERATIVE)
+    #     valid_last_orientation = True
+    #
+    # # print "Rotation Vector:\n {0}".format(rvec)
+    # # print "Translation Vector:\n {0}".format(tvec)
+    #
+    # # publish results
+    # msg = Gate_Detection_Msg()
+    # msg.tvec = tvec
+    # msg.rvec = rvec
+    # msg.bebop_pose = this_pose
+    # result_publisher.publish(msg)
+    # rospy.loginfo("detected")
+    #
+    # global result_publisher_tvec
+    # msg = Float32MultiArray()
+    # msg.data = tvec
+    # result_publisher_tvec.publish(msg)
+    #
+    # global result_publisher_rvec
+    # msg = Float32MultiArray()
+    # msg.data = rvec
+    # result_publisher_rvec.publish(msg)
+    #
+    # global result_publisher_pose
+    # msg = this_pose
+    # result_publisher_pose.publish(msg)
+    #
+    # # draw a line sticking out of the plane
+    # (center_point_2D_base, _) = cv2.projectPoints(np.array([(.0, .0, 0)]), rvec, tvec, camera_matrix, dist_coeffs)
+    # (center_point_2D_back, _) = cv2.projectPoints(np.array([(.0, .0, square_side)]), rvec, tvec, camera_matrix,
+    #                                               dist_coeffs)
+    # (center_point_2D_frnt, _) = cv2.projectPoints(np.array([(.0, .0, -square_side)]), rvec, tvec, camera_matrix,
+    #                                               dist_coeffs)
+    #
+    # p1 = (int(center_point_2D_back[0][0][0]), int(center_point_2D_back[0][0][1]))
+    # p2 = (int(center_point_2D_frnt[0][0][0]), int(center_point_2D_frnt[0][0][1]))
+    # p3 = (int(center_point_2D_base[0][0][0]), int(center_point_2D_base[0][0][1]))
+    #
+    # if max(p1) < 10000 and max(p2) < 10000 and min(p1) > 0 and min(p2) > 0:
+    #     pass
+    #     # cv2.line(rgb, p1, p3, (0, 255, 255), 10)
+    #     # cv2.line(rgb, p2, p3, (0, 255, 255), 10)
+    # if max(p3) < 10000 and min(p3) > 0:
+    #     pass
+    #     # cv2.circle(rgb, p3, 10, (0, 0, 0), -1)
+    #
+    # # Display the resulting frame
+    # # cv2.imshow('frame', rgb)
 
     output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
     image_pub_gate.publish(output_im)
 
+    plt.pause(0.01)
     time.sleep(0.05)
 
 

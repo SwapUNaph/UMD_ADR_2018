@@ -145,60 +145,30 @@ class PID:
 
 
 class PID2:
-    def __init__(self, p=2.0, i=0.0, d=1.0, derivator=0, integrator=0, integrator_max=.5, integrator_min=-.5):
+    def __init__(self, p=2.0, i=0.0, d=1.0, derivator=[0.0,0.0,0.0,0.0], integrator=0, integrator_max=.5, integrator_min=-.5):
         self.kp = p
         self.ki = i
         self.kd = d
         self.derivator = derivator
-        self.derivator2 = derivator
         self.integrator = integrator
         self.integrator_max = integrator_max
         self.integrator_min = integrator_min
-        self.error = 0.0
 
         self.p_value = None
         self.i_value = None
-        self.d_value = None
-        self.set_point = None
-
-        self.dt = .2
-        self.A = np.array([1.0 dt],[0 1])
-        self.B = np.array([dt**2/2],[dt])
-        self.C = np.array([1.0 0])
-
-        self.Q_estimate = np.array([0 0]) # x_estimate of initial location estimation of where the Quail is (what we are updating)
-
-        process_noise = 8 # process noise: the variability in how fast the Quail is speeding up (stdv of acceleration: meters/sec^2)
-        measurement_noise = 1.5 # measurement noise: How mask-blinded is the Ninja (stdv of location, in meters)
-
-        self.Ez = measurement_noise**2; # Ez convert the measurement noise (stdv) into covariance matrix
-        self.Ex = process_noise**2 * np.array([process_noise**2*dt**4/4,process_noise**2 *dt**3/2],[process_noise**2 *dt**3/2,process_noise**2 *dt**2]) # Ex convert the process noise (stdv) into covariance matrix
-
-        self.P = self.Ex #estimate of initial Quail position variance (covariance matrix)
+        self.d_value = 0.0    
 
 
     def update(self, err):
-        self.Q_estimate = self.A * self.Q_estimate
-
-        P = self.A * self.P * np.transpose(self.A) + self.Ex
-
-        # Kalman Gain
-        K = self.P*np.transpose(self.C)*inv(self.C*self.P*np.transpose(self.C)+self.Ez)
         
-        # Update the state estimate.
-        self.Q_estimate = self.Q_estimate + K * (err - self.C * self.Q_estimate)
-        
-        # update covariance estimation.
-        self.P =  (np.eye(2)-K*self.C)*self.P
 
-        self.error = err
+        self.d_value = self.kd*((4*err - sum(self.derivator))/10)
 
-        self.p_value = self.kp * self.error
-        self.d_value = self.kd * ((self.error - self.derivator)*.65 + (self.error - self.derivator2)*.35)
-        self.derivator = self.error
-        self.derivator2 = self.derivator
+        self.derivator.pop([0])
+        self.derivator.append(err)      
 
-        self.integrator = self.integrator + self.error
+        self.p_value = self.kp * err
+        self.integrator = self.integrator + err
 
         if self.integrator > self.integrator_max:
             self.integrator = self.integrator_max
@@ -209,7 +179,6 @@ class PID2:
 
         return [self.p_value, self.i_value, self.d_value]
 
-    def reset(self, set_point):
-        self.set_point = set_point
+    def reset(self):
         self.integrator = 0
         self.derivator = 0

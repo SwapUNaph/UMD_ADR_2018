@@ -188,11 +188,10 @@ def stereo_callback(data):
             borders[2] = min(borders[2], y1, y2)
             borders[3] = max(borders[3], y1, y2)
 
-    #
-    # plt.clf()
-    # plt.plot(angles,distances,'bo')
-    # plt.axis([-90, 90, -1500, 1500])
-    # plt.grid()
+    plt.clf()
+    plt.plot(angles,distances,'bo')
+    plt.axis([-90, 90, -1500, 1500])
+    plt.grid()
 
     angles2 = angles[:]
 
@@ -237,7 +236,7 @@ def stereo_callback(data):
 
 
     for angle, distance, votes in lines_short:
-        # plt.plot(angle, distance, 'ro')
+        plt.plot(angle, distance, 'ro')
         print angle, distance, votes
         y1 = -distance/math.cos(angle*math.pi/180)
         cv2.line(rgb, (0, int(y1)), (2000, int(y1 + 2000*math.tan(angle*math.pi/180))), (0, 0, 255), 2)

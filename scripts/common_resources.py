@@ -145,7 +145,7 @@ class PID:
 
 
 class PID2:
-    def __init__(self, p=2.0, i=0.0, d=1.0, derivator=0, integrator=0, integrator_max=.5, integrator_min=-.5):
+    def __init__(self, p=2.0, i=0.0, d=1.0, derivator=[0.0,0.0,0.0,0.0], integrator=0, integrator_max=.5, integrator_min=-.5):
         self.kp = p
         self.ki = i
         self.kd = d
@@ -153,24 +153,22 @@ class PID2:
         self.integrator = integrator
         self.integrator_max = integrator_max
         self.integrator_min = integrator_min
-        self.error = 0.0
 
         self.p_value = None
         self.i_value = None
-        self.d_value = 0.0
-        self.d_value2 = 0.0       
+        self.d_value = 0.0    
 
 
     def update(self, err):
-        self.error = err
-
-        self.p_value = self.kp * self.error
-        self.d_value = ((2 * self.kd * (self.error - self.derivator))+self.d_value+self.d_value2)/4
-        self.d_value2 = self.d_value
-        self.derivator = self.error
         
 
-        self.integrator = self.integrator + self.error
+        self.d_value = self.kd*((4*err - sum(self.derivator))/10)
+
+        self.derivator.pop([0])
+        self.derivator.append(err)      
+
+        self.p_value = self.kp * err
+        self.integrator = self.integrator + err
 
         if self.integrator > self.integrator_max:
             self.integrator = self.integrator_max

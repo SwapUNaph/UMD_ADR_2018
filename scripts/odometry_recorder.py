@@ -27,7 +27,7 @@ def callback_bebop_odometry_changed(data):
                   data.pose.pose.orientation.x, data.pose.pose.orientation.y, data.pose.pose.orientation.z, data.twist.twist.linear.x, data.twist.twist.linear.y, data.twist.twist.linear.z])
 
 
-def callback_states_changed(data, args):
+def callback_states_changed(data):
     global state_auto
     state_auto = data.data
     rospy.loginfo("state auto changed to " + str(state_auto))

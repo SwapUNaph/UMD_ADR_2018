@@ -329,28 +329,34 @@ def navigate_throu():
     msg.r = cr.limit_value(sum(nav_cmd_r), nav_limit_r)
 
     log_string = str(
-        d_theta) + ", " + str(
+         dist) + ", " + str(
+        0)+', ' + str(
+        0)+', ' + str(
+        0)+', ' + str(
         x_vel_des) + ", " + str(
         velocity.x) + ", " + str(
         x_vel_error) + ", " + str(
         nav_cmd_x[0]) + ", " + str(
         nav_cmd_x[1]) + ", " + str(
+        nav_cmd_x[2]) + ", " + str(
         sum(nav_cmd_x)) + ", " + str(
         msg.x) + ", " + str(
-        d_theta) + ", " + str(
         y_pos_error) + ", " + str(
         y_vel_des[0]) + ", " + str(
         y_vel_des[1]) + ", " + str(
+        y_vel_des[2]) + ", " + str(
         sum(y_vel_des)) + ", " + str(
         velocity.y) + ", " + str(
         y_vel_error) + ", " + str(
         nav_cmd_y[0]) + ", " + str(
+        nav_cmd_y[1]) + ", " + str(
         nav_cmd_y[2]) + ", " + str(
         sum(nav_cmd_y)) + ", " + str(
         msg.y) + ", " + str(
         diff_global[2]) + ", " + str(
         z_error) + ", " + str(
         nav_cmd_z[0]) + ", " + str(
+        nav_cmd_z[1]) + ", " + str(
         nav_cmd_z[2]) + ", " + str(
         sum(nav_cmd_z)) + ", " + str(
         msg.z) + ", " + str(
@@ -358,10 +364,18 @@ def navigate_throu():
         angle) + ", " + str(
         r_error) + ", " + str(
         nav_cmd_r[0]) + ", " + str(
+        nav_cmd_r[1]) + ", " + str(
         nav_cmd_r[2]) + ", " + str(
         sum(nav_cmd_r)) + ", " + str(
         msg.r) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
         0)
+
+
+
     nav_log_publisher.publish(log_string)
 
     return msg
@@ -431,27 +445,32 @@ def navigate_point():
     log_string = str(
         x_pos_error) + ", " + str(
         x_vel_des[0]) + ", " + str(
+        x_vel_des[1]) + ", " + str(
         x_vel_des[2]) + ", " + str(
         sum(x_vel_des)) + ", " + str(
         global_vel[0]) + ", " + str(
         x_vel_error) + ", " + str(
         nav_cmd_x[0]) + ", " + str(
         nav_cmd_x[1]) + ", " + str(
+        nav_cmd_x[2]) + ", " + str(
         sum(nav_cmd_x)) + ", " + str(
         msg.x) + ", " + str(
         y_pos_error) + ", " + str(
         y_vel_des[0]) + ", " + str(
+        y_vel_des[1]) + ", " + str(
         y_vel_des[2]) + ", " + str(
         sum(y_vel_des)) + ", " + str(
         global_vel[1]) + ", " + str(
         y_vel_error) + ", " + str(
         nav_cmd_y[0]) + ", " + str(
         nav_cmd_y[1]) + ", " + str(
+        nav_cmd_y[2]) + ", " + str(
         sum(nav_cmd_y)) + ", " + str(
         msg.y) + ", " + str(
         diff_global[2]) + ", " + str(
         z_error) + ", " + str(
         nav_cmd_z[0]) + ", " + str(
+        nav_cmd_z[1]) + ", " + str(
         nav_cmd_z[2]) + ", " + str(
         sum(nav_cmd_z)) + ", " + str(
         msg.z) + ", " + str(
@@ -459,9 +478,15 @@ def navigate_point():
         angle) + ", " + str(
         r_error) + ", " + str(
         nav_cmd_r[0]) + ", " + str(
+        nav_cmd_r[1]) + ", " + str(
         nav_cmd_r[2]) + ", " + str(
         sum(nav_cmd_r)) + ", " + str(
-        msg.r)
+        msg.r) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0)
     nav_log_publisher.publish(log_string)
 
     return msg

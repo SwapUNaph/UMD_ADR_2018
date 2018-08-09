@@ -117,6 +117,9 @@ class PID:
         self.d_value = None
         self.set_point = None
 
+        
+
+
     def update(self, err):
         self.error = err
 
@@ -142,31 +145,30 @@ class PID:
 
 
 class PID2:
-    def __init__(self, p=2.0, i=0.0, d=1.0, derivator=0, integrator=0, integrator_max=.5, integrator_min=-.5):
+    def __init__(self, p=2.0, i=0.0, d=1.0, derivator=[0.0,0.0,0.0,0.0], integrator=0, integrator_max=.5, integrator_min=-.5):
         self.kp = p
         self.ki = i
         self.kd = d
         self.derivator = derivator
-        self.derivator2 = derivator
         self.integrator = integrator
         self.integrator_max = integrator_max
         self.integrator_min = integrator_min
-        self.error = 0.0
 
         self.p_value = None
         self.i_value = None
-        self.d_value = None
-        self.set_point = None
+        self.d_value = 0.0    
+
 
     def update(self, err):
-        self.error = err
+        
 
-        self.p_value = self.kp * self.error
-        self.d_value = self.kd * ((self.error - self.derivator)*.65 + (self.error - self.derivator2)*.35)
-        self.derivator = self.error
-        self.derivator2 = self.derivator
+        self.d_value = self.kd*((4*err - sum(self.derivator))/10)
 
-        self.integrator = self.integrator + self.error
+        self.derivator.pop([0])
+        self.derivator.append(err)      
+
+        self.p_value = self.kp * err
+        self.integrator = self.integrator + err
 
         if self.integrator > self.integrator_max:
             self.integrator = self.integrator_max
@@ -177,7 +179,6 @@ class PID2:
 
         return [self.p_value, self.i_value, self.d_value]
 
-    def reset(self, set_point):
-        self.set_point = set_point
+    def reset(self):
         self.integrator = 0
         self.derivator = 0

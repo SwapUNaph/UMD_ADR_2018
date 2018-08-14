@@ -38,112 +38,98 @@ def callback_visual_detection_changed(data):
     global gate_detection_info
     gate_detection_info = cr.Gate_Detection_Info(data)
 
-
-def calculate_visual_wp():
-    global wp_visual
-    global wp_visual_old
+    # transform and average already
+    global wp_average
     global wp_visual_history
 
-    wp_current = None
-    bebop_position = gate_detection_info.bebop_pose.position
-    bebop_orientation = gate_detection_info.bebop_pose.orientation
+    # read data
+    bebop_position = data.bebop_pose.position
+    bebop_orientation = data.bebop_pose.orientation
 
-    if gate_detection_info is None or (bebop_position.x == 0 and bebop_position.y == 0 and bebop_position.z == 0):
-        wp_visual = None
-    else:
-        # bebop position and orientation
-        bebop_p = [[bebop_position.x], [bebop_position.position.y], [bebop_position.position.z]]
-        bebop_q = [bebop_orientation.x, bebop_orientation.y, bebop_orientation.z, bebop_orientation.w]
+    # bebop position and orientation
+    bebop_p = [[bebop_position.x], [bebop_position.position.y], [bebop_position.position.z]]
+    bebop_q = [bebop_orientation.x, bebop_orientation.y, bebop_orientation.z, bebop_orientation.w]
 
-        # gate position and orientation
-        rospy.loginfo("tvec")
-        rospy.loginfo(gate_detection_info.tvec)
-        rospy.loginfo("rvec")
-        rospy.loginfo(gate_detection_info.rvec)
+    # gate position and orientation
+    rospy.loginfo("tvec")
+    rospy.loginfo(data.tvec)
+    rospy.loginfo("rvec")
+    rospy.loginfo(data.rvec)
 
-        gate_pos = gate_detection_info.tvec
-        gate_q = cr.axang2quat(gate_detection_info.rvec)
+    gate_pos = data.tvec
+    gate_q = cr.axang2quat(data.rvec)
 
-        rospy.loginfo("bebop_p")
-        rospy.loginfo(bebop_p)
-        rospy.loginfo("bebop_q")
-        rospy.loginfo(bebop_q)
-        rospy.loginfo("gate_pos")
-        rospy.loginfo(gate_pos)
-        rospy.loginfo("gate_q")
-        rospy.loginfo(gate_q)
+    rospy.loginfo("bebop_p")
+    rospy.loginfo(bebop_p)
+    rospy.loginfo("bebop_q")
+    rospy.loginfo(bebop_q)
+    rospy.loginfo("gate_pos")
+    rospy.loginfo(gate_pos)
+    rospy.loginfo("gate_q")
+    rospy.loginfo(gate_q)
 
-        gate_global_p = cr.qv_mult(bebop_q, cr.qv_mult(cr.cam_q, gate_pos) + cr.BZ) + bebop_p
-        gate_global_q = tfs.quaternion_multiply(bebop_q, tfs.quaternion_multiply(cr.cam_q, gate_q))
-        gate_normal_vec = cr.qv_mult(gate_global_q, [0, 0, 1])
-        heading_to_gate = math.atan2((gate_global_p[1] - bebop_p[1]), gate_global_p[0] - bebop_p[0])
-        heading_of_gate = math.atan2(gate_normal_vec[1], gate_normal_vec[0])
-        heading_difference = math.fabs(heading_to_gate - heading_of_gate) * 180 / math.pi
+    gate_global_p = cr.qv_mult(bebop_q, cr.qv_mult(cr.cam_q, gate_pos) + cr.BZ) + bebop_p
+    gate_global_q = tfs.quaternion_multiply(bebop_q, tfs.quaternion_multiply(cr.cam_q, gate_q))
+    gate_normal_vec = cr.qv_mult(gate_global_q, [0, 0, 1])
+    heading_to_gate = math.atan2((gate_global_p[1] - bebop_p[1]), gate_global_p[0] - bebop_p[0])
+    heading_of_gate = math.atan2(gate_normal_vec[1], gate_normal_vec[0])
+    heading_difference = math.fabs(heading_to_gate - heading_of_gate) * 180 / math.pi
 
-        rospy.loginfo("gate_global_p")
-        rospy.loginfo(gate_global_p)
-        rospy.loginfo("gate_global_q")
-        rospy.loginfo(gate_global_q)
-        rospy.loginfo("gate_normal_vec")
-        rospy.loginfo(gate_normal_vec)
+    rospy.loginfo("gate_global_p")
+    rospy.loginfo(gate_global_p)
+    rospy.loginfo("gate_global_q")
+    rospy.loginfo(gate_global_q)
+    rospy.loginfo("gate_normal_vec")
+    rospy.loginfo(gate_normal_vec)
 
-        if 90 < heading_difference < 270:
-            if heading_of_gate < 0:
-                heading_of_gate = heading_of_gate + math.pi
-            else:
-                heading_of_gate = heading_of_gate - math.pi
-
-        gate_global_p = [gate_global_p[0][0], gate_global_p[1][0], gate_global_p[2][0]]
-        wp_current = cr.WP(gate_global_p, heading_of_gate)
-
-        distance = 999
-        if wp_visual_history is not None:
-            distance = cr.length(np.array(gate_global_p) - wp_visual_history[-1].pos)
-
-        if distance > 0.5:
-            wp_visual_history = [wp_current]
+    if 90 < heading_difference < 270:
+        if heading_of_gate < 0:
+            heading_of_gate = heading_of_gate + math.pi
         else:
+            heading_of_gate = heading_of_gate - math.pi
+
+    gate_global_p = [gate_global_p[0][0], gate_global_p[1][0], gate_global_p[2][0]]
+    wp_current = cr.WP(gate_global_p, heading_of_gate)
+
+    if wp_visual_history is None or len(wp_visual_history) < 10:
+        wp_visual_history.append(wp_current)
+    else:
+        distance = cr.length(np.array(gate_global_p) - wp_visual_history[-1].pos)  # recalculate with average
+        if distance < 1:
             wp_visual_history.append(wp_current)
-            if len(wp_visual_history) > 10:
-                del wp_visual_history[0]
-
-        rospy.loginfo("distance")
-        rospy.loginfo(distance)
-
-        if len(wp_visual_history) >= 5:
-            wp_visual = cr.find_average(wp_visual_history)
+            del wp_visual_history[0]
+            wp_average = cr.find_average(wp_visual_history)
 
     rospy.loginfo("wp_current")
     rospy.loginfo(wp_current)
 
-    rospy.loginfo("wp_visual")
-    rospy.loginfo(wp_visual)
+    rospy.loginfo("wp_average")
+    rospy.loginfo(wp_average)
 
     msg = WP_Msg()
-    if wp_visual is not None:
-        msg.pos.x = wp_visual.pos[0]
-        msg.pos.y = wp_visual.pos[1]
-        msg.pos.z = wp_visual.pos[2]
-        msg.hdg = wp_visual.hdg
+    if wp_average is not None:
+        msg.pos.x = wp_average.pos[0]
+        msg.pos.y = wp_average.pos[1]
+        msg.pos.z = wp_average.pos[2]
+        msg.hdg = wp_average.hdg
     wp_visual_publisher.publish(msg)
 
     msg = WP_Msg()
-    if wp_current is not None:
-        msg.pos.x = wp_current.pos[0]
-        msg.pos.y = wp_current.pos[1]
-        msg.pos.z = wp_current.pos[2]
-        msg.hdg = wp_current.hdg
+    msg.pos.x = wp_current.pos[0]
+    msg.pos.y = wp_current.pos[1]
+    msg.pos.z = wp_current.pos[2]
+    msg.hdg = wp_current.hdg
     wp_current_publisher.publish(msg)
 
-    if wp_visual is not None:
+    if wp_average is not None:
         log_string = str(wp_current.pos[0]) + ", " + \
                      str(wp_current.pos[1]) + ", " + \
                      str(wp_current.pos[2]) + ", " + \
                      str(wp_current.hdg) + ", " + \
-                     str(msg.pos.x) + ", " + \
-                     str(msg.pos.y) + ", " + \
-                     str(msg.pos.z) + ", " + \
-                     str(msg.hdg) + ", " + \
+                     str(wp_average.pos[0]) + ", " + \
+                     str(wp_average.pos[1]) + ", " + \
+                     str(wp_average.pos[2]) + ", " + \
+                     str(wp_average.hdg) + ", " + \
                      str(bebop_p[0][0]) + ", " + \
                      str(bebop_p[1][0]) + ", " + \
                      str(bebop_p[2][0]) + ", " + \
@@ -156,6 +142,12 @@ def calculate_visual_wp():
         log_string = "0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0"
 
     visual_log_publisher.publish(log_string)
+    return
+
+
+def calculate_visual_wp():
+    global wp_visual
+    wp_visual = wp_average
 
     return
 

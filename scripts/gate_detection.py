@@ -87,10 +87,10 @@ def mask_image(rgb, enc):
     # upper_color = np.array([180, 150, 150])  # blue
     # lower_color = np.array([6, 230, 110])  # orange 2D
     # upper_color = np.array([14, 25, 200])  # orange 2D
-    lower_color1 = np.array([0, 120, 80])  # orange 3D
-    upper_color1 = np.array([13, 255, 250])  # orange 3D
-    lower_color2 = np.array([170, 120, 80])  # orange 3D 150
-    upper_color2 = np.array([180, 255, 250])  # orange 3D
+    lower_color1 = np.array([0, 90, 80])  # orange 3D cypress
+    upper_color1 = np.array([13, 255, 150])  # orange 3D cypress
+    lower_color2 = np.array([170, 90, 80])  # orange 3D 150 cypress
+    upper_color2 = np.array([180, 255, 150])  # orange 3D cypress
 
     mask1 = cv2.inRange(hsv, lower_color1, upper_color1)
     mask2 = cv2.inRange(hsv, lower_color2, upper_color2)
@@ -148,7 +148,7 @@ def stereo_callback(data):
     global tvec
     global image_pub_gate
 
-    debug_on = True
+    debug_on = False
 
     if debug_on:
         this_pose = Pose()
@@ -406,10 +406,13 @@ def stereo_callback(data):
         (+square_side / 2, -square_side / 2, 0.0),
         (-square_side / 2, +square_side / 2, 0.0),
         (-square_side / 2, -square_side / 2, 0.0)])
-    t= time.time()
+    # t= time.time()
     (success, rvec, tvec) = cv2.solvePnP(model_points, corner_points, camera_matrix,
                                          dist_coeffs, flags=cv2.SOLVEPNP_ITERATIVE)
-    print time.time()-t
+
+    rvec = np.squeeze(rvec)
+    tvec = np.squeeze(tvec)
+    # print time.time()-t
     # print "Rotation Vector:\n {0}".format(rvec)
     # print "Translation Vector:\n {0}".format(tvec)
 

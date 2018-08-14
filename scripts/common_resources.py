@@ -10,7 +10,7 @@ import numpy as np
 
 
 # vector and rotation from bebop to zed
-BZ = np.array([[0], [0], [0]])
+BZ = np.array([0, 0, 0])
 zRb = tfs.euler_matrix(-math.pi / 2, 0, -math.pi / 2, 'rzyx')
 cam_q = tfs.quaternion_from_matrix(zRb)
 zRb = zRb[:3, :3]
@@ -21,25 +21,20 @@ frequency = 5
 
 # rotate vector by quaternion
 def qv_mult(q1, v1):
-    l = length(v1)
+    l = np.linalg.norm(v1)
     v1 = tfs.unit_vector(v1)
-    q2 = list(v1)
-    q2.append(0.0)
+    q2 = np.append(v1, 0.0)
     return tfs.quaternion_multiply(tfs.quaternion_multiply(q1, q2), tfs.quaternion_conjugate(q1))[:3] * l
 
 
 def axang2quat(vector):
-    l = length(vector)
+    l = np.linalg.norm(vector)
     s = math.sin(l / 2)
-    x = vector[0][0] / l * s
-    y = vector[1][0] / l * s
-    z = vector[2][0] / l * s
+    x = vector[0] / l * s
+    y = vector[1] / l * s
+    z = vector[2] / l * s
     w = math.cos(l / 2)
-    return [x, y, z, w]
-
-
-def length(list):
-    return math.sqrt(list[0] * list[0] + list[1] * list[1] + list[2] * list[2])
+    return np.array([x, y, z, w])
 
 
 def find_average(latest_gates):
@@ -57,6 +52,14 @@ def find_average(latest_gates):
     angle = math.atan2(sin, cos)
 
     return WP(pos, angle)
+
+
+def find_std_dev(average, wp_input_history):
+    deviation = 0
+    for gate in wp_input_history:
+        deviation = deviation + (np.linalg.norm(average.pos - gate.pos))**2
+    deviation = math.sqrt(deviation/len(wp_input_history))
+    return deviation
 
 
 def min_value(value, minimum):
@@ -84,22 +87,22 @@ class WP:
 
     def __str__(self):
         return str(list(self.pos) + [self.hdg])
-
-
-class Gate_Detection_Info:
-    def __init__(self, data):
-        tvec = np.array(data.tvec)
-        tvec.resize([3, 1])
-        rvec = np.array(data.rvec)
-        rvec.resize([3, 1])
-
-        self.tvec = tvec
-        self.rvec = rvec
-        self.bebop_pose = data.bebop_pose
-
-    def __str__(self):
-        return "\ntvec " + str(self.tvec) + "\nrvec " + str(self.rvec) + "\n" + str(self.bebop_pose)
-
+#
+#
+# class Gate_Detection_Info:
+#     def __init__(self, data):
+#         tvec = np.array(data.tvec)
+#         tvec.resize([3, 1])
+#         rvec = np.array(data.rvec)
+#         rvec.resize([3, 1])
+#
+#         self.tvec = tvec
+#         self.rvec = rvec
+#         self.bebop_pose = data.bebop_pose
+#
+#     def __str__(self):
+#         return "\ntvec " + str(self.tvec) + "\nrvec " + str(self.rvec) + "\n" + str(self.bebop_pose)
+#
 
 class PID:
     def __init__(self, p=2.0, i=0.0, d=1.0, derivator=0, integrator=0, integrator_max=.5, integrator_min=-.5):
@@ -164,7 +167,7 @@ class PID2:
 
         self.d_value = self.kd*((4*err - sum(self.derivator))/10)
 
-        self.derivator.pop([0])
+        self.derivator.pop(0)
         self.derivator.append(err)      
 
         self.p_value = self.kp * err

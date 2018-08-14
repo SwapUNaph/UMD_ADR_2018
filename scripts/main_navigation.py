@@ -35,38 +35,39 @@ def callback_states_changed(data, args):
 
 
 def callback_visual_detection_changed(data):
-    global gate_detection_info
-    gate_detection_info = cr.Gate_Detection_Info(data)
-
-    # transform and average already
     global wp_average
-    global wp_visual_history
+    global wp_input_history
+
+    if not detection_active:
+        log_string = "0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0"
+        visual_log_publisher.publish(log_string)
+        return
 
     # read data
     bebop_position = data.bebop_pose.position
     bebop_orientation = data.bebop_pose.orientation
 
     # bebop position and orientation
-    bebop_p = [[bebop_position.x], [bebop_position.position.y], [bebop_position.position.z]]
-    bebop_q = [bebop_orientation.x, bebop_orientation.y, bebop_orientation.z, bebop_orientation.w]
+    bebop_p = np.array([bebop_position.x, bebop_position.y, bebop_position.z])
+    bebop_q = np.array([bebop_orientation.x, bebop_orientation.y, bebop_orientation.z, bebop_orientation.w])
 
     # gate position and orientation
-    rospy.loginfo("tvec")
-    rospy.loginfo(data.tvec)
-    rospy.loginfo("rvec")
-    rospy.loginfo(data.rvec)
+    # rospy.loginfo("tvec")
+    # rospy.loginfo(data.tvec)
+    # rospy.loginfo("rvec")
+    # rospy.loginfo(data.rvec)
 
-    gate_pos = data.tvec
-    gate_q = cr.axang2quat(data.rvec)
-
-    rospy.loginfo("bebop_p")
-    rospy.loginfo(bebop_p)
-    rospy.loginfo("bebop_q")
-    rospy.loginfo(bebop_q)
-    rospy.loginfo("gate_pos")
-    rospy.loginfo(gate_pos)
-    rospy.loginfo("gate_q")
-    rospy.loginfo(gate_q)
+    gate_pos = np.array(data.tvec)
+    gate_q = cr.axang2quat(np.array(data.rvec))
+    #
+    # rospy.loginfo("bebop_p")
+    # rospy.loginfo(bebop_p)
+    # rospy.loginfo("bebop_q")
+    # rospy.loginfo(bebop_q)
+    # rospy.loginfo("gate_pos")
+    # rospy.loginfo(gate_pos)
+    # rospy.loginfo("gate_q")
+    # rospy.loginfo(gate_q)
 
     gate_global_p = cr.qv_mult(bebop_q, cr.qv_mult(cr.cam_q, gate_pos) + cr.BZ) + bebop_p
     gate_global_q = tfs.quaternion_multiply(bebop_q, tfs.quaternion_multiply(cr.cam_q, gate_q))
@@ -74,13 +75,13 @@ def callback_visual_detection_changed(data):
     heading_to_gate = math.atan2((gate_global_p[1] - bebop_p[1]), gate_global_p[0] - bebop_p[0])
     heading_of_gate = math.atan2(gate_normal_vec[1], gate_normal_vec[0])
     heading_difference = math.fabs(heading_to_gate - heading_of_gate) * 180 / math.pi
-
-    rospy.loginfo("gate_global_p")
-    rospy.loginfo(gate_global_p)
-    rospy.loginfo("gate_global_q")
-    rospy.loginfo(gate_global_q)
-    rospy.loginfo("gate_normal_vec")
-    rospy.loginfo(gate_normal_vec)
+    #
+    # rospy.loginfo("gate_global_p")
+    # rospy.loginfo(gate_global_p)
+    # rospy.loginfo("gate_global_q")
+    # rospy.loginfo(gate_global_q)
+    # rospy.loginfo("gate_normal_vec")
+    # rospy.loginfo(gate_normal_vec)
 
     if 90 < heading_difference < 270:
         if heading_of_gate < 0:
@@ -88,32 +89,7 @@ def callback_visual_detection_changed(data):
         else:
             heading_of_gate = heading_of_gate - math.pi
 
-    gate_global_p = [gate_global_p[0][0], gate_global_p[1][0], gate_global_p[2][0]]
     wp_current = cr.WP(gate_global_p, heading_of_gate)
-
-    if wp_visual_history is None or len(wp_visual_history) < 10:
-        wp_visual_history.append(wp_current)
-    else:
-        distance = cr.length(np.array(gate_global_p) - wp_visual_history[-1].pos)  # recalculate with average
-        if distance < 1:
-            wp_visual_history.append(wp_current)
-            del wp_visual_history[0]
-            wp_average = cr.find_average(wp_visual_history)
-
-    rospy.loginfo("wp_current")
-    rospy.loginfo(wp_current)
-
-    rospy.loginfo("wp_average")
-    rospy.loginfo(wp_average)
-
-    msg = WP_Msg()
-    if wp_average is not None:
-        msg.pos.x = wp_average.pos[0]
-        msg.pos.y = wp_average.pos[1]
-        msg.pos.z = wp_average.pos[2]
-        msg.hdg = wp_average.hdg
-    wp_visual_publisher.publish(msg)
-
     msg = WP_Msg()
     msg.pos.x = wp_current.pos[0]
     msg.pos.y = wp_current.pos[1]
@@ -121,34 +97,112 @@ def callback_visual_detection_changed(data):
     msg.hdg = wp_current.hdg
     wp_current_publisher.publish(msg)
 
-    if wp_average is not None:
+    rospy.loginfo("wp_current")
+    rospy.loginfo(wp_current)
+
+    # while there is no average yet: start collecting gate positions and evaluate standard deviation
+    if wp_average is None:
+        wp_input_history.append(wp_current)
+        if len(wp_input_history) > 10:
+            rospy.loginfo("enough mesurements")
+            del wp_input_history[0]
+            # calculate std deviation of list
+            average = cr.find_average(wp_input_history)
+            std_deviation = cr.find_std_dev(average, wp_input_history)
+            # when std dev is low enough, provide waypoint
+            if std_deviation < 0.4:
+                rospy.loginfo("measurements accepted")
+                wp_average = average
+            else:
+                rospy.loginfo("standard deviation too high:")
+                rospy.loginfo(std_deviation)
+        else:
+            std_deviation = 5
+            rospy.loginfo("collecting measurements")
+
         log_string = str(wp_current.pos[0]) + ", " + \
-                     str(wp_current.pos[1]) + ", " + \
-                     str(wp_current.pos[2]) + ", " + \
-                     str(wp_current.hdg) + ", " + \
-                     str(wp_average.pos[0]) + ", " + \
-                     str(wp_average.pos[1]) + ", " + \
-                     str(wp_average.pos[2]) + ", " + \
-                     str(wp_average.hdg) + ", " + \
-                     str(bebop_p[0][0]) + ", " + \
-                     str(bebop_p[1][0]) + ", " + \
-                     str(bebop_p[2][0]) + ", " + \
-                     str(bebop_q[3]) + ", " + \
-                     str(bebop_q[0]) + ", " + \
-                     str(bebop_q[1]) + ", " + \
-                     str(bebop_q[2]) + ", " + \
-                     str(heading_to_gate)
+            str(wp_current.pos[1]) + ", " + \
+            str(wp_current.pos[2]) + ", " + \
+            str(wp_current.hdg) + ", " + \
+            str(average.pos[0]) + ", " + \
+            str(average.pos[1]) + ", " + \
+            str(average.pos[2]) + ", " + \
+            str(average.hdg) + ", " + \
+            str(bebop_p[0]) + ", " + \
+            str(bebop_p[1]) + ", " + \
+            str(bebop_p[2]) + ", " + \
+            str(bebop_q[3]) + ", " + \
+            str(bebop_q[0]) + ", " + \
+            str(bebop_q[1]) + ", " + \
+            str(bebop_q[2]) + ", " + \
+            str(heading_to_gate) + ", " + \
+            str(std_deviation) + ", " + \
+            str(1.0)
     else:
-        log_string = "0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0"
+        # now, add to list only if gate position is close to last one
+        distance = np.linalg.norm(np.array(gate_global_p) - wp_input_history[-1].pos)
+        if distance < 1:
+            print("use detected gate")
+            wp_input_history.append(wp_current)
+            del wp_input_history[0]
+            wp_average = cr.find_average(wp_input_history)
+            rospy.loginfo("wp_average")
+            rospy.loginfo(wp_average)
+        else:
+            print("discard detected gate")
+
+        log_string = str(wp_current.pos[0]) + ", " + \
+            str(wp_current.pos[1]) + ", " + \
+            str(wp_current.pos[2]) + ", " + \
+            str(wp_current.hdg) + ", " + \
+            str(wp_average.pos[0]) + ", " + \
+            str(wp_average.pos[1]) + ", " + \
+            str(wp_average.pos[2]) + ", " + \
+            str(wp_average.hdg) + ", " + \
+            str(bebop_p[0]) + ", " + \
+            str(bebop_p[1]) + ", " + \
+            str(bebop_p[2]) + ", " + \
+            str(bebop_q[3]) + ", " + \
+            str(bebop_q[0]) + ", " + \
+            str(bebop_q[1]) + ", " + \
+            str(bebop_q[2]) + ", " + \
+            str(heading_to_gate) + ", " + \
+            str(distance) + ", " + \
+            str(2.0)
 
     visual_log_publisher.publish(log_string)
+
+    msg = WP_Msg()
+    if wp_average is not None:
+        msg.pos.x = wp_average.pos[0]
+        msg.pos.y = wp_average.pos[1]
+        msg.pos.z = wp_average.pos[2]
+        msg.hdg = wp_average.hdg
+    wp_average_publisher.publish(msg)
+
     return
 
 
 def calculate_visual_wp():
     global wp_visual
+    global wp_average
+    global wp_visual_old
+
+    if wp_visual is not None:
+        wp_visual_old = wp_visual
+
     wp_visual = wp_average
 
+    rospy.loginfo("wp_visual")
+    rospy.loginfo(wp_visual)
+
+    msg = WP_Msg()
+    if wp_visual is not None:
+        msg.pos.x = wp_visual.pos[0]
+        msg.pos.y = wp_visual.pos[1]
+        msg.pos.z = wp_visual.pos[2]
+        msg.hdg = wp_average.hdg
+    wp_visual_publisher.publish(msg)
     return
 
 
@@ -157,74 +211,108 @@ def calculate_blind_wp():
     global wp_blind_old
     global wp_visual
     global wp_visual_old
+    global wp_average
+    global wp_input_history
     global wp_look
     global wp_blind_takeoff_time
 
     bebop_position = bebop_odometry.pose.pose.position
     bebop_orientation = bebop_odometry.pose.pose.orientation
 
-    if state_auto == 4:
-        rospy.loginfo("state 4")
-        if wp_blind is None:
-            if wp_blind_takeoff_time is None:
-                rospy.loginfo("start timer")
-                wp_blind_takeoff_time = time.time()
-            elif wp_blind_takeoff_time + 3 < time.time():
+    if wp_blind is not None:
+        wp_blind_old = wp_blind
 
-                rospy.loginfo("set fake target")
+    if state_auto == 5 and wp_blind is None:
+        rospy.loginfo("state 5: set fake start location to see first gate")
 
-                # implementation exactly reverse as in matlab. Invert necessary when not required in matlab vice versa
-                bebop_p = [bebop_position.x, bebop_position.y, bebop_position.z]
-                bebop_q = [bebop_orientation.x, bebop_orientation.y, bebop_orientation.z, bebop_orientation.w]
+        bebop_p = [bebop_position.x, bebop_position.y, bebop_position.z]
+        bebop_q = [bebop_orientation.x, bebop_orientation.y, bebop_orientation.z, bebop_orientation.w]
 
-                # dx0 = [1, 0, 0]
-                # dx = cr.qv_mult(bebop_q, dx0)
+        blind_position = [0.0, 0.0, 0.9]  # front, left , up
+        blind_position_global = cr.qv_mult(bebop_q, blind_position) + bebop_p
+        blind_position_global = blind_position_global.tolist()
 
-                # old_heading = math.atan2(dx[1], dx[0])
-                new_heading = 0  # old_heading + 2.0*math.pi/4
+        look_position = [5, 0, 0]  # front, left, up
+        look_position_global = cr.qv_mult(bebop_q, look_position) + bebop_p
+        look_position_global = look_position_global.tolist()
 
-                if new_heading > math.pi:
-                    new_heading = new_heading - 2 * math.pi
-                elif new_heading < -math.pi:
-                    new_heading = new_heading + 2 * math.pi
+        # initialize with this position
+        wp_blind = cr.WP(blind_position_global, 0)
+        rospy.loginfo("global position set for blind")
 
-                blind_position = [1.5, 0.0, 0.0]  # front, left , up
-                blind_position_global = cr.qv_mult(bebop_q, blind_position) + bebop_p
-                blind_position_global = blind_position_global.tolist()
+        wp_look = cr.WP(look_position_global, 0)
 
-                look_position = [0, -3, 0]  # front, left, up
-                look_position_global = cr.qv_mult(bebop_q, look_position) + bebop_p
-                look_position_global = look_position_global.tolist()
-
-                # initialize with this position
-                wp_blind = cr.WP(blind_position_global, new_heading)
-                rospy.loginfo("global position set for blind")
-
-                wp_look = cr.WP(look_position_global, 0)
-
-    if state_auto == 5 and wp_visual is None:
-        if wp_visual_old is not None:
-            rospy.loginfo("state 5, set visual as blind")
-            wp_blind = wp_visual_old
-
-    if state_auto == 6 and wp_blind is None:
-        rospy.loginfo("state 6, set new blind")
+    if state_auto == 7 and wp_blind is None:
+        rospy.loginfo("state 7, set new blind at 90deg")
         # continue in gate direction for 0.5m
-        print wp_blind_old
-        extra_distance = 0.5 * np.array([math.cos(wp_blind_old.hdg), math.sin(wp_blind_old.hdg), 0])
-        wp_blind = cr.WP(wp_blind_old.pos + extra_distance, wp_blind_old.hdg)
-        print extra_distance
-        print wp_blind
 
-        extra_distance = 10 * np.array([math.cos(wp_blind_old.hdg), math.sin(wp_blind_old.hdg), 0])
-        wp_look = cr.WP(wp_blind_old.pos + extra_distance, 0)
+        fly_start = wp_visual_old.pos
+        fly_distance = 0.5
+        fly_heading = wp_visual_old.hdg
+        fly_vec = fly_distance * np.array([math.cos(fly_heading), math.sin(fly_heading), 0])
+        wp_blind = cr.WP(fly_start + fly_vec, 0)
 
-        rospy.loginfo("land at: " + str(wp_blind))
+        look_start = wp_visual_old.pos
+        look_distance = 10
+        look_heading = wp_visual_old.hdg - math.pi/2
+        look_vec = look_distance * np.array([math.cos(look_heading), math.sin(look_heading), 0])
+        wp_look = cr.WP(look_start.pos + look_vec, 0)
+
+        wp_visual = None
+        wp_average = None
+        wp_input_history = []
+
+        rospy.loginfo("fly to turn: " + str(wp_blind))
+
+    if state_auto == 8 and wp_blind is None:
+        rospy.loginfo("state 8, set new blind at 180deg")
+        # continue in gate direction for 0.5m
+
+        fly_start = wp_visual_old.pos
+        fly_distance = 1.0
+        fly_heading = wp_visual_old.hdg
+        fly_vec = fly_distance * np.array([math.cos(fly_heading), math.sin(fly_heading), 0])
+        wp_blind = cr.WP(fly_start + fly_vec, 0)
+
+        look_start = wp_visual_old.pos
+        look_distance = 10
+        look_heading = wp_visual_old.hdg - math.pi
+        look_vec = look_distance * np.array([math.cos(look_heading), math.sin(look_heading), 0])
+        wp_look = cr.WP(look_start.pos + look_vec, 0)
+
+        wp_visual = None
+        wp_average = None
+        wp_input_history = []
+
+        rospy.loginfo("fly to turn2: " + str(wp_blind))
+
+    if state_auto == 10 and wp_blind is None:
+        rospy.loginfo("state 10, set new blind at ldg")
+        # continue in gate direction for 0.5m
+
+        fly_start = wp_visual_old.pos
+        fly_distance = 0.5
+        fly_heading = wp_visual_old.hdg
+        fly_vec = fly_distance * np.array([math.cos(fly_heading), math.sin(fly_heading), 0])
+        wp_blind = cr.WP(fly_start + fly_vec, 0)
+
+        look_start = wp_visual_old.pos
+        look_distance = 10
+        look_heading = wp_visual_old.hdg
+        look_vec = look_distance * np.array([math.cos(look_heading), math.sin(look_heading), 0])
+        wp_look = cr.WP(look_start.pos + look_vec, 0)
+
+        wp_visual = None
+        wp_average = None
+        wp_input_history = []
+
+        rospy.loginfo("fly to turn2: " + str(wp_blind))
 
     rospy.loginfo("wp_blind")
     rospy.loginfo(wp_blind)
 
     msg = WP_Msg()
+
     if wp_blind is not None:
         msg.pos.x = wp_blind.pos[0]
         msg.pos.y = wp_blind.pos[1]
@@ -265,7 +353,7 @@ def navigate_throu():
     hdg = math.atan2(bebop_x_vec[1], bebop_x_vec[0])
 
     rospy.loginfo("fly from")
-    rospy.loginfo(bebop_p, [hdg])
+    rospy.loginfo([bebop_p[0], bebop_p[1], bebop_p[2], hdg])
     rospy.loginfo("fly to")
     rospy.loginfo(wp_select)
 
@@ -365,8 +453,6 @@ def navigate_throu():
         0) + ", " + str(
         0) + ", " + str(
         0)
-
-
 
     nav_log_publisher.publish(log_string)
 
@@ -493,9 +579,9 @@ def calculate_distance():
     bebop_position = bebop_odometry.pose.pose.position
     diff_global = wp_select.pos - [bebop_position.x, bebop_position.y, bebop_position.z]
     if navigation_active == "point":
-        return cr.length(diff_global)
+        return np.linalg.norm(diff_global)
     elif navigation_active == "throu":
-        flat_distance = cr.length([diff_global[0], diff_global[1], 0])
+        flat_distance = np.linalg.norm([diff_global[0], diff_global[1], 0])
         heading_to_gate = math.atan2(wp_select.pos[1] - bebop_position.y, wp_select.pos[0] - bebop_position.x)
         heading_of_gate = wp_select.hdg
         heading_difference = heading_to_gate - heading_of_gate
@@ -504,8 +590,12 @@ def calculate_distance():
 
 def state_machine_advancement(navigation_distance):
     global wp_blind
+    global wp_blind_old
     global wp_look
     global navigation_active
+    global detection_active
+    global wp_input_history
+    global wp_blind_takeoff_time
 
     # BEBOP STATE overview
     #   0   landed
@@ -533,40 +623,65 @@ def state_machine_advancement(navigation_distance):
         rospy.loginfo("takeoff started")
         state_auto_publisher.publish(state_auto + 1)
     elif state_auto == 3 and state_bebop == 2:  # drone was taking off and is now hovering/flying
-        navigation_active = "point"
         rospy.loginfo("takeoff completed")
+        wp_blind_takeoff_time = time.time()
         state_auto_publisher.publish(state_auto + 1)
-    elif state_auto == 4 and wp_visual is not None:  # we detected the gate and try to get there
+    elif state_auto == 4 and wp_blind_takeoff_time + 3 < time.time():
+        rospy.loginfo("waited 3s. start blind and detection")
+        detection_active = True
+        navigation_active = "point"
+        state_auto_publisher.publish(state_auto + 1)
+    elif state_auto == 5 and wp_average is not None:  # we detected the gate and try to get there
         navigation_active = "throu"
         wp_blind = None
         wp_look = None
         rospy.loginfo("visually detected gate")
         state_auto_publisher.publish(state_auto + 1)
-    elif state_auto == 4 and navigation_distance < 0.2:  # we reached the blind point and can't see the gate -> land
+    elif state_auto == 5 and navigation_distance < 0.2:  # we reached the blind point and can't see the gate
         #  wp_blind = None
         #  wp_look = None
         #  navigation_active = "off"
         #  rospy.loginfo("can't change to visual. Landing")
         #  state_auto_publisher.publish(state_auto + 2)
         pass
-    elif state_auto == 5 and navigation_distance < 0.3:  # drone reached gate, continue in gate direction
+    elif state_auto == 6 and navigation_distance < 0.5:  # drone gets close to gate. continue in gate direction to turn
+        detection_active = False
+        navigation_active = "point"
+        wp_blind_old = wp_blind
+        wp_blind = None
+        wp_look = None
+        rospy.loginfo("gate almost reached")
+        state_auto_publisher.publish(state_auto + 1)
+    elif state_auto == 7 and navigation_distance < 0.2:  # drone is at turn. continue in gate direction to ldg
+        detection_active = True
+        navigation_active = "point"
+        wp_blind_old = wp_blind
+        wp_blind = None
+        rospy.loginfo("halfway turned")
+        state_auto_publisher.publish(state_auto + 1)
+    elif state_auto == 8 and wp_average is not None:  # we detected the gate 2nd and try to get there
+        navigation_active = "throu"
+        wp_blind = None
+        rospy.loginfo("visually detected gate 2nd")
+        state_auto_publisher.publish(state_auto + 1)
+    elif state_auto == 9 and navigation_distance < 0.5:  # drone gets close to gate. continue in gate direction to ldg
+        detection_active = False
         navigation_active = "point"
         wp_blind = None
-        rospy.loginfo("gate reached")
+        rospy.loginfo("gate almost reached 2nd")
         state_auto_publisher.publish(state_auto + 1)
-    elif state_auto == 6 and navigation_distance < 0.2:  # drone reached landing location
+    elif state_auto == 10 and navigation_distance < 0.2:  # drone reached landing location
         wp_blind = None
         wp_look = None
         navigation_active = "off"
         rospy.loginfo("mission finished")
-        state_auto_publisher.publish(state_auto + 1)
-    elif state_auto == 7 and state_bebop == 4:  # drone initiated landing
+        state_auto_publisher.publish(98)
+    elif state_auto == 98 and state_bebop == 4:  # drone initiated landing
         rospy.loginfo("landing started")
         state_auto_publisher.publish(state_auto + 1)
-    elif state_auto == 8 and state_bebop == 0:  # drone was landing and has landed
+    elif state_auto == 99 and state_bebop == 0:  # drone was landing and has landed
         rospy.loginfo("landing completed")
         state_auto_publisher.publish(state_auto + 1)
-
     return
 
 
@@ -583,22 +698,18 @@ def callback_bebop_odometry_changed(data):
     global min_distance
     global wp_visual
     global wp_visual_old
-    global wp_visual_history
+    global wp_input_history
     global wp_blind
     global wp_blind_old
     global wp_look
     global navigation_active
-    global gate_detection_info
 
     # state_machine_advancement (if conditions are met: distances, states, ...)
     navigation_distance = calculate_distance()
 
     rospy.loginfo("navigation distance")
     rospy.loginfo(navigation_distance)
-    # if navigation_distance < min_distance:
-    #     min_distance = navigation_distance
-    # rospy.loginfo("min distance")
-    # rospy.loginfo(min_distance)
+
     state_machine_advancement(navigation_distance)
 
     if bebop_odometry is None:
@@ -652,16 +763,18 @@ if __name__ == '__main__':
     bebop_odometry = None
     state_auto = -1
     state_bebop = None
-    gate_detection_info = None
+    gate_global_p_old = np.array([0,0,0])
+    wp_average = None
     wp_visual = None
     wp_visual_old = None
-    wp_visual_history = None
+    wp_input_history = []
     wp_blind_takeoff_time = None
     wp_blind = None
     wp_blind_old = None
     wp_look = None
     wp_select = None
     navigation_active = "off"
+    detection_active = False
     nav_point_PID_x_pos = cr.PID2(.7, 0.1, 4.0)
     nav_point_PID_y_pos = cr.PID2(.7, 0.1, 4.0)
     nav_point_PID_x_vel = cr.PID2(0.8, 0, 0.0)
@@ -684,6 +797,7 @@ if __name__ == '__main__':
     # Publishers
     state_auto_publisher = rospy.Publisher("/auto/state_auto",     Int32,               queue_size=1, latch=True)
     auto_drive_publisher = rospy.Publisher("/auto/auto_drive",     Auto_Driving_Msg,    queue_size=1, latch=True)
+    wp_average_publisher = rospy.Publisher("/auto/wp_average",     WP_Msg,              queue_size=1, latch=True)
     wp_visual_publisher = rospy.Publisher("/auto/wp_visual",       WP_Msg,              queue_size=1, latch=True)
     wp_blind_publisher = rospy.Publisher("/auto/wp_blind",         WP_Msg,              queue_size=1, latch=True)
     wp_look_publisher = rospy.Publisher("/auto/wp_look",           WP_Msg,              queue_size=1, latch=True)
@@ -695,7 +809,7 @@ if __name__ == '__main__':
     # Subscribers
     rospy.Subscriber("/auto/state_auto", Int32, callback_states_changed, "state_auto")
     rospy.Subscriber("/bebop/odom", Odometry, callback_bebop_odometry_changed)
-    rospy.Subscriber("/zed/odom", Odometry, callback_zed_odometry_changed)
+    # rospy.Subscriber("/zed/odom", Odometry, callback_zed_odometry_changed)
     rospy.Subscriber("/auto/gate_detection_result", Gate_Detection_Msg, callback_visual_detection_changed)
     rospy.Subscriber("/bebop/states/ardrone3/PilotingState/FlyingStateChanged", Ardrone3PilotingStateFlyingStateChanged,
                      callback_states_changed, "state_bebop")

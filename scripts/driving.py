@@ -99,7 +99,7 @@ def main():
             if state_auto == 2:
                 rospy.loginfo("takeoff")
                 publish_status("takeoff")
-            elif state_auto == 7:
+            elif state_auto == 98:
                 rospy.loginfo("land")
                 publish_status("land")
 

@@ -32,9 +32,9 @@ def mask_image(rgb, enc):
     # convert to HSV
     hsv = cv2.cvtColor(rgb, cv2.COLOR_BGR2HSV)
 
-    # Threshold the HSV image to get only orange colors
-    lower_color = np.array([100, 150, 100])  # orange 3D 150
-    upper_color = np.array([140, 255, 255])  # orange 3D
+    # Threshold the HSV image to get only blue colors
+    lower_color = np.array([100, 150, 100])  # blue 3D
+    upper_color = np.array([140, 255, 255])  # blue 3D
 
     mask = cv2.inRange(hsv, lower_color, upper_color)
 

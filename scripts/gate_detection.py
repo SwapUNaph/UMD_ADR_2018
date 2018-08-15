@@ -29,56 +29,57 @@ import sys
 def signal_handler(signal, frame):
     sys.exit(0)
 
-
-def find_threshold_bimodal(array):
-    array = np.array(array,dtype="double")
-    array_sum = np.sum(array)
-    var = []
-    for n in range(array.size):
-        partarray_sum = np.sum(array[:n])
-        if partarray_sum == 0:
-            s1 = 0
-            var1 = 0
-        else:
-            s1 = np.sum(array[:n]) / array_sum
-            mean1 = np.sum(array[:n] * range(n)) / partarray_sum
-            var1 = np.sum(np.square(range(n) - mean1) * array[:n] / array_sum / s1)
-
-        partarray_sum = np.sum(array[n:])
-        if partarray_sum == 0:
-            s2 = 0
-            var2 = 0
-        else:
-            s2 = np.sum(array[n:]) / array_sum
-            mean2 = np.sum(array[n:] * range(n, array.size)) / partarray_sum
-            var2 = np.sum(np.square(range(n, array.size) - mean2) * array[n:] / array_sum / s2)
-        var.append(int(s1 * var1 + s2 * var2))
-    idx = (var.index(min(var)) + len(var) - 1 - var[::-1].index(min(var)))/2
-
-    if idx >= 90:
-        angle_thres = idx - 90
-    else:
-        angle_thres = idx
-
-    return angle_thres
+#
+# def find_threshold_bimodal(array):
+#     array = np.array(array,dtype="double")
+#     array_sum = np.sum(array)
+#     var = []
+#     for n in range(array.size):
+#         partarray_sum = np.sum(array[:n])
+#         if partarray_sum == 0:
+#             s1 = 0
+#             var1 = 0
+#         else:
+#             s1 = np.sum(array[:n]) / array_sum
+#             mean1 = np.sum(array[:n] * range(n)) / partarray_sum
+#             var1 = np.sum(np.square(range(n) - mean1) * array[:n] / array_sum / s1)
+#
+#         partarray_sum = np.sum(array[n:])
+#         if partarray_sum == 0:
+#             s2 = 0
+#             var2 = 0
+#         else:
+#             s2 = np.sum(array[n:]) / array_sum
+#             mean2 = np.sum(array[n:] * range(n, array.size)) / partarray_sum
+#             var2 = np.sum(np.square(range(n, array.size) - mean2) * array[n:] / array_sum / s2)
+#         var.append(int(s1 * var1 + s2 * var2))
+#     idx = (var.index(min(var)) + len(var) - 1 - var[::-1].index(min(var)))/2
+#
+#     if idx >= 90:
+#         angle_thres = idx - 90
+#     else:
+#         angle_thres = idx
+#
+#     return angle_thres
 
 
 def isect_lines(line1, line2):
     for x1, y1, x2, y2 in line1:
         for x3, y3, x4, y4 in line2:
             try:
-                s = float((x2 - x1) * (y3 - y1) - (x3 - x1) * (y2 - y1)) / float((x4 - x3) * (y2 - y1) - (x2 - x1) * (y4 - y3))
+                s = float((x2 - x1) * (y3 - y1) - (x3 - x1) * (y2 - y1)) / float(
+                    (x4 - x3) * (y2 - y1) - (x2 - x1) * (y4 - y3))
 
                 x = x3 + s * (x4 - x3)
                 y = y3 + s * (y4 - y3)
+                return x, y
 
             except ZeroDivisionError:
-                return -1, -1, -1
                 rospy.loginfo("ZeroDivisionError in isect_lines")
-    return x, y
+                return -1, -1, -1
 
 
-def mask_image(rgb, enc):
+def mask_image_orange(rgb):
     # convert to HSV
     hsv = cv2.cvtColor(rgb, cv2.COLOR_BGR2HSV)
 
@@ -114,22 +115,33 @@ def mask_image(rgb, enc):
     # print(total)
 
     # Bitwise-AND mask and original image only for fun
-    global image_pub_dev1
+    # global image_pub_dev1
     global bridge
-    output_im = bridge.cv2_to_imgmsg(mask, encoding="8UC1")
-    image_pub_dev1.publish(output_im)
+    # output_im = bridge.cv2_to_imgmsg(mask, encoding="8UC1")
+    # image_pub_dev1.publish(output_im)
 
-    #show = cv2.resize(debug,(1280,720))
-    #cv2.imshow("show",show)
-    #if cv2.waitKey(1) & 0xFF == ord('q'):
-    #   exit()
-
+    # show = cv2.resize(debug,(1280,720))
+    # cv2.imshow("show",show)
+    # if cv2.waitKey(1) & 0xFF == ord('q'):
+    #    exit()
 
     global image_pub_threshold
     res = cv2.bitwise_and(rgb, rgb, mask=mask)
     output_im = bridge.cv2_to_imgmsg(res, encoding="rgb8")
     image_pub_threshold.publish(output_im)
 
+    return mask
+
+
+def mask_image_dynamic(rgb, enc):
+    # convert to HSV
+    hsv = cv2.cvtColor(rgb, cv2.COLOR_BGR2HSV)
+
+    # Threshold the HSV image to get only blue colors
+    lower_color = np.array([100, 150, 100])  # blue 3D
+    upper_color = np.array([140, 255, 255])  # blue 3D
+
+    mask = cv2.inRange(hsv, lower_color, upper_color)
     return mask
 
 
@@ -157,18 +169,20 @@ def stereo_callback(data):
             print("No position")
             return
         this_pose = latest_pose
+    this_time = time.time()
 
     # convert image msg to matrix
-    rgb = bridge.imgmsg_to_cv2(data, desired_encoding=data.encoding)
+    input_image = bridge.imgmsg_to_cv2(data, desired_encoding=data.encoding)
+    rgb = input_image
 
     # HSV conversion and frame detection
-    mask = mask_image(rgb, data.encoding)
+    mask = mask_image_orange(input_image)
 
     # probabilistic hough transform
-    minLineLength = 100
-    maxLineGap = 25
+    min_line_length = 100
+    max_line_gap = 25
 
-    lines = cv2.HoughLinesP(mask, 5, np.pi / 180, 500, minLineLength=minLineLength, maxLineGap=maxLineGap)
+    lines = cv2.HoughLinesP(mask, 5, np.pi / 180, 500, minLineLength=min_line_length, maxLineGap=max_line_gap)
 
     if lines is None:
         rospy.loginfo("no lines")
@@ -192,7 +206,7 @@ def stereo_callback(data):
     corners = np.transpose(lines)
     start = corners[:2, :]
     end = corners[2:, :]
-    start_end = np.concatenate((start,end),axis=1)
+    start_end = np.concatenate((start, end), axis=1)
     # print start_end
     votes = list(reversed(range(len(lines))))
     votes = np.concatenate((votes, votes))
@@ -234,8 +248,8 @@ def stereo_callback(data):
 
     max_cluster = np.argmax(idx)+1
     cv2.circle(rgb, (int(x_ms_1[max_cluster-1]), int(y_ms_1[max_cluster-1])), dist_thresh, (255, 0, 0), 2)
-    corner_points = np.zeros((4,2))
-    corner_points[0,:] = [x_ms_1[max_cluster - 1], y_ms_1[max_cluster - 1]]
+    corner_points = np.zeros((4, 2))
+    corner_points[0, :] = [x_ms_1[max_cluster - 1], y_ms_1[max_cluster - 1]]
 
     # find lines originating from this cluster and recluster its endpoints
     to_cluster_id = np.where(clusters_1 == max_cluster)[0]
@@ -247,7 +261,7 @@ def stereo_callback(data):
     # for line in to_cluster_id2:
     #     cv2.line(rgb, (start[0][line], start[1][line]), (end[0][line], end[1][line]), (0, 0, 255), 2)
 
-    to_cluster1 = end[:,to_cluster_id1]
+    to_cluster1 = end[:, to_cluster_id1]
     to_cluster2 = start[:, to_cluster_id2]
     to_cluster = np.concatenate((to_cluster1, to_cluster2), axis=1)
     votes_2 = np.concatenate((votes[to_cluster_id1], votes[to_cluster_id2]))
@@ -303,35 +317,34 @@ def stereo_callback(data):
 
     # find lines originating from two median points and recluster its endpoints
     to_cluster_id_b = np.concatenate((np.where(clusters_1 == close_id1)[0], np.where(clusters_1 == close_id2)[0]))
-
-    t1 = np.where(clusters_1 == close_id1)[0]
-    t2 = np.where(clusters_1 == close_id2)[0]
-    to_cluster_id1_t1 = t1[t1 < len(lines)]
-    to_cluster_id2_t1 = t1[t1 >= len(lines)] - len(lines)
-    to_cluster_id1_t2 = t2[t2 < len(lines)]
-    to_cluster_id2_t2 = t2[t2 >= len(lines)] - len(lines)
-
-    rm11 = np.in1d(to_cluster_id1_t1, to_cluster_id1) + np.in1d(to_cluster_id1_t1, to_cluster_id2)
-    rm21 = np.in1d(to_cluster_id2_t1, to_cluster_id1) + np.in1d(to_cluster_id2_t1, to_cluster_id2)
-    rm12 = np.in1d(to_cluster_id1_t2, to_cluster_id1) + np.in1d(to_cluster_id1_t2, to_cluster_id2)
-    rm22 = np.in1d(to_cluster_id2_t2, to_cluster_id1) + np.in1d(to_cluster_id2_t2, to_cluster_id2)
-
-    tt11 = np.delete(to_cluster_id1_t1, np.where(rm11))
-    tt21 = np.delete(to_cluster_id2_t1, np.where(rm21))
-    tt12 = np.delete(to_cluster_id1_t2, np.where(rm12))
-    tt22 = np.delete(to_cluster_id2_t2, np.where(rm22))
-    print tt11, tt21
-    print tt12, tt22
-
-    for line in tt11:
-        cv2.line(rgb, (start[0][line], start[1][line]), (end[0][line], end[1][line]), (255, 255, 0), 2)
-    for line in tt21:
-        cv2.line(rgb, (start[0][line], start[1][line]), (end[0][line], end[1][line]), (255, 255, 0), 2)
-    for line in tt12:
-        cv2.line(rgb, (start[0][line], start[1][line]), (end[0][line], end[1][line]), (255, 0, 255), 2)
-    for line in tt22:
-        cv2.line(rgb, (start[0][line], start[1][line]), (end[0][line], end[1][line]), (255, 0, 255), 2)
-
+    #
+    # t1 = np.where(clusters_1 == close_id1)[0]
+    # t2 = np.where(clusters_1 == close_id2)[0]
+    # to_cluster_id1_t1 = t1[t1 < len(lines)]
+    # to_cluster_id2_t1 = t1[t1 >= len(lines)] - len(lines)
+    # to_cluster_id1_t2 = t2[t2 < len(lines)]
+    # to_cluster_id2_t2 = t2[t2 >= len(lines)] - len(lines)
+    #
+    # rm11 = np.in1d(to_cluster_id1_t1, to_cluster_id1) + np.in1d(to_cluster_id1_t1, to_cluster_id2)
+    # rm21 = np.in1d(to_cluster_id2_t1, to_cluster_id1) + np.in1d(to_cluster_id2_t1, to_cluster_id2)
+    # rm12 = np.in1d(to_cluster_id1_t2, to_cluster_id1) + np.in1d(to_cluster_id1_t2, to_cluster_id2)
+    # rm22 = np.in1d(to_cluster_id2_t2, to_cluster_id1) + np.in1d(to_cluster_id2_t2, to_cluster_id2)
+    #
+    # tt11 = np.delete(to_cluster_id1_t1, np.where(rm11))
+    # tt21 = np.delete(to_cluster_id2_t1, np.where(rm21))
+    # tt12 = np.delete(to_cluster_id1_t2, np.where(rm12))
+    # tt22 = np.delete(to_cluster_id2_t2, np.where(rm22))
+    # print tt11, tt21
+    # print tt12, tt22
+    #
+    # for line in tt11:
+    #     cv2.line(rgb, (start[0][line], start[1][line]), (end[0][line], end[1][line]), (255, 255, 0), 2)
+    # for line in tt21:
+    #     cv2.line(rgb, (start[0][line], start[1][line]), (end[0][line], end[1][line]), (255, 255, 0), 2)
+    # for line in tt12:
+    #     cv2.line(rgb, (start[0][line], start[1][line]), (end[0][line], end[1][line]), (255, 0, 255), 2)
+    # for line in tt22:
+    #     cv2.line(rgb, (start[0][line], start[1][line]), (end[0][line], end[1][line]), (255, 0, 255), 2)
 
     to_cluster_id1_b = to_cluster_id_b[to_cluster_id_b < len(lines)]
     to_cluster_id2_b = to_cluster_id_b[to_cluster_id_b >= len(lines)] - len(lines)
@@ -398,8 +411,6 @@ def stereo_callback(data):
     # square_side = 1.03
     square_side = 1.4
 
-    #corner_points = np.array([[1, 2], [3, 4],          [5, 6], [7, 8]],             dtype="double")
-
     # 3D model points.
     model_points = np.array([
         (+square_side / 2, +square_side / 2, 0.0),
@@ -424,20 +435,6 @@ def stereo_callback(data):
     result_publisher.publish(msg)
     rospy.loginfo("detected")
 
-    global result_publisher_tvec
-    msg = Float32MultiArray()
-    msg.data = tvec
-    result_publisher_tvec.publish(msg)
-
-    global result_publisher_rvec
-    msg = Float32MultiArray()
-    msg.data = rvec
-    result_publisher_rvec.publish(msg)
-
-    global result_publisher_pose
-    msg = this_pose
-    result_publisher_pose.publish(msg)
-
     # draw a line sticking out of the plane
     (center_point_2D_base, _) = cv2.projectPoints(np.array([(.0, .0, 0)]), rvec, tvec, camera_matrix, dist_coeffs)
     (center_point_2D_back, _) = cv2.projectPoints(np.array([(.0, .0, square_side)]), rvec, tvec, camera_matrix,
@@ -451,27 +448,165 @@ def stereo_callback(data):
     if True or max(p1) < 10000 and max(p2) < 10000 and min(p1) > 0 and min(p2) > 0:
         cv2.line(rgb, p1, p3, (0, 255, 255), 10)
         cv2.line(rgb, p2, p3, (0, 255, 255), 10)
-    if True or  max(p3) < 10000 and min(p3) > 0:
+    if True or max(p3) < 10000 and min(p3) > 0:
         cv2.circle(rgb, p3, 10, (0, 0, 0), -1)
 
     # Display the resulting frame
     # cv2.imshow('frame', rgb)
 
+    if gate_detection_dynamic:
+        global detection_time_list
+        global detection_angle_list
+        global detection_velocity_list
+        global detection_time_passthrough_list
+        global dynamic_publisher
+
+        # HSV conversion and frame detection
+        mask = mask_image_dynamic(input_image)
+
+        # probabilistic hough transform
+        minLineLength = 100
+        maxLineGap = 10
+
+        lines = cv2.HoughLinesP(mask, 5, np.pi / 180, 500, minLineLength=minLineLength, maxLineGap=maxLineGap)
+
+        if lines is None:
+            rospy.loginfo("no dynamic lines")
+            result_publisher.publish(Gate_Detection_Msg())
+            output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
+            image_pub_gate.publish(output_im)
+            return
+
+        # lines have been found
+
+        # calculate angles of all lines and create a border frame in the picture of the gate location
+        angles = []
+        distances = []
+        indexes = list(reversed(range(len(lines))))
+
+        gate = p3
+        borders = [5000, 0, 5000, 0]
+        for counter, line in enumerate(lines):
+            for x1, y1, x2, y2 in line:
+                angles.append(math.atan2(y2 - y1, x2 - x1) * 180 / np.pi)  # between -90 and 90
+                distances.append((x1 * (y2 - y1) - y1 * (x2 - x1)) / math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2))
+                # cv2.line(rgb, (x1, y1), (x2, y2), (0, 0, 255), 2)
+                borders[0] = min(borders[0], x1, x2)
+                borders[1] = max(borders[1], x1, x2)
+                borders[2] = min(borders[2], y1, y2)
+                borders[3] = max(borders[3], y1, y2)
+
+        # average over all lines
+        angle_m = angles[0]
+        distance_m = distances[0]
+        votes = indexes[0]
+        i = 1
+        while i < len(indexes):  # go through whole list once
+            angle_1 = angles[i]
+            distance_1 = distances[i]
+            vote_1 = indexes[i]
+
+            # if angle difference to average is too large/small, change current angle accordingly
+            a_dist = angle_1 - angle_m
+            if a_dist > 90:
+                if angle_1 < 0:
+                    angle_1 = angle_1 + 180
+                else:
+                    angle_1 = angle_1 - 180
+                distance_1 = - distance_1
+            elif a_dist < -90:
+                if angle_1 < 0:
+                    angle_1 = angle_1 + 180
+                else:
+                    angle_1 = angle_1 - 180
+                distance_1 = - distance_1
+
+            angle_m = (angle_m * votes + angle_1 * vote_1) / (votes + vote_1)
+            distance_m = (distance_m * votes + distance_1 * vote_1) / (votes + vote_1)
+            votes = votes + vote_1
+
+            i = i + 1
+
+        # find approximate angle based on borders to identify quadrant
+        if angle_m >= 0:
+            dist1 = math.sqrt((borders[0] - gate[0]) ** 2 + (borders[2] - gate[1]) ** 2)
+            dist2 = math.sqrt((borders[1] - gate[0]) ** 2 + (borders[3] - gate[1]) ** 2)
+
+            if dist1 > dist2:
+                approx_angle = math.atan2(borders[2] - gate[1], borders[0] - gate[0]) * 180 / math.pi
+            else:
+                approx_angle = math.atan2(borders[3] - gate[1], borders[1] - gate[0]) * 180 / math.pi
+
+            if abs(angle_m - approx_angle) > 90:
+                angle_m = angle_m - 180
+        else:
+            dist1 = math.sqrt((borders[0] - gate[0]) ** 2 + (borders[3] - gate[1]) ** 2)
+            dist2 = math.sqrt((borders[1] - gate[0]) ** 2 + (borders[2] - gate[1]) ** 2)
+
+            if dist1 > dist2:
+                approx_angle = math.atan2(borders[2] - gate[1], borders[0] - gate[0]) * 180 / math.pi
+            else:
+                approx_angle = math.atan2(borders[3] - gate[1], borders[1] - gate[0]) * 180 / math.pi
+
+            if abs(angle_m - approx_angle) > 90:
+                angle_m = angle_m + 180  # right is 0 deg
+
+
+        # publish finding
+        rospy.loginfo("angle_m")
+        rospy.loginfo(angle_m)
+        dynamic_publisher.publish(np.array([this_time, angle_m]))
+
+        # add finding to list
+        # detection_time_list = np.append(detection_time_list, this_time)
+        # detection_angle_list = np.append(detection_angle_list, angle_m)
+        #
+        # if len(detection_angle_list) > 20:
+        #     detection_time_list = np.delete(detection_time_list, 0)
+        #     detection_angle_list = np.delete(detection_angle_list, 0)
+        #
+        #     sin_diff = math.sin((detection_angle_list[-1] - detection_angle_list[-2]) * math.pi / 180)
+        #     cos_diff = math.cos((detection_angle_list[-1] - detection_angle_list[-2]) * math.pi / 180)
+        #     angle_diff = math.atan2(sin_diff, cos_diff) * 180 / math.pi
+        #
+        #     velocity = angle_diff / (detection_time_list[-1] - detection_time_list[-2])
+        #     detection_velocity_list = np.append(detection_velocity_list, velocity)
+        #
+        #     average_velocity = abs(np.mean(detection_velocity_list))
+        #
+        #     diff_angle_list = detection_angle_list + 90  # difference to top position
+        #     diff_angle_list[diff_angle_list < 0] = diff_angle_list[diff_angle_list < 0] + 360
+        #
+        #     time_req_list = diff_angle_list / average_velocity
+        #     # print time_req_list
+        #
+        #     time_intersect_list = detection_time_list + time_req_list
+        #     time_intersect_list[time_intersect_list < max(time_intersect_list) - 0.5 * (360 / average_velocity)] = \
+        #     time_intersect_list[time_intersect_list < max(time_intersect_list) - 0.5 * (360 / average_velocity)] + (
+        #                 360 / average_velocity)
+        #     time_intersect = np.mean(time_intersect_list)
+        #
+        # cv2.line(rgb, (gate[0], gate[1]), (
+        # gate[0] + int(250 * math.cos(angle_m * math.pi / 180)), gate[1] + int(250 * math.sin(angle_m * math.pi / 180))),
+        #          (255, 255, 0), 6)
+        # print 'run'
+
     output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
     image_pub_gate.publish(output_im)
 
     # plt.pause(0.001)
-    #time.sleep(4)
+    # time.sleep(4)
 
 
 def pose_callback(data):
     global latest_pose
-    #latest_pose = data
+    # latest_pose = data
     latest_pose = data.pose.pose
+
 
 def camera_info_update(data):
     global camera_matrix
-    camera_matrix = np.resize(np.asarray(data.K),[3,3])
+    camera_matrix = np.resize(np.asarray(data.K), [3, 3])
 
     # camera_matrix = np.array(
     #     [[608.91474407, 0, 318.06264861]
@@ -491,35 +626,38 @@ def main():
     global valid_last_orientation
     valid_last_orientation = False
 
+    global gate_detection_dynamic
     global image_pub_threshold
     global image_pub_gate
-    global image_pub_dev1
-    global image_pub_dev2
     global result_publisher
-    global result_publisher_tvec
-    global result_publisher_rvec
-    global result_publisher_pose
+    global dynamic_publisher
     global latest_pose
     latest_pose = None
+    gate_detection_dynamic = False
+
+    global detection_time_list
+    global detection_angle_list
+    global detection_velocity_list
+    global detection_time_passthrough_list
+    detection_time_list = np.array([])
+    detection_angle_list = np.array([])
+    detection_velocity_list = np.array([])
+    detection_time_passthrough_list = np.array([])
 
     rospy.Subscriber("/zed/rgb/image_rect_color", Image, stereo_callback)
     rospy.Subscriber("/bebop/odom", Odometry, pose_callback)
 
     image_pub_threshold = rospy.Publisher("/auto/gate_detection_threshold", Image, queue_size=1)
     image_pub_gate = rospy.Publisher("/auto/gate_detection_gate", Image, queue_size=1)
-    image_pub_dev1 = rospy.Publisher("/auto/gate_detection_dev1", Image, queue_size=1)
-    image_pub_dev2 = rospy.Publisher("/auto/gate_detection_dev2", Image, queue_size=1)
-
     result_publisher = rospy.Publisher("/auto/gate_detection_result", Gate_Detection_Msg, queue_size=1)
-    result_publisher_tvec = rospy.Publisher("/auto/gate_detection_result_tvec", Float32MultiArray, queue_size=1)
-    result_publisher_rvec = rospy.Publisher("/auto/gate_detection_result_rvec", Float32MultiArray, queue_size=1)
-    result_publisher_pose = rospy.Publisher("/auto/gate_detection_result_pose", Pose, queue_size=1)
+    dynamic_publisher = rospy.Publisher("/auto/gate_detection_result_dynamic", Float32MultiArray, queue_size=1)
 
     global bridge
     bridge = CvBridge()
 
     rospy.loginfo("running")
     rospy.spin()
+
 
 if __name__ == '__main__':
     main()

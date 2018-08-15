@@ -16,7 +16,7 @@ from cv_bridge import CvBridge
 import time
 import math
 from bebop_auto.msg import Gate_Detection_Msg
-from std_msgs.msg import Float32MultiArray
+from std_msgs.msg import Float32MultiArray, Bool
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 
@@ -84,14 +84,14 @@ def mask_image_orange(rgb):
     hsv = cv2.cvtColor(rgb, cv2.COLOR_BGR2HSV)
 
     # Threshold the HSV image to get only orange colors
-    # lower_color = np.array([40, 0, 0])       # blue
-    # upper_color = np.array([180, 150, 150])  # blue
-    # lower_color = np.array([6, 230, 110])  # orange 2D
-    # upper_color = np.array([14, 25, 200])  # orange 2D
-    lower_color1 = np.array([0, 90, 80])  # orange 3D cypress
-    upper_color1 = np.array([13, 255, 150])  # orange 3D cypress
-    lower_color2 = np.array([170, 90, 80])  # orange 3D 150 cypress
-    upper_color2 = np.array([180, 255, 150])  # orange 3D cypress
+    # lower_color1 = np.array([0, 90, 80])  # orange 3D cypress
+    # upper_color1 = np.array([13, 255, 150])  # orange 3D cypress
+    # lower_color2 = np.array([170, 90, 80])  # orange 3D cypress
+    # upper_color2 = np.array([180, 255, 150])  # orange 3D cypress
+    lower_color1 = np.array([0, 90, 80])  # orange matlab
+    upper_color1 = np.array([15, 255, 255])  # orange matlab
+    lower_color2 = np.array([160, 90, 80])  # orange 3D matlab
+    upper_color2 = np.array([180, 255, 255])  # orange matlab
 
     mask1 = cv2.inRange(hsv, lower_color1, upper_color1)
     mask2 = cv2.inRange(hsv, lower_color2, upper_color2)
@@ -125,23 +125,32 @@ def mask_image_orange(rgb):
     # if cv2.waitKey(1) & 0xFF == ord('q'):
     #    exit()
 
-    global image_pub_threshold
+    global image_pub_threshold_orange
     res = cv2.bitwise_and(rgb, rgb, mask=mask)
-    output_im = bridge.cv2_to_imgmsg(res, encoding="rgb8")
-    image_pub_threshold.publish(output_im)
+    # cv2.imshow("test",res)
+    # if cv2.waitKey(1) & 0xFF == ord('q'):
+    #    exit()
+    output_im = bridge.cv2_to_imgmsg(res, encoding="bgr8")
+    image_pub_threshold_orange.publish(output_im)
 
     return mask
 
 
-def mask_image_dynamic(rgb, enc):
+def mask_image_dynamic(rgb):
     # convert to HSV
     hsv = cv2.cvtColor(rgb, cv2.COLOR_BGR2HSV)
 
     # Threshold the HSV image to get only blue colors
-    lower_color = np.array([100, 150, 100])  # blue 3D
-    upper_color = np.array([140, 255, 255])  # blue 3D
-
+    lower_color = np.array([30, 100, 50])  # green matlab
+    upper_color = np.array([100, 255, 255])  # green matlab
     mask = cv2.inRange(hsv, lower_color, upper_color)
+
+    global bridge
+    global image_pub_threshold_dynamic
+    res = cv2.bitwise_and(rgb, rgb, mask=mask)
+    output_im = bridge.cv2_to_imgmsg(res, encoding="bgr8")
+    image_pub_threshold_dynamic.publish(output_im)
+
     return mask
 
 
@@ -160,7 +169,7 @@ def stereo_callback(data):
     global tvec
     global image_pub_gate
 
-    debug_on = False
+    debug_on = True
 
     if debug_on:
         this_pose = Pose()
@@ -173,7 +182,7 @@ def stereo_callback(data):
 
     # convert image msg to matrix
     input_image = bridge.imgmsg_to_cv2(data, desired_encoding=data.encoding)
-    rgb = input_image
+    rgb = np.copy(input_image)
 
     # HSV conversion and frame detection
     mask = mask_image_orange(input_image)
@@ -244,7 +253,14 @@ def stereo_callback(data):
         y_ms_1 = np.append(y_ms_1, y_m)
         vote_ms_1 = np.append(vote_ms_1, vote_m)
 
-    idx = vote_ms_1 * (1000-y_ms_1)
+    idx = vote_ms_1 * (3000-y_ms_1)
+
+    if cluster == 0:
+        rospy.loginfo("empty sequence 1")
+        result_publisher.publish(Gate_Detection_Msg())
+        output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
+        image_pub_gate.publish(output_im)
+        return
 
     max_cluster = np.argmax(idx)+1
     cv2.circle(rgb, (int(x_ms_1[max_cluster-1]), int(y_ms_1[max_cluster-1])), dist_thresh, (255, 0, 0), 2)
@@ -295,6 +311,13 @@ def stereo_callback(data):
         x_ms_2 = np.append(x_ms_2, x_m)
         y_ms_2 = np.append(y_ms_2, y_m)
         vote_ms_2 = np.append(vote_ms_2, vote_m)
+
+    if cluster < 2:
+        rospy.loginfo("empty sequence 2")
+        result_publisher.publish(Gate_Detection_Msg())
+        output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
+        image_pub_gate.publish(output_im)
+        return
 
     maximum_ids = vote_ms_2.argsort()[-2:][::-1]
 
@@ -399,6 +422,13 @@ def stereo_callback(data):
         y_ms_3 = np.append(y_ms_3, y_m)
         vote_ms_3 = np.append(vote_ms_3, vote_m)
 
+    if cluster == 0:
+        rospy.loginfo("empty sequence 3")
+        result_publisher.publish(Gate_Detection_Msg())
+        output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
+        image_pub_gate.publish(output_im)
+        return
+
     max_cluster = np.argmax(vote_ms_3)+1
     cv2.circle(rgb, (int(x_ms_3[max_cluster-1]), int(y_ms_3[max_cluster-1])), dist_thresh, (0, 0, 255), 2)
 
@@ -462,10 +492,12 @@ def stereo_callback(data):
         global dynamic_publisher
 
         # HSV conversion and frame detection
+        # cv2.imshow('input',input_image)
+        # cv2.waitKey(1)
         mask = mask_image_dynamic(input_image)
 
         # probabilistic hough transform
-        minLineLength = 100
+        minLineLength = 70
         maxLineGap = 10
 
         lines = cv2.HoughLinesP(mask, 5, np.pi / 180, 500, minLineLength=minLineLength, maxLineGap=maxLineGap)
@@ -551,45 +583,16 @@ def stereo_callback(data):
             if abs(angle_m - approx_angle) > 90:
                 angle_m = angle_m + 180  # right is 0 deg
 
+        cv2.line(rgb, (gate[0], gate[1]), (
+            gate[0] + int(250 * math.cos(angle_m * math.pi / 180)), gate[1] + int(250 * math.sin(angle_m * math.pi / 180))),
+                     (255, 255, 0), 6)
 
         # publish finding
         rospy.loginfo("angle_m")
         rospy.loginfo(angle_m)
-        dynamic_publisher.publish(np.array([this_time, angle_m]))
-
-        # add finding to list
-        # detection_time_list = np.append(detection_time_list, this_time)
-        # detection_angle_list = np.append(detection_angle_list, angle_m)
-        #
-        # if len(detection_angle_list) > 20:
-        #     detection_time_list = np.delete(detection_time_list, 0)
-        #     detection_angle_list = np.delete(detection_angle_list, 0)
-        #
-        #     sin_diff = math.sin((detection_angle_list[-1] - detection_angle_list[-2]) * math.pi / 180)
-        #     cos_diff = math.cos((detection_angle_list[-1] - detection_angle_list[-2]) * math.pi / 180)
-        #     angle_diff = math.atan2(sin_diff, cos_diff) * 180 / math.pi
-        #
-        #     velocity = angle_diff / (detection_time_list[-1] - detection_time_list[-2])
-        #     detection_velocity_list = np.append(detection_velocity_list, velocity)
-        #
-        #     average_velocity = abs(np.mean(detection_velocity_list))
-        #
-        #     diff_angle_list = detection_angle_list + 90  # difference to top position
-        #     diff_angle_list[diff_angle_list < 0] = diff_angle_list[diff_angle_list < 0] + 360
-        #
-        #     time_req_list = diff_angle_list / average_velocity
-        #     # print time_req_list
-        #
-        #     time_intersect_list = detection_time_list + time_req_list
-        #     time_intersect_list[time_intersect_list < max(time_intersect_list) - 0.5 * (360 / average_velocity)] = \
-        #     time_intersect_list[time_intersect_list < max(time_intersect_list) - 0.5 * (360 / average_velocity)] + (
-        #                 360 / average_velocity)
-        #     time_intersect = np.mean(time_intersect_list)
-        #
-        # cv2.line(rgb, (gate[0], gate[1]), (
-        # gate[0] + int(250 * math.cos(angle_m * math.pi / 180)), gate[1] + int(250 * math.sin(angle_m * math.pi / 180))),
-        #          (255, 255, 0), 6)
-        # print 'run'
+        msg = Float32MultiArray()
+        msg.data = [this_time, angle_m]
+        dynamic_publisher.publish(msg)
 
     output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
     image_pub_gate.publish(output_im)
@@ -615,6 +618,11 @@ def camera_info_update(data):
     # )
 
 
+def callback_dynamic_detection_changed(data):
+    global gate_detection_dynamic_on
+    gate_detection_dynamic_on = data.data
+
+
 def main():
     signal.signal(signal.SIGINT, signal_handler)
     rospy.init_node('gate_detection', anonymous=True)
@@ -626,28 +634,22 @@ def main():
     global valid_last_orientation
     valid_last_orientation = False
 
-    global gate_detection_dynamic
-    global image_pub_threshold
+    global gate_detection_dynamic_on
+    global image_pub_threshold_orange
+    global image_pub_threshold_dynamic
     global image_pub_gate
     global result_publisher
     global dynamic_publisher
     global latest_pose
     latest_pose = None
-    gate_detection_dynamic = False
-
-    global detection_time_list
-    global detection_angle_list
-    global detection_velocity_list
-    global detection_time_passthrough_list
-    detection_time_list = np.array([])
-    detection_angle_list = np.array([])
-    detection_velocity_list = np.array([])
-    detection_time_passthrough_list = np.array([])
+    gate_detection_dynamic_on = False
 
     rospy.Subscriber("/zed/rgb/image_rect_color", Image, stereo_callback)
     rospy.Subscriber("/bebop/odom", Odometry, pose_callback)
+    rospy.Subscriber("/auto/dynamic_detection_on", Bool, callback_dynamic_detection_changed)
 
-    image_pub_threshold = rospy.Publisher("/auto/gate_detection_threshold", Image, queue_size=1)
+    image_pub_threshold_orange = rospy.Publisher("/auto/gate_detection_threshold_orange", Image, queue_size=1)
+    image_pub_threshold_dynamic = rospy.Publisher("/auto/gate_detection_threshold_dynamic", Image, queue_size=1)
     image_pub_gate = rospy.Publisher("/auto/gate_detection_gate", Image, queue_size=1)
     result_publisher = rospy.Publisher("/auto/gate_detection_result", Gate_Detection_Msg, queue_size=1)
     dynamic_publisher = rospy.Publisher("/auto/gate_detection_result_dynamic", Float32MultiArray, queue_size=1)

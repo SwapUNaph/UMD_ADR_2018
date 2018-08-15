@@ -10,7 +10,7 @@ import sys
 import math
 import numpy as np
 import time
-from std_msgs.msg import Int32, String
+from std_msgs.msg import Int32, String, Float32MultiArray, Bool
 from bebop_msgs.msg import Ardrone3PilotingStateFlyingStateChanged
 from bebop_auto.msg import Auto_Driving_Msg, Gate_Detection_Msg, WP_Msg
 from nav_msgs.msg import Odometry
@@ -33,8 +33,101 @@ def callback_states_changed(data, args):
         state_bebop = data.state
         rospy.loginfo("state bebop changed to " + str(state_bebop))
 
+def callback_visual_gate_dynamic_changed(data):
+    global dynamic_detection_input_history
+    print data.data
+    # global dynamic_detection_velocity_list
+    # global dynamic_detection_time_passthrough_list
 
-def callback_visual_detection_changed(data):
+    global dynamic_intersect_time
+
+    if dynamic_intersect_time is None:
+        dynamic_detection_input_history = np.append(dynamic_detection_input_history, data.data, axis=0)
+        if len(wp_input_history) > 10:
+            rospy.loginfo("enough measurements")
+            del wp_input_history[0]
+            # calculate std deviation of list
+            average = cr.find_average(wp_input_history)
+            std_deviation = cr.find_std_dev_waypoints(average, wp_input_history)
+            # when std dev is low enough, provide waypoint
+            if std_deviation < 0.4:
+                rospy.loginfo("measurements accepted")
+                wp_average = average
+            else:
+                rospy.loginfo("standard deviation too high:")
+                rospy.loginfo(std_deviation)
+        else:
+            std_deviation = 5
+            average = cr.WP([0, 0, 0], 0)
+            rospy.loginfo("collecting measurements")
+
+        log_string = str(wp_current.pos[0]) + ", " + \
+            str(wp_current.pos[1]) + ", " + \
+            str(wp_current.pos[2]) + ", " + \
+            str(wp_current.hdg) + ", " + \
+            str(average.pos[0]) + ", " + \
+            str(average.pos[1]) + ", " + \
+            str(average.pos[2]) + ", " + \
+            str(average.hdg) + ", " + \
+            str(bebop_p[0]) + ", " + \
+            str(bebop_p[1]) + ", " + \
+            str(bebop_p[2]) + ", " + \
+            str(bebop_q[3]) + ", " + \
+            str(bebop_q[0]) + ", " + \
+            str(bebop_q[1]) + ", " + \
+            str(bebop_q[2]) + ", " + \
+            str(heading_to_gate) + ", " + \
+            str(std_deviation) + ", " + \
+            str(1.0)
+    else:
+        # now, add to list only if gate position is close to last one
+        distance = np.linalg.norm(np.array(gate_global_p) - wp_input_history[-1].pos)
+        if distance < 1:
+            print("use detected gate")
+            wp_input_history.append(wp_current)
+            del wp_input_history[0]
+            wp_average = cr.find_average(wp_input_history)
+            rospy.loginfo("wp_average")
+            rospy.loginfo(wp_average)
+        else:
+            print("discard detected gate")
+
+
+    # add data to list
+    detection_time_list = np.append(dynamic_detection_time_list, data.data[0])
+    detection_angle_list = np.append(dynamic_detection_angle_list, data.data[1])
+
+    if len(detection_angle_list) > 20:
+        detection_time_list = np.delete(detection_time_list, 0)
+        detection_angle_list = np.delete(detection_angle_list, 0)
+
+        sin_diff = math.sin((detection_angle_list[-1] - detection_angle_list[-2]) * math.pi / 180)
+        cos_diff = math.cos((detection_angle_list[-1] - detection_angle_list[-2]) * math.pi / 180)
+        angle_diff = math.atan2(sin_diff, cos_diff) * 180 / math.pi
+
+        velocity = angle_diff / (detection_time_list[-1] - detection_time_list[-2])
+        detection_velocity_list = np.append(dynamic_detection_velocity_list, velocity)
+
+        average_velocity = abs(np.mean(detection_velocity_list))
+
+        diff_angle_list = detection_angle_list + 90  # difference to top position
+        diff_angle_list[diff_angle_list < 0] = diff_angle_list[diff_angle_list < 0] + 360
+
+        time_req_list = diff_angle_list / average_velocity
+        # print time_req_list
+
+        time_intersect_list = detection_time_list + time_req_list
+        time_intersect_list[time_intersect_list < max(time_intersect_list) - 0.5 * (360 / average_velocity)] = \
+        time_intersect_list[time_intersect_list < max(time_intersect_list) - 0.5 * (360 / average_velocity)] + (
+                    360 / average_velocity)
+        time_intersect = np.mean(time_intersect_list)
+
+
+    print 'run'
+
+
+
+def callback_visual_gate_detection_changed(data):
     global wp_average
     global wp_input_history
 
@@ -104,7 +197,7 @@ def callback_visual_detection_changed(data):
     if wp_average is None:
         wp_input_history.append(wp_current)
         if len(wp_input_history) > 10:
-            rospy.loginfo("enough mesurements")
+            rospy.loginfo("enough measurements")
             del wp_input_history[0]
             # calculate std deviation of list
             average = cr.find_average(wp_input_history)
@@ -758,7 +851,6 @@ if __name__ == '__main__':
     signal.signal(signal.SIGINT, signal_handler)
 
     rospy.init_node('main_navigation', anonymous=True)
-    rate = rospy.Rate(cr.frequency)
 
     # Variables
     bebop_odometry = None
@@ -794,6 +886,10 @@ if __name__ == '__main__':
     empty_command = True
     auto_driving_msg = Auto_Driving_Msg()
     min_distance = 999
+    dynamic_detection_input_history = np.array([[], []])
+    dynamic_detection_velocity_list = np.array([])
+    dynamic_detection_time_passthrough_list = np.array([])
+    dynamic_intersect_time = None
 
     # Publishers
     state_auto_publisher = rospy.Publisher("/auto/state_auto",     Int32,               queue_size=1, latch=True)
@@ -806,14 +902,17 @@ if __name__ == '__main__':
     nav_log_publisher = rospy.Publisher("/auto/navigation_logger", String,              queue_size=1, latch=True)
     visual_log_publisher = rospy.Publisher("/auto/visual_logger",  String,              queue_size=1, latch=True)
     dev_log_publisher = rospy.Publisher("/auto/dev_logger",        String,              queue_size=1, latch=True)
+    dynamic_detection_on_publisher = rospy.Publisher("/auto/dynamic_detection_on", Bool,queue_size=1, latch=True)
 
     # Subscribers
     rospy.Subscriber("/auto/state_auto", Int32, callback_states_changed, "state_auto")
     rospy.Subscriber("/bebop/odom", Odometry, callback_bebop_odometry_changed)
     # rospy.Subscriber("/zed/odom", Odometry, callback_zed_odometry_changed)
-    rospy.Subscriber("/auto/gate_detection_result", Gate_Detection_Msg, callback_visual_detection_changed)
+    rospy.Subscriber("/auto/gate_detection_result", Gate_Detection_Msg, callback_visual_gate_detection_changed)
+    rospy.Subscriber("/auto/gate_detection_result_dynamic", Float32MultiArray, callback_visual_gate_dynamic_changed)
     rospy.Subscriber("/bebop/states/ardrone3/PilotingState/FlyingStateChanged", Ardrone3PilotingStateFlyingStateChanged,
                      callback_states_changed, "state_bebop")
+
 
     # initializes startup by publishing state 0
     state_auto_publisher.publish(0)

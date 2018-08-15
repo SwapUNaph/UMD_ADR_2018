@@ -54,7 +54,7 @@ def find_average(latest_gates):
     return WP(pos, angle)
 
 
-def find_std_dev(average, wp_input_history):
+def find_std_dev_waypoints(average, wp_input_history):
     deviation = 0
     for gate in wp_input_history:
         deviation = deviation + (np.linalg.norm(average.pos - gate.pos))**2

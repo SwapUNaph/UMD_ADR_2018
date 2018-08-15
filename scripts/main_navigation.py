@@ -118,6 +118,7 @@ def callback_visual_detection_changed(data):
                 rospy.loginfo(std_deviation)
         else:
             std_deviation = 5
+            average = cr.WP([0, 0, 0], 0)
             rospy.loginfo("collecting measurements")
 
         log_string = str(wp_current.pos[0]) + ", " + \

@@ -104,48 +104,22 @@ class WP:
 #         return "\ntvec " + str(self.tvec) + "\nrvec " + str(self.rvec) + "\n" + str(self.bebop_pose)
 #
 
-class PID:
-    def __init__(self, p=2.0, i=0.0, d=1.0, derivator=0, integrator=0, integrator_max=.5, integrator_min=-.5):
-        self.kp = p
-        self.ki = i
-        self.kd = d
-        self.derivator = derivator
-        self.integrator = integrator
-        self.integrator_max = integrator_max
-        self.integrator_min = integrator_min
-        self.error = 0.0
-
-        self.p_value = None
-        self.i_value = None
-        self.d_value = None
-        self.set_point = None
-
-        
 
 
-    def update(self, err):
-        self.error = err
 
-        self.p_value = self.kp * self.error
-        self.d_value = self.kd * (self.error - self.derivator)
-        self.derivator = self.error
+class dynamic_data:
+    def __init__(self):
+        self.state = 0
+        self.timer = 0.0
+        self.period = 2.0
+        self.time_taken_to_gate = 2.2
 
-        self.integrator = self.integrator + self.error
 
-        if self.integrator > self.integrator_max:
-            self.integrator = self.integrator_max
-        elif self.integrator < self.integrator_min:
-            self.integrator = self.integrator_min
-
-        self.i_value = self.integrator * self.ki
-
-        return [self.p_value, self.i_value, self.d_value]
-
-    def reset(self, set_point):
-        self.set_point = set_point
-        self.integrator = 0
-        self.derivator = 0
-
+    def theta_trigger(self):
+        rotations = self.time_taken_to_gate/self.period
+        while rotations > 1:
+            rotations = rotations-1
+        return -(2*math.pi*rotations+(2*pi/(5*self.period)))
 
 class PID2:
     def __init__(self, p=2.0, i=0.0, d=1.0, derivator=[0.0,0.0,0.0,0.0], integrator=0, integrator_max=.5, integrator_min=-.5):

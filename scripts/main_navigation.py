@@ -573,6 +573,84 @@ def navigate_point():
     # rospy.loginfo(auto_driving_msg)
 
 
+def navigate_dynamic():
+
+    # stabilize
+    if dynamic_data.state == 0:
+        if dynamic_data.timer != 0.0
+            if time.time()-dynamic_data.timer > .8:
+                
+                diff_global_look = wp_look.pos - [bebop_odometry.pose.pose.position.x, bebop_odometry.pose.pose.position.y,bebop_odometry.pose.pose.position.z]
+                angle = tfs.euler_from_quaternion(bebop_q)[2]
+                pos_theta = math.atan2(diff_global_look[1], diff_global_look[0])
+                r_error = angle - pos_theta
+                if r_error > math.pi:
+                    r_error = -2 * math.pi + r_error
+                elif r_error < -math.pi:
+                    r_error = 2 * math.pi - r_error
+
+                if r_error < .08
+                    dynamic_data.state = 2
+                else:
+                    dynamic_data.state = 1
+                dynamic_data.timer = 0.0
+        else:
+            dynamic_data.timer = time.time()
+        
+        return Auto_Driving_Msg()
+
+    # rotate
+    elif dynamic_data.state == 1:
+        
+        diff_global_look = wp_look.pos - [bebop_odometry.pose.pose.position.x, bebop_odometry.pose.pose.position.y,bebop_odometry.pose.pose.position.z]
+
+        angle = tfs.euler_from_quaternion(bebop_q)[2]
+
+        pos_theta = math.atan2(diff_global_look[1], diff_global_look[0])
+
+        r_error = angle - pos_theta
+        if r_error > math.pi:
+            r_error = -2 * math.pi + r_error
+        elif r_error < -math.pi:
+            r_error = 2 * math.pi - r_error
+        
+        msg = Auto_Driving_Msg()
+        if r_error < .08:
+            dynamic_data.state = 0
+        else:
+            msg.r = cr.limit_value(r_error, .1)
+
+        return msg
+
+    # wait for gate rotation
+    elif dynamic_data.state == 2:
+        (theta-dynamic_data.theta_trigger()) < 2*math.pi/(dynamic_data.period*5)*.7
+        dynamic_data.timer = time.time()
+        dynamic_data.state = 3
+    return Auto_Driving_Msg()
+
+    # full forward
+    elif dynamic_data.state == 3:
+
+        msg = Auto_Driving_Msg()
+
+        if time.time()-dynamic_data.timer > 1.5
+            dynamic_data.state = 4
+            dynamic_data.timer = time.time()
+        else:
+            msg.x = 1
+
+        return msg
+
+    # pause
+    elif dynamic_data.state == 3:
+        if time.time()-dynamic_data.timer < 1.5
+            return Auto_Driving_Msg()        
+        else:
+            # advance state machine
+
+
+
 def calculate_distance():
     if wp_select is None or bebop_odometry is None:
         return 999
@@ -677,6 +755,14 @@ def state_machine_advancement(navigation_distance):
         navigation_active = "off"
         rospy.loginfo("mission finished")
         state_auto_publisher.publish(98)
+    '''
+    elif state_auto == 11 and navigation_distance < 0.2:  # drone gets close to dynamic start. start dynamic navigation
+        detection_active = True
+        navigation_active = "dynamic"
+        wp_blind = 
+        rospy.loginfo("Starting Dynamic Gate")
+        state_auto_publisher.publish(state_auto + 1)
+    '''
     elif state_auto == 98 and state_bebop == 4:  # drone initiated landing
         rospy.loginfo("landing started")
         state_auto_publisher.publish(state_auto + 1)
@@ -704,6 +790,7 @@ def callback_bebop_odometry_changed(data):
     global wp_blind_old
     global wp_look
     global navigation_active
+
 
     # state_machine_advancement (if conditions are met: distances, states, ...)
     navigation_distance = calculate_distance()
@@ -747,6 +834,8 @@ def callback_bebop_odometry_changed(data):
         auto_driving_msg = navigate_point()
     elif navigation_active == "throu":
         auto_driving_msg = navigate_throu()
+    elif navigation_active == "dynamic":
+        auto_driving_msg = navigate_dynamic()
 
     auto_drive_publisher.publish(auto_driving_msg)
     rospy.loginfo("publish real driving msg")
@@ -776,6 +865,7 @@ if __name__ == '__main__':
     wp_select = None
     navigation_active = "off"
     detection_active = False
+    dynamic_data = cr.dynamic_data()
     nav_point_PID_x_pos = cr.PID2(.7, 0.1, 4.0)
     nav_point_PID_y_pos = cr.PID2(.7, 0.1, 4.0)
     nav_point_PID_x_vel = cr.PID2(0.8, 0, 0.0)

@@ -16,7 +16,7 @@ from cv_bridge import CvBridge
 import time
 import math
 from bebop_auto.msg import Gate_Detection_Msg
-from std_msgs.msg import Float32MultiArray, Bool
+from std_msgs.msg import Float64MultiArray, Bool
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 
@@ -172,7 +172,9 @@ def stereo_callback(data):
     debug_on = True
 
     if debug_on:
+        global gate_detection_dynamic_on
         this_pose = Pose()
+        gate_detection_dynamic_on = True
     else:
         if latest_pose is None:
             print("No position")
@@ -217,7 +219,7 @@ def stereo_callback(data):
     end = corners[2:, :]
     start_end = np.concatenate((start, end), axis=1)
     # print start_end
-    votes = list(reversed(range(len(lines))))
+    votes = np.array(list(reversed(range(len(lines)))))+1
     votes = np.concatenate((votes, votes))
     x_ms_1 = np.array([])
     y_ms_1 = np.array([])
@@ -433,7 +435,8 @@ def stereo_callback(data):
     cv2.circle(rgb, (int(x_ms_3[max_cluster-1]), int(y_ms_3[max_cluster-1])), dist_thresh, (0, 0, 255), 2)
 
     corner_points[3, :] = [x_ms_3[max_cluster-1], y_ms_3[max_cluster-1]]
-    print corner_points
+    rospy.loginfo("corner_points")
+    rospy.loginfo(corner_points)
 
     # Assume no lens distortion
     dist_coeffs = np.zeros((4, 1))
@@ -484,11 +487,7 @@ def stereo_callback(data):
     # Display the resulting frame
     # cv2.imshow('frame', rgb)
 
-    if gate_detection_dynamic:
-        global detection_time_list
-        global detection_angle_list
-        global detection_velocity_list
-        global detection_time_passthrough_list
+    if gate_detection_dynamic_on:
         global dynamic_publisher
 
         # HSV conversion and frame detection
@@ -513,84 +512,55 @@ def stereo_callback(data):
 
         # calculate angles of all lines and create a border frame in the picture of the gate location
         angles = []
-        distances = []
-        indexes = list(reversed(range(len(lines))))
+        indexes = np.array(list(reversed(range(len(lines)))))+1
 
         gate = p3
         borders = [5000, 0, 5000, 0]
         for counter, line in enumerate(lines):
             for x1, y1, x2, y2 in line:
-                angles.append(math.atan2(y2 - y1, x2 - x1) * 180 / np.pi)  # between -90 and 90
-                distances.append((x1 * (y2 - y1) - y1 * (x2 - x1)) / math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2))
+                angles.append(math.atan2(-(x2 - x1), -(y2 - y1)) + math.pi)  # between 0 and pi
                 # cv2.line(rgb, (x1, y1), (x2, y2), (0, 0, 255), 2)
                 borders[0] = min(borders[0], x1, x2)
                 borders[1] = max(borders[1], x1, x2)
                 borders[2] = min(borders[2], y1, y2)
                 borders[3] = max(borders[3], y1, y2)
 
+        angles = np.array(angles)
+        angles = np.unwrap(angles*2)/2
+
         # average over all lines
-        angle_m = angles[0]
-        distance_m = distances[0]
-        votes = indexes[0]
-        i = 1
-        while i < len(indexes):  # go through whole list once
-            angle_1 = angles[i]
-            distance_1 = distances[i]
-            vote_1 = indexes[i]
+        angle_m = np.sum(indexes * angles) / np.sum(indexes)
+        angle_m = angle_m % math.pi
 
-            # if angle difference to average is too large/small, change current angle accordingly
-            a_dist = angle_1 - angle_m
-            if a_dist > 90:
-                if angle_1 < 0:
-                    angle_1 = angle_1 + 180
-                else:
-                    angle_1 = angle_1 - 180
-                distance_1 = - distance_1
-            elif a_dist < -90:
-                if angle_1 < 0:
-                    angle_1 = angle_1 + 180
-                else:
-                    angle_1 = angle_1 - 180
-                distance_1 = - distance_1
+        # find out where angle is approximately
+        if abs(angle_m - math.pi/2) < min(abs(angle_m), abs(math.pi-angle_m)):  # 90 deg, find out if left or right
+            dist_to_min = abs(borders[0] - gate[0])
+            dist_to_max = abs(borders[1] - gate[0])
+            if dist_to_min > dist_to_max:  # pointer is left
+                pass
+            else:  # pointer is right
+                angle_m = angle_m + math.pi
+        else:  # 0 or 180 deg, find out if top or bottom
+            dist_to_min = abs(borders[2] - gate[1])
+            dist_to_max = abs(borders[3] - gate[1])
+            if dist_to_min > dist_to_max:  # pointer is up
+                if angle_m > math.pi/2:
+                    angle_m = angle_m + math.pi
+            else:  # pointer is down
+                if angle_m < math.pi/2:
+                    angle_m = angle_m + math.pi
 
-            angle_m = (angle_m * votes + angle_1 * vote_1) / (votes + vote_1)
-            distance_m = (distance_m * votes + distance_1 * vote_1) / (votes + vote_1)
-            votes = votes + vote_1
-
-            i = i + 1
-
-        # find approximate angle based on borders to identify quadrant
-        if angle_m >= 0:
-            dist1 = math.sqrt((borders[0] - gate[0]) ** 2 + (borders[2] - gate[1]) ** 2)
-            dist2 = math.sqrt((borders[1] - gate[0]) ** 2 + (borders[3] - gate[1]) ** 2)
-
-            if dist1 > dist2:
-                approx_angle = math.atan2(borders[2] - gate[1], borders[0] - gate[0]) * 180 / math.pi
-            else:
-                approx_angle = math.atan2(borders[3] - gate[1], borders[1] - gate[0]) * 180 / math.pi
-
-            if abs(angle_m - approx_angle) > 90:
-                angle_m = angle_m - 180
-        else:
-            dist1 = math.sqrt((borders[0] - gate[0]) ** 2 + (borders[3] - gate[1]) ** 2)
-            dist2 = math.sqrt((borders[1] - gate[0]) ** 2 + (borders[2] - gate[1]) ** 2)
-
-            if dist1 > dist2:
-                approx_angle = math.atan2(borders[2] - gate[1], borders[0] - gate[0]) * 180 / math.pi
-            else:
-                approx_angle = math.atan2(borders[3] - gate[1], borders[1] - gate[0]) * 180 / math.pi
-
-            if abs(angle_m - approx_angle) > 90:
-                angle_m = angle_m + 180  # right is 0 deg
 
         cv2.line(rgb, (gate[0], gate[1]), (
-            gate[0] + int(250 * math.cos(angle_m * math.pi / 180)), gate[1] + int(250 * math.sin(angle_m * math.pi / 180))),
-                     (255, 255, 0), 6)
+            gate[0] + int(-250 * math.sin(angle_m)), gate[1] + int(-250 * math.cos(angle_m))),
+                 (255, 255, 0), 6)
+        cv2.putText(rgb, str(angle_m * 180 / math.pi), (0, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2,
+                    cv2.LINE_AA)
 
         # publish finding
         rospy.loginfo("angle_m")
         rospy.loginfo(angle_m)
-        msg = Float32MultiArray()
+        msg = Float64MultiArray()
         msg.data = [this_time, angle_m]
         dynamic_publisher.publish(msg)
 
@@ -652,7 +622,7 @@ def main():
     image_pub_threshold_dynamic = rospy.Publisher("/auto/gate_detection_threshold_dynamic", Image, queue_size=1)
     image_pub_gate = rospy.Publisher("/auto/gate_detection_gate", Image, queue_size=1)
     result_publisher = rospy.Publisher("/auto/gate_detection_result", Gate_Detection_Msg, queue_size=1)
-    dynamic_publisher = rospy.Publisher("/auto/gate_detection_result_dynamic", Float32MultiArray, queue_size=1)
+    dynamic_publisher = rospy.Publisher("/auto/gate_detection_result_dynamic", Float64MultiArray, queue_size=1)
 
     global bridge
     bridge = CvBridge()

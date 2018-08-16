@@ -80,6 +80,14 @@ def limit_value(value, limit):
         return value
 
 
+def calculate_periods(input_data):
+    angles = np.unwrap(input_data[1, :])
+    times = input_data[0, :]
+    d_a = np.diff(angles)
+    d_t = np.diff(times)
+    return 2*math.pi * d_t / d_a
+
+
 class WP:
     def __init__(self, pos, hdg):
         self.pos = np.array(pos)
@@ -105,24 +113,22 @@ class WP:
 #
 
 
-
-
-class dynamic_data:
+class DynamicData:
     def __init__(self):
         self.state = 0
         self.timer = 0.0
-        self.period = 2.0
+        self.period = None
+        self.theta = None
         self.time_taken_to_gate = 2.2
-
 
     def theta_trigger(self):
         rotations = self.time_taken_to_gate/self.period
-        while rotations > 1:
-            rotations = rotations-1
-        return -(2*math.pi*rotations+(2*pi/(5*self.period)))
+        theta = -(2*math.pi*rotations+(2*math.pi/(5*self.period)))
+        return theta % 2*math.pi
+
 
 class PID2:
-    def __init__(self, p=2.0, i=0.0, d=1.0, derivator=[0.0,0.0,0.0,0.0], integrator=0, integrator_max=.5, integrator_min=-.5):
+    def __init__(self, p=2.0, i=0.0, d=1.0, derivator=[0.0, 0.0, 0.0, 0.0], integrator=0, integrator_max=.5, integrator_min=-.5):
         self.kp = p
         self.ki = i
         self.kd = d
@@ -135,10 +141,7 @@ class PID2:
         self.i_value = None
         self.d_value = 0.0    
 
-
     def update(self, err):
-        
-
         self.d_value = self.kd*((4*err - sum(self.derivator))/10)
 
         self.derivator.pop(0)

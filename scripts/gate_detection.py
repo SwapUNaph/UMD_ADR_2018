@@ -79,23 +79,29 @@ def isect_lines(line1, line2):
                 return -1, -1, -1
 
 
-def mask_image_orange(rgb):
-    # convert to HSV
-    hsv = cv2.cvtColor(rgb, cv2.COLOR_BGR2HSV)
+def mask_image(hsv, color):
 
     # Threshold the HSV image to get only orange colors
-    # lower_color1 = np.array([0, 90, 80])  # orange 3D cypress
-    # upper_color1 = np.array([13, 255, 150])  # orange 3D cypress
-    # lower_color2 = np.array([170, 90, 80])  # orange 3D cypress
-    # upper_color2 = np.array([180, 255, 150])  # orange 3D cypress
-    lower_color1 = np.array([0, 90, 80])  # orange matlab
-    upper_color1 = np.array([15, 255, 255])  # orange matlab
-    lower_color2 = np.array([160, 90, 80])  # orange 3D matlab
-    upper_color2 = np.array([180, 255, 255])  # orange matlab
+    # lower_color1 = np.array([0, 90, 80])  # orange 3D cypress         rgb
+    # upper_color1 = np.array([13, 255, 150])  # orange 3D cypress      rgb
+    # lower_color2 = np.array([170, 90, 80])  # orange 3D cypress       rgb
+    # upper_color2 = np.array([180, 255, 150])  # orange 3D cypress     rgb
+    # lower_color1 = np.array([0, 90, 80])  # orange matlab dynamic     rgb
+    # upper_color1 = np.array([15, 255, 255])  # orange matlab dynamic  rgb
+    # lower_color2 = np.array([160, 90, 80])  # orange matlab dynamic   rgb
+    # upper_color2 = np.array([180, 255, 255])  # orange matlab dynamic rgb
 
-    mask1 = cv2.inRange(hsv, lower_color1, upper_color1)
-    mask2 = cv2.inRange(hsv, lower_color2, upper_color2)
-    mask = mask1+mask2
+    # from -10... 20
+    if color == "orange":
+        lower_color = np.array([85, 60, 80])  # orange matlab jungle     bgr
+        upper_color = np.array([130, 255, 255])  # orange matlab jungle    bgr
+        pub = image_pub_threshold_orange
+    else:
+        lower_color = np.array([40, 100, 50])  # green matlab pointer
+        upper_color = np.array([90, 255, 255])  # green matlab pointer
+        pub = image_pub_threshold_dynamic
+
+    mask = cv2.inRange(hsv, lower_color, upper_color)
 
     # t0 = time.time()
     # try thinning all colored pixels from above (runs at around 5Hz)
@@ -116,7 +122,7 @@ def mask_image_orange(rgb):
 
     # Bitwise-AND mask and original image only for fun
     # global image_pub_dev1
-    global bridge
+
     # output_im = bridge.cv2_to_imgmsg(mask, encoding="8UC1")
     # image_pub_dev1.publish(output_im)
 
@@ -125,31 +131,16 @@ def mask_image_orange(rgb):
     # if cv2.waitKey(1) & 0xFF == ord('q'):
     #    exit()
 
-    global image_pub_threshold_orange
+    global bridge
+    rgb = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
     res = cv2.bitwise_and(rgb, rgb, mask=mask)
+    output_im = bridge.cv2_to_imgmsg(res, encoding="rgb8")
+    # output_im = bridge.cv2_to_imgmsg(mask, encoding="8UC1")
+    pub.publish(output_im)
+
     # cv2.imshow("test",res)
     # if cv2.waitKey(1) & 0xFF == ord('q'):
     #    exit()
-    output_im = bridge.cv2_to_imgmsg(res, encoding="bgr8")
-    image_pub_threshold_orange.publish(output_im)
-
-    return mask
-
-
-def mask_image_dynamic(rgb):
-    # convert to HSV
-    hsv = cv2.cvtColor(rgb, cv2.COLOR_BGR2HSV)
-
-    # Threshold the HSV image to get only blue colors
-    lower_color = np.array([30, 100, 50])  # green matlab
-    upper_color = np.array([100, 255, 255])  # green matlab
-    mask = cv2.inRange(hsv, lower_color, upper_color)
-
-    global bridge
-    global image_pub_threshold_dynamic
-    res = cv2.bitwise_and(rgb, rgb, mask=mask)
-    output_im = bridge.cv2_to_imgmsg(res, encoding="bgr8")
-    image_pub_threshold_dynamic.publish(output_im)
 
     return mask
 
@@ -174,7 +165,8 @@ def stereo_callback(data):
     if debug_on:
         global gate_detection_dynamic_on
         this_pose = Pose()
-        gate_detection_dynamic_on = True
+        # gate_detection_dynamic_on = True
+        gate_detection_dynamic_on = False
     else:
         if latest_pose is None:
             print("No position")
@@ -183,17 +175,20 @@ def stereo_callback(data):
     this_time = time.time()
 
     # convert image msg to matrix
-    input_image = bridge.imgmsg_to_cv2(data, desired_encoding=data.encoding)
-    rgb = np.copy(input_image)
+    rgb = bridge.imgmsg_to_cv2(data, desired_encoding=data.encoding)
 
-    # HSV conversion and frame detection
-    mask = mask_image_orange(input_image)
+    # convert image to HSV
+    # original image is BGR but conversion here is RGB so red color does not wrap around
+    hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
+
+    # masking image
+    mask = mask_image(hsv, "orange")
 
     # probabilistic hough transform
-    min_line_length = 100
+    min_line_length = 720/4
     max_line_gap = 25
 
-    lines = cv2.HoughLinesP(mask, 5, np.pi / 180, 500, minLineLength=min_line_length, maxLineGap=max_line_gap)
+    lines = cv2.HoughLinesP(mask, 5, np.pi / 90, 300, minLineLength=min_line_length, maxLineGap=max_line_gap)
 
     if lines is None:
         rospy.loginfo("no lines")
@@ -203,10 +198,31 @@ def stereo_callback(data):
         return
 
     # lines have been found
-    # for counter, line in enumerate(lines):
-    #     for x1, y1, x2, y2 in line:
-    #         cv2.circle(rgb, (x1, y1), 5, (0, 255, 0), 2)
-    #         cv2.circle(rgb, (x2, y2), 5, (255, 0, 0), 2)
+    # angles = []
+
+    lines = lines[:len(lines)/2]
+    votes = np.array(list(reversed(range(len(lines))))) + 1
+    for counter, line in enumerate(lines):
+        for x1, y1, x2, y2 in line:
+            # angles.append(math.atan2(y2 - y1, x2 - x1) * 180 / np.pi)  # between -90 and 90
+            cv2.circle(rgb, (x1, y1), 5, (votes[counter]*255.0/len(lines), votes[counter]*255.0/len(lines), votes[counter]*255.0/len(lines)), 2)
+            cv2.circle(rgb, (x2, y2), 5, (votes[counter]*255.0/len(lines), votes[counter]*255.0/len(lines), votes[counter]*255.0/len(lines)), 2)
+            # cv2.line(rgb, (x1, y1), (x2, y2), (0, 255, 0), 2)
+
+    # plt.clf()
+    # hist = np.histogram(angles, 90, [-90.0, 90.0])
+    #
+    # ax = plt.axes()
+    # ax.xaxis.set_major_locator(ticker.MultipleLocator(5))
+    # ax.yaxis.set_minor_locator(ticker.MultipleLocator(100))
+    # plt.plot(hist[1][1:], hist[0], 'bo-')
+    # plt.axis([-90, 90, 0, 10])
+    # # x_ticks = np.arange(-90, 90, 5)
+    # # y_ticks = np.arange(-1500, 1500, 100)
+    # # ax.set_xticks(x_ticks)
+    # # ax.set_yticks(y_ticks)
+    # plt.grid(which='both')
+    #
 
     # cluster start and end points
     # for counter, line in enumerate(lines)
@@ -263,11 +279,17 @@ def stereo_callback(data):
         output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
         image_pub_gate.publish(output_im)
         return
+    #
+    # for index in range(len(vote_ms_1)):
+    #     cv2.circle(rgb, (int(x_ms_1[index]), int(y_ms_1[index])), dist_thresh, (255, 255, 255), 2)
 
     max_cluster = np.argmax(idx)+1
-    cv2.circle(rgb, (int(x_ms_1[max_cluster-1]), int(y_ms_1[max_cluster-1])), dist_thresh, (255, 0, 0), 2)
+
     corner_points = np.zeros((4, 2))
     corner_points[0, :] = [x_ms_1[max_cluster - 1], y_ms_1[max_cluster - 1]]
+
+    cv2.circle(rgb, (int(corner_points[0, 0]), int(corner_points[0, 1])), dist_thresh, (255, 0, 0), 2)
+    cv2.circle(rgb, (int(corner_points[0, 0]), int(corner_points[0, 1])), 2, (255, 0, 0), 2)
 
     # find lines originating from this cluster and recluster its endpoints
     to_cluster_id = np.where(clusters_1 == max_cluster)[0]
@@ -323,24 +345,29 @@ def stereo_callback(data):
 
     maximum_ids = vote_ms_2.argsort()[-2:][::-1]
 
-    cv2.circle(rgb, (int(x_ms_2[maximum_ids[0]]), int(y_ms_2[maximum_ids[0]])), dist_thresh, (0, 255, 0), 2)
-    cv2.circle(rgb, (int(x_ms_2[maximum_ids[1]]), int(y_ms_2[maximum_ids[1]])), dist_thresh, (0, 255, 0), 2)
-
-    corner_points[1, :] = [x_ms_2[maximum_ids[0]], y_ms_2[maximum_ids[0]]]
-    corner_points[2, :] = [x_ms_2[maximum_ids[1]], y_ms_2[maximum_ids[1]]]
-
-    # find closest original cluster
+    # find closest original clusters
     x_diff = x_ms_1 - x_ms_2[maximum_ids[0]]
     y_diff = y_ms_1 - y_ms_2[maximum_ids[0]]
     diff = x_diff * x_diff + y_diff * y_diff
-    close_id1 = np.argmin(diff) + 1
+    close_id1 = np.argmin(diff)
 
     x_diff = x_ms_1 - x_ms_2[maximum_ids[1]]
     y_diff = y_ms_1 - y_ms_2[maximum_ids[1]]
     diff = x_diff * x_diff + y_diff * y_diff
-    close_id2 = np.argmin(diff) + 1
+    close_id2 = np.argmin(diff)
+
+    corner_points[1, :] = [x_ms_1[close_id1], y_ms_1[close_id1]]
+    corner_points[2, :] = [x_ms_1[close_id2], y_ms_1[close_id2]]
+
+    cv2.circle(rgb, (int(corner_points[1, 0]), int(corner_points[1, 1])), dist_thresh, (0, 255, 0), 2)
+    cv2.circle(rgb, (int(corner_points[2, 0]), int(corner_points[2, 1])), dist_thresh, (0, 255, 0), 2)
+    cv2.circle(rgb, (int(corner_points[1, 0]), int(corner_points[1, 1])), 2, (0, 255, 0), 2)
+    cv2.circle(rgb, (int(corner_points[2, 0]), int(corner_points[2, 1])), 2, (0, 255, 0), 2)
 
     # find lines originating from two median points and recluster its endpoints
+    close_id1 = close_id1 + 1  # to equal cluster number
+    close_id2 = close_id2 + 1  # to equal cluster number
+
     to_cluster_id_b = np.concatenate((np.where(clusters_1 == close_id1)[0], np.where(clusters_1 == close_id2)[0]))
     #
     # t1 = np.where(clusters_1 == close_id1)[0]
@@ -431,12 +458,18 @@ def stereo_callback(data):
         image_pub_gate.publish(output_im)
         return
 
-    max_cluster = np.argmax(vote_ms_3)+1
-    cv2.circle(rgb, (int(x_ms_3[max_cluster-1]), int(y_ms_3[max_cluster-1])), dist_thresh, (0, 0, 255), 2)
+    maximum_id = np.argmax(vote_ms_3)
 
-    corner_points[3, :] = [x_ms_3[max_cluster-1], y_ms_3[max_cluster-1]]
-    rospy.loginfo("corner_points")
-    rospy.loginfo(corner_points)
+    # find closest original cluster
+    x_diff = x_ms_1 - x_ms_3[maximum_id]
+    y_diff = y_ms_1 - y_ms_3[maximum_id]
+    diff = x_diff * x_diff + y_diff * y_diff
+    close_id = np.argmin(diff)
+
+    corner_points[3, :] = [x_ms_1[close_id], y_ms_1[close_id]]
+
+    cv2.circle(rgb, (int(corner_points[3, 0]), int(corner_points[3, 1])), dist_thresh, (0, 0, 255), 2)
+    cv2.circle(rgb, (int(corner_points[3, 0]), int(corner_points[3, 1])), 2, (0, 0, 255), 2)
 
     # Assume no lens distortion
     dist_coeffs = np.zeros((4, 1))
@@ -450,13 +483,11 @@ def stereo_callback(data):
         (+square_side / 2, -square_side / 2, 0.0),
         (-square_side / 2, +square_side / 2, 0.0),
         (-square_side / 2, -square_side / 2, 0.0)])
-    # t= time.time()
     (success, rvec, tvec) = cv2.solvePnP(model_points, corner_points, camera_matrix,
                                          dist_coeffs, flags=cv2.SOLVEPNP_ITERATIVE)
 
     rvec = np.squeeze(rvec)
     tvec = np.squeeze(tvec)
-    # print time.time()-t
     # print "Rotation Vector:\n {0}".format(rvec)
     # print "Translation Vector:\n {0}".format(tvec)
 
@@ -466,7 +497,10 @@ def stereo_callback(data):
     msg.rvec = rvec
     msg.bebop_pose = this_pose
     result_publisher.publish(msg)
-    rospy.loginfo("detected")
+    rospy.loginfo("detected gate")
+
+    rospy.loginfo("corner_points")
+    rospy.loginfo(corner_points)
 
     # draw a line sticking out of the plane
     (center_point_2D_base, _) = cv2.projectPoints(np.array([(.0, .0, 0)]), rvec, tvec, camera_matrix, dist_coeffs)
@@ -474,6 +508,7 @@ def stereo_callback(data):
                                                   dist_coeffs)
     (center_point_2D_frnt, _) = cv2.projectPoints(np.array([(.0, .0, -square_side)]), rvec, tvec, camera_matrix,
                                                   dist_coeffs)
+
     p1 = (int(center_point_2D_back[0][0][0]), int(center_point_2D_back[0][0][1]))
     p2 = (int(center_point_2D_frnt[0][0][0]), int(center_point_2D_frnt[0][0][1]))
     p3 = (int(center_point_2D_base[0][0][0]), int(center_point_2D_base[0][0][1]))
@@ -484,16 +519,13 @@ def stereo_callback(data):
     if True or max(p3) < 10000 and min(p3) > 0:
         cv2.circle(rgb, p3, 10, (0, 0, 0), -1)
 
-    # Display the resulting frame
-    # cv2.imshow('frame', rgb)
-
     if gate_detection_dynamic_on:
         global dynamic_publisher
 
         # HSV conversion and frame detection
         # cv2.imshow('input',input_image)
         # cv2.waitKey(1)
-        mask = mask_image_dynamic(input_image)
+        mask = mask_image(hsv, "green")
 
         # probabilistic hough transform
         minLineLength = 70
@@ -558,6 +590,7 @@ def stereo_callback(data):
                     cv2.LINE_AA)
 
         # publish finding
+        rospy.loginfo("detected pointer")
         rospy.loginfo("angle_m")
         rospy.loginfo(angle_m)
         msg = Float64MultiArray()
@@ -567,8 +600,8 @@ def stereo_callback(data):
     output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
     image_pub_gate.publish(output_im)
 
-    # plt.pause(0.001)
-    # time.sleep(4)
+    plt.pause(0.001)
+    # time.sleep(3)
 
 
 def pose_callback(data):

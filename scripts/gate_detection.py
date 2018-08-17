@@ -200,14 +200,16 @@ def stereo_callback(data):
     # lines have been found
     # angles = []
 
+    # shorten list of lines to only use good matches
     lines = lines[:len(lines)/2]
-    votes = np.array(list(reversed(range(len(lines))))) + 1
-    for counter, line in enumerate(lines):
-        for x1, y1, x2, y2 in line:
-            # angles.append(math.atan2(y2 - y1, x2 - x1) * 180 / np.pi)  # between -90 and 90
-            cv2.circle(rgb, (x1, y1), 5, (votes[counter]*255.0/len(lines), votes[counter]*255.0/len(lines), votes[counter]*255.0/len(lines)), 2)
-            cv2.circle(rgb, (x2, y2), 5, (votes[counter]*255.0/len(lines), votes[counter]*255.0/len(lines), votes[counter]*255.0/len(lines)), 2)
-            # cv2.line(rgb, (x1, y1), (x2, y2), (0, 255, 0), 2)
+
+    # votes = np.array(list(reversed(range(len(lines))))) + 1
+    # for counter, line in enumerate(lines):
+    #     for x1, y1, x2, y2 in line:
+    #         # angles.append(math.atan2(y2 - y1, x2 - x1) * 180 / np.pi)  # between -90 and 90
+    #         cv2.circle(rgb, (x1, y1), 5, (votes[counter]*255.0/len(lines), votes[counter]*255.0/len(lines), votes[counter]*255.0/len(lines)), 2)
+    #         cv2.circle(rgb, (x2, y2), 5, (votes[counter]*255.0/len(lines), votes[counter]*255.0/len(lines), votes[counter]*255.0/len(lines)), 2)
+    #         # cv2.line(rgb, (x1, y1), (x2, y2), (0, 255, 0), 2)
 
     # plt.clf()
     # hist = np.histogram(angles, 90, [-90.0, 90.0])

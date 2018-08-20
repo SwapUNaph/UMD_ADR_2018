@@ -16,7 +16,7 @@ from cv_bridge import CvBridge
 import time
 import math
 from bebop_auto.msg import Gate_Detection_Msg
-from std_msgs.msg import Float64MultiArray, Bool
+from std_msgs.msg import Float64MultiArray, Bool, Float32
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 
@@ -93,13 +93,17 @@ def mask_image(hsv, color):
 
     # from -10... 20
     if color == "orange":
-        lower_color = np.array([85, 60, 80])  # orange matlab jungle     bgr
-        upper_color = np.array([130, 255, 255])  # orange matlab jungle    bgr
-        pub = image_pub_threshold_orange
+        # lower_color = np.array([85, 60, 80])  # orange matlab jungle     bgr
+        # upper_color = np.array([130, 255, 255])  # orange matlab jungle    bgr
+
+        lower_color = np.array([110, 80, 80])  # orange matlab dynamic     bgr
+        upper_color = np.array([130, 255, 255])  # orange matlab dynamic  bgr
+
+        publisher = publisher_image_threshold_orange
     else:
         lower_color = np.array([40, 100, 50])  # green matlab pointer
         upper_color = np.array([90, 255, 255])  # green matlab pointer
-        pub = image_pub_threshold_dynamic
+        publisher = publisher_image_threshold_dynamic
 
     mask = cv2.inRange(hsv, lower_color, upper_color)
 
@@ -136,7 +140,7 @@ def mask_image(hsv, color):
     res = cv2.bitwise_and(rgb, rgb, mask=mask)
     output_im = bridge.cv2_to_imgmsg(res, encoding="rgb8")
     # output_im = bridge.cv2_to_imgmsg(mask, encoding="8UC1")
-    pub.publish(output_im)
+    publisher.publish(output_im)
 
     # cv2.imshow("test",res)
     # if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -151,16 +155,12 @@ def find_angle(angle, a, b, c):
 
 
 def stereo_callback(data):
-    global valid_last_orientation
-    global pose_pub
     global bridge
     global latest_pose
-    global result_publisher
     global rvec
     global tvec
-    global image_pub_gate
 
-    debug_on = True
+    debug_on = False
 
     if debug_on:
         global gate_detection_dynamic_on
@@ -190,18 +190,19 @@ def stereo_callback(data):
 
     lines = cv2.HoughLinesP(mask, 5, np.pi / 90, 300, minLineLength=min_line_length, maxLineGap=max_line_gap)
 
-    if lines is None:
+    if lines is None or len(lines) < 2:
         rospy.loginfo("no lines")
-        result_publisher.publish(Gate_Detection_Msg())
+        publisher_result.publish(Gate_Detection_Msg())
         output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
-        image_pub_gate.publish(output_im)
+        publisher_image_gate.publish(output_im)
         return
 
     # lines have been found
     # angles = []
 
     # shorten list of lines to only use good matches
-    lines = lines[:len(lines)/2]
+    if len(lines) > 8:
+        lines = lines[:len(lines)/2]
 
     # votes = np.array(list(reversed(range(len(lines))))) + 1
     # for counter, line in enumerate(lines):
@@ -277,9 +278,9 @@ def stereo_callback(data):
 
     if cluster == 0:
         rospy.loginfo("empty sequence 1")
-        result_publisher.publish(Gate_Detection_Msg())
+        publisher_result.publish(Gate_Detection_Msg())
         output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
-        image_pub_gate.publish(output_im)
+        publisher_image_gate.publish(output_im)
         return
     #
     # for index in range(len(vote_ms_1)):
@@ -340,9 +341,9 @@ def stereo_callback(data):
 
     if cluster < 2:
         rospy.loginfo("empty sequence 2")
-        result_publisher.publish(Gate_Detection_Msg())
+        publisher_result.publish(Gate_Detection_Msg())
         output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
-        image_pub_gate.publish(output_im)
+        publisher_image_gate.publish(output_im)
         return
 
     maximum_ids = vote_ms_2.argsort()[-2:][::-1]
@@ -455,9 +456,9 @@ def stereo_callback(data):
 
     if cluster == 0:
         rospy.loginfo("empty sequence 3")
-        result_publisher.publish(Gate_Detection_Msg())
+        publisher_result.publish(Gate_Detection_Msg())
         output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
-        image_pub_gate.publish(output_im)
+        publisher_image_gate.publish(output_im)
         return
 
     maximum_id = np.argmax(vote_ms_3)
@@ -476,8 +477,7 @@ def stereo_callback(data):
     # Assume no lens distortion
     dist_coeffs = np.zeros((4, 1))
 
-    # square_side = 1.03
-    square_side = 1.4
+    square_side = gate_size
 
     # 3D model points.
     model_points = np.array([
@@ -498,7 +498,7 @@ def stereo_callback(data):
     msg.tvec = tvec
     msg.rvec = rvec
     msg.bebop_pose = this_pose
-    result_publisher.publish(msg)
+    publisher_result.publish(msg)
     rospy.loginfo("detected gate")
 
     rospy.loginfo("corner_points")
@@ -522,7 +522,6 @@ def stereo_callback(data):
         cv2.circle(rgb, p3, 10, (0, 0, 0), -1)
 
     if gate_detection_dynamic_on:
-        global dynamic_publisher
 
         # HSV conversion and frame detection
         # cv2.imshow('input',input_image)
@@ -537,9 +536,8 @@ def stereo_callback(data):
 
         if lines is None:
             rospy.loginfo("no dynamic lines")
-            result_publisher.publish(Gate_Detection_Msg())
             output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
-            image_pub_gate.publish(output_im)
+            publisher_image_gate.publish(output_im)
             return
 
         # lines have been found
@@ -584,7 +582,6 @@ def stereo_callback(data):
                 if angle_m < math.pi/2:
                     angle_m = angle_m + math.pi
 
-
         cv2.line(rgb, (gate[0], gate[1]), (
             gate[0] + int(-250 * math.sin(angle_m)), gate[1] + int(-250 * math.cos(angle_m))),
                  (255, 255, 0), 6)
@@ -597,12 +594,12 @@ def stereo_callback(data):
         rospy.loginfo(angle_m)
         msg = Float64MultiArray()
         msg.data = [this_time, angle_m]
-        dynamic_publisher.publish(msg)
+        publisher_dynamic.publish(msg)
 
     output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
-    image_pub_gate.publish(output_im)
+    publisher_image_gate.publish(output_im)
 
-    plt.pause(0.001)
+    # plt.pause(0.001)
     # time.sleep(3)
 
 
@@ -628,43 +625,35 @@ def callback_dynamic_detection_changed(data):
     gate_detection_dynamic_on = data.data
 
 
-def main():
+def callback_gate_size_changed(data):
+    global gate_size
+    gate_size = data
+
+
+if __name__ == '__main__':
     signal.signal(signal.SIGINT, signal_handler)
     rospy.init_node('gate_detection', anonymous=True)
 
-    global camera_matrix
     camera_matrix = None
-    rospy.Subscriber("/zed/rgb/camera_info", CameraInfo, camera_info_update)
 
-    global valid_last_orientation
-    valid_last_orientation = False
-
-    global gate_detection_dynamic_on
-    global image_pub_threshold_orange
-    global image_pub_threshold_dynamic
-    global image_pub_gate
-    global result_publisher
-    global dynamic_publisher
-    global latest_pose
     latest_pose = None
     gate_detection_dynamic_on = False
+    gate_size = 1.4
 
+    bridge = CvBridge()
+
+    rospy.Subscriber("/zed/rgb/camera_info", CameraInfo, camera_info_update)
     rospy.Subscriber("/zed/rgb/image_rect_color", Image, stereo_callback)
     rospy.Subscriber("/bebop/odom", Odometry, pose_callback)
     rospy.Subscriber("/auto/dynamic_detection_on", Bool, callback_dynamic_detection_changed)
+    rospy.Subscriber("/auto/gate_size", Float32, callback_gate_size_changed)
 
-    image_pub_threshold_orange = rospy.Publisher("/auto/gate_detection_threshold_orange", Image, queue_size=1)
-    image_pub_threshold_dynamic = rospy.Publisher("/auto/gate_detection_threshold_dynamic", Image, queue_size=1)
-    image_pub_gate = rospy.Publisher("/auto/gate_detection_gate", Image, queue_size=1)
-    result_publisher = rospy.Publisher("/auto/gate_detection_result", Gate_Detection_Msg, queue_size=1)
-    dynamic_publisher = rospy.Publisher("/auto/gate_detection_result_dynamic", Float64MultiArray, queue_size=1)
-
-    global bridge
-    bridge = CvBridge()
+    publisher_image_threshold_orange = rospy.Publisher("/auto/gate_detection_threshold_orange", Image, queue_size=1)
+    publisher_image_threshold_dynamic = rospy.Publisher("/auto/gate_detection_threshold_dynamic", Image, queue_size=1)
+    publisher_image_gate = rospy.Publisher("/auto/gate_detection_gate", Image, queue_size=1)
+    publisher_result = rospy.Publisher("/auto/gate_detection_result", Gate_Detection_Msg, queue_size=1)
+    publisher_dynamic = rospy.Publisher("/auto/gate_detection_result_dynamic", Float64MultiArray, queue_size=1)
 
     rospy.loginfo("running")
     rospy.spin()
 
-
-if __name__ == '__main__':
-    main()

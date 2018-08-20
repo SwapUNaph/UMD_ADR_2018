@@ -63,23 +63,17 @@ def callback_autonomous_drive_msg_changed(data):
     drive_msg = data
 
 
-def main():
+if __name__ == '__main__':
     # Enable killing the script with Ctrl+C.
     signal.signal(signal.SIGINT, signal_handler)
 
     rospy.init_node('driving', anonymous=True)
 
     # Global variables for autonomy mode, and the status of the drone and the state machine
-    global autonomy_active
-    global drive_msg
     autonomy_active = False
-    global state_bebop
-    bebop_status = 0
-    global state_auto
     state_auto = -1
 
     # create a state machine publisher and a global command publisher
-    global cmd_vel_pub
     cmd_vel_pub = rospy.Publisher('/bebop/cmd_vel', Twist, queue_size=1, latch=True)
     rospy.Subscriber("/bebop/states/ardrone3/PilotingState/FlyingStateChanged", Ardrone3PilotingStateFlyingStateChanged,
                      callback_states_changed, "state_bebop")
@@ -103,16 +97,10 @@ def main():
                 rospy.loginfo("land")
                 publish_status("land")
 
-
             publish_command(drive_msg.x, drive_msg.y, drive_msg.z, drive_msg.r)
             rospy.loginfo("fwd: " + "{:.2f}".format(drive_msg.x) + " | left: " + "{:.2f}".format(
                 drive_msg.y) + " | up: " + "{:.2f}".format(drive_msg.z) + " | ccw: " + "{:.2f}".format(drive_msg.r))
 
-
         else:
             pass
             # publish_command(0,0,0,0)
-
-
-if __name__ == '__main__':
-    main()

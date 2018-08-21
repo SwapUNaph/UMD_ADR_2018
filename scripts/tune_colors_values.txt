@@ -1,3 +1,13 @@
+20, 70, 50
+80, 255, 255
+green matlab pointer
+
+
+
+85, 60, 80
+100, 255, 255
+orange matlab dynamic
+
 10, 80, 60
 25, 170, 190
 green cypress pointer
@@ -13,16 +23,5 @@ orange dynamic cypress
 85, 60, 80
 130, 255, 255
 orange matlab jungle     
-
-
-110, 80, 80
-130, 255, 255
-orange matlab dynamic     
-
-
-40, 100, 50
-90, 255, 255
-green matlab pointer 
-
 
 

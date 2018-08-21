@@ -29,80 +29,28 @@ import sys
 def signal_handler(signal, frame):
     sys.exit(0)
 
-#
-# def find_threshold_bimodal(array):
-#     array = np.array(array,dtype="double")
-#     array_sum = np.sum(array)
-#     var = []
-#     for n in range(array.size):
-#         partarray_sum = np.sum(array[:n])
-#         if partarray_sum == 0:
-#             s1 = 0
-#             var1 = 0
-#         else:
-#             s1 = np.sum(array[:n]) / array_sum
-#             mean1 = np.sum(array[:n] * range(n)) / partarray_sum
-#             var1 = np.sum(np.square(range(n) - mean1) * array[:n] / array_sum / s1)
-#
-#         partarray_sum = np.sum(array[n:])
-#         if partarray_sum == 0:
-#             s2 = 0
-#             var2 = 0
-#         else:
-#             s2 = np.sum(array[n:]) / array_sum
-#             mean2 = np.sum(array[n:] * range(n, array.size)) / partarray_sum
-#             var2 = np.sum(np.square(range(n, array.size) - mean2) * array[n:] / array_sum / s2)
-#         var.append(int(s1 * var1 + s2 * var2))
-#     idx = (var.index(min(var)) + len(var) - 1 - var[::-1].index(min(var)))/2
-#
-#     if idx >= 90:
-#         angle_thres = idx - 90
-#     else:
-#         angle_thres = idx
-#
-#     return angle_thres
-
-
-def isect_lines(line1, line2):
-    for x1, y1, x2, y2 in line1:
-        for x3, y3, x4, y4 in line2:
-            try:
-                s = float((x2 - x1) * (y3 - y1) - (x3 - x1) * (y2 - y1)) / float(
-                    (x4 - x3) * (y2 - y1) - (x2 - x1) * (y4 - y3))
-
-                x = x3 + s * (x4 - x3)
-                y = y3 + s * (y4 - y3)
-                return x, y
-
-            except ZeroDivisionError:
-                rospy.loginfo("ZeroDivisionError in isect_lines")
-                return -1, -1, -1
-
 
 def mask_image(hsv, color):
 
     # Threshold the HSV image to get only orange colors
-    # lower_color1 = np.array([0, 90, 80])  # orange 3D cypress         rgb
-    # upper_color1 = np.array([13, 255, 150])  # orange 3D cypress      rgb
-    # lower_color2 = np.array([170, 90, 80])  # orange 3D cypress       rgb
-    # upper_color2 = np.array([180, 255, 150])  # orange 3D cypress     rgb
-    # lower_color1 = np.array([0, 90, 80])  # orange matlab dynamic     rgb
-    # upper_color1 = np.array([15, 255, 255])  # orange matlab dynamic  rgb
-    # lower_color2 = np.array([160, 90, 80])  # orange matlab dynamic   rgb
-    # upper_color2 = np.array([180, 255, 255])  # orange matlab dynamic rgb
-
-    # from -10... 20
     if color == "orange":
-        # lower_color = np.array([85, 60, 80])  # orange matlab jungle     bgr
-        # upper_color = np.array([130, 255, 255])  # orange matlab jungle    bgr
+        # lower_color = np.array([85, 60, 80])  # orange matlab jungle
+        # upper_color = np.array([130, 255, 255])  # orange matlab jungle
 
-        lower_color = np.array([110, 80, 80])  # orange matlab dynamic     bgr
-        upper_color = np.array([130, 255, 255])  # orange matlab dynamic  bgr
+        # lower_color = np.array([110, 80, 80])  # orange matlab dynamic
+        # upper_color = np.array([130, 255, 255])  # orange matlab dynamic
+
+        lower_color = np.array([102, 90, 70])  # orange dynamic cypress
+        upper_color = np.array([117, 255, 195])  # orange dynamic cypress
 
         publisher = publisher_image_threshold_orange
     else:
-        lower_color = np.array([40, 100, 50])  # green matlab pointer
-        upper_color = np.array([90, 255, 255])  # green matlab pointer
+        # lower_color = np.array([40, 100, 50])  # green matlab pointer
+        # upper_color = np.array([90, 255, 255])  # green matlab pointer
+
+        lower_color = np.array([10, 80, 60])  # green cypress pointer
+        upper_color = np.array([25, 150, 180])  # green cypress pointer
+
         publisher = publisher_image_threshold_dynamic
 
     mask = cv2.inRange(hsv, lower_color, upper_color)
@@ -149,11 +97,6 @@ def mask_image(hsv, color):
     return mask
 
 
-def find_angle(angle, a, b, c):
-    # dist = a*sin(b*angle+c)
-    return math.atan(a*b*math.cos(b*angle+c))
-
-
 def stereo_callback(data):
     global bridge
     global latest_pose
@@ -165,8 +108,8 @@ def stereo_callback(data):
     if debug_on:
         global gate_detection_dynamic_on
         this_pose = Pose()
-        # gate_detection_dynamic_on = True
-        gate_detection_dynamic_on = False
+        gate_detection_dynamic_on = True
+        # gate_detection_dynamic_on = False
     else:
         if latest_pose is None:
             print("No position")
@@ -627,7 +570,7 @@ def callback_dynamic_detection_changed(data):
 
 def callback_gate_size_changed(data):
     global gate_size
-    gate_size = data
+    gate_size = data.data
 
 
 if __name__ == '__main__':

@@ -40,6 +40,8 @@ def callback_visual_gate_dynamic_changed(input_data):
 
     measurement = input_data.data
 
+    rospy.loginfo("visual hand detected")
+
     if detection_dynamic_data.period is None:
         detection_dynamic_input_history = np.append(detection_dynamic_input_history,
                                                     [[measurement[0]], [measurement[1]]], axis=1)
@@ -89,7 +91,7 @@ def callback_visual_gate_dynamic_changed(input_data):
         else:
             rospy.loginfo("discard detected pointer")
 
-    rospy.loginfo("detection_dynamic_data.period")
+    rospy.loginfo("visual hand period")
     rospy.loginfo(detection_dynamic_data.period)
 
 
@@ -108,6 +110,8 @@ def callback_visual_gate_detection_changed(data):
         log_string = "0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0"
         publisher_visual_log.publish(log_string)
         return
+
+    rospy.loginfo("visual gate detected")
 
     # read data
     bebop_position = data.bebop_pose.position
@@ -163,7 +167,7 @@ def callback_visual_gate_detection_changed(data):
     msg.hdg = wp_current.hdg
     publisher_wp_current.publish(msg)
 
-    rospy.loginfo("wp_current")
+    rospy.loginfo("new measured wp_current")
     rospy.loginfo(wp_current)
 
     # while there is no average yet: start collecting gate positions and evaluate standard deviation
@@ -209,7 +213,7 @@ def callback_visual_gate_detection_changed(data):
         # now, add to list only if gate position is close to last one
         distance = np.linalg.norm(np.array(gate_global_p) - wp_input_history[-1].pos)
         if distance < 1:
-            print("use detected gate")
+            rospy.loginfo("use detected gate")
             wp_input_history.append(wp_current)
             del wp_input_history[0]
             wp_average = cr.find_average(wp_input_history)
@@ -247,6 +251,8 @@ def callback_visual_gate_detection_changed(data):
         msg.hdg = wp_average.hdg
     publisher_wp_average.publish(msg)
 
+    rospy.loginfo("visual gate done")
+
     return
 
 
@@ -264,7 +270,7 @@ def calculate_visual_wp():
         # hover 4m behind dynamic gate at -0.5 height
         gate_pos = wp_average.pos
         gate_heading = wp_average.hdg
-        hover_distance = -4
+        hover_distance = -3.2
         hover_alt = -0.5
         extra_dist = np.array([hover_distance*math.cos(gate_heading), hover_distance*math.sin(gate_heading), hover_alt])
         wp_visual = cr.WP(gate_pos + extra_dist, gate_heading)
@@ -387,6 +393,28 @@ def calculate_blind_wp():
         wp_input_history = []
 
         rospy.loginfo("fly to turn2: " + str(wp_blind))
+
+
+    if state_auto == 71 and wp_blind is None:
+        rospy.loginfo("state 71, set new blind at to reach gate")
+
+        bebop_p = [bebop_position.x, bebop_position.y, bebop_position.z]
+        bebop_q = [bebop_orientation.x, bebop_orientation.y, bebop_orientation.z, bebop_orientation.w]
+
+        blind_position = [0.0, 0.0, 0.5]  # front, left , up
+        blind_position_global = cr.qv_mult(bebop_q, blind_position) + bebop_p
+        blind_position_global = blind_position_global.tolist()
+
+        look_position = [5, 0, 0]  # front, left, up
+        look_position_global = cr.qv_mult(bebop_q, look_position) + bebop_p
+        look_position_global = look_position_global.tolist()
+
+        # initialize with this position
+        wp_blind = cr.WP(blind_position_global, 0)
+        rospy.loginfo("global position set for blind")
+
+        wp_look = cr.WP(look_position_global, 0)
+
 
     rospy.loginfo("wp_blind")
     rospy.loginfo(wp_blind)
@@ -699,16 +727,23 @@ def navigate_dynamic():
             rospy.loginfo("DYN - yaw ok, state 0")
             detection_dynamic_data.state = 0
         else:
-            rospy.loginfo("DYN - correct yaw")
+            rospy.loginfo("DYN - yawing")
             msg.r = cr.limit_value(r_error, .1)
 
     # wait for gate rotation
     elif detection_dynamic_data.state == 2:
-        angle_difference = abs(detection_dynamic_data.theta-detection_dynamic_data.theta_trigger())
-        if angle_difference < abs(2*math.pi/(detection_dynamic_data.period*5)*.7):
-            rospy.loginfo("DYN - pointer angle triggered, state 3")
-            detection_dynamic_data.timer = time.time()
-            detection_dynamic_data.state = 3
+        if detection_dynamic_data.period is None:
+            rospy.loginfo("DYN - no period yet, state 0")
+            detection_dynamic_data.state = 0
+        else:
+            angle_difference = abs(detection_dynamic_data.theta-detection_dynamic_data.theta_trigger())
+            if angle_difference < abs(2*math.pi/(detection_dynamic_data.period*5)*.7):
+                rospy.loginfo("DYN - pointer angle triggered, state 3")
+                detection_dynamic_data.timer = time.time()
+                detection_dynamic_data.state = 3
+            else:
+                rospy.loginfo("DYN - wait for rotation")
+                detection_dynamic_data.state = 5
 
     # full forward
     elif detection_dynamic_data.state == 3:
@@ -718,7 +753,8 @@ def navigate_dynamic():
             detection_dynamic_data.timer = time.time()
         else:
             rospy.loginfo("DYN - full forward")
-            msg.x = 1
+            # msg.x = 1
+            detection_dynamic_data.state = 5
 
     # pause
     elif detection_dynamic_data.state == 4:
@@ -857,7 +893,7 @@ def state_machine_advancement(navigation_distance):
         rospy.loginfo("fly visual to front of G7")
         publisher_state_auto.publish(state_auto + 1)                   # 72 - fly visual to front of G7
 
-    elif state_auto == 72 and navigation_distance < 0.3:               # hovering in front of G7
+    elif state_auto == 72 and navigation_distance < 0.15:               # hovering in front of G7
         detection_active = True
         publisher_dynamic_detection_on.publish(True)
         nav_active = "dynamic"

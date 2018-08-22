@@ -37,19 +37,19 @@ def mask_image(hsv, color):
         # lower_color = np.array([85, 60, 80])  # orange matlab jungle
         # upper_color = np.array([130, 255, 255])  # orange matlab jungle
 
-        lower_color = np.array([85, 60, 80])  # orange matlab dynamic
-        upper_color = np.array([100, 255, 255])  # orange matlab dynamic
+        # lower_color = np.array([110, 80, 80])  # orange matlab dynamic
+        # upper_color = np.array([130, 255, 255])  # orange matlab dynamic
 
-        # lower_color = np.array([102, 90, 70])  # orange dynamic cypress
-        # upper_color = np.array([117, 255, 195])  # orange dynamic cypress
+        lower_color = np.array([102, 115, 80])  # orange dynamic cypress
+        upper_color = np.array([117, 255, 255])  # orange dynamic cypress
 
         publisher = publisher_image_threshold_orange
     else:
-        lower_color = np.array([20, 70, 50])  # green matlab pointer
-        upper_color = np.array([80, 255, 255])  # green matlab pointer
+        # lower_color = np.array([40, 100, 50])  # green matlab pointer
+        # upper_color = np.array([90, 255, 255])  # green matlab pointer
 
-        # lower_color = np.array([10, 80, 60])  # green cypress pointer
-        # upper_color = np.array([25, 150, 180])  # green cypress pointer
+        lower_color = np.array([0, 95, 60])  # green cypress pointer
+        upper_color = np.array([25, 220, 200])  # green cypress pointer
 
         publisher = publisher_image_threshold_dynamic
 
@@ -78,7 +78,7 @@ def mask_image(hsv, color):
     # output_im = bridge.cv2_to_imgmsg(mask, encoding="8UC1")
     # image_pub_dev1.publish(output_im)
 
-    # show = cv2.resize(mask,(1280,720))
+    # show = cv2.resize(debug,(1280,720))
     # cv2.imshow("show",show)
     # if cv2.waitKey(1) & 0xFF == ord('q'):
     #    exit()
@@ -103,7 +103,7 @@ def stereo_callback(data):
     global rvec
     global tvec
 
-    debug_on = True
+    debug_on = False
 
     if debug_on:
         global gate_detection_dynamic_on
@@ -525,11 +525,8 @@ def stereo_callback(data):
                 if angle_m < math.pi/2:
                     angle_m = angle_m + math.pi
 
-        r_start = 200
-        r_end = 300
-        cv2.line(rgb, (
-            gate[0] + int(-r_start * math.sin(angle_m)), gate[1] + int(-r_start * math.cos(angle_m))), (
-            gate[0] + int(-r_end * math.sin(angle_m)), gate[1] + int(-r_end * math.cos(angle_m))),
+        cv2.line(rgb, (gate[0], gate[1]), (
+            gate[0] + int(-250 * math.sin(angle_m)), gate[1] + int(-250 * math.cos(angle_m))),
                  (255, 255, 0), 6)
         cv2.putText(rgb, str(angle_m * 180 / math.pi), (0, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2,
                     cv2.LINE_AA)

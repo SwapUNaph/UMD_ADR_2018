@@ -10,7 +10,7 @@ from std_msgs.msg import Empty
 from geometry_msgs.msg import Twist
 import pygame
 import signal
-import sys
+import sys, os
 import time
 from bebop_msgs.msg import Ardrone3PilotingStateFlyingStateChanged
 from std_msgs.msg import Bool, Int32
@@ -220,8 +220,10 @@ def main():
                                     rospy.loginfo("not in manual mode")
 
                             elif i == 6:  # enter manual mode
-                                if autonomy_active:  # autonomous flight active
-                                    if True:# axis_throttleL == 0:  # throttle centered
+                                if True:  # autonomy_active:  # autonomous flight active
+                                    if True:  # axis_throttleL == 0:  # throttle centered
+                                        cmd = "rosnode kill /gate_detection"
+                                        os.system(cmd)
                                         autonomy_active = False
                                         autonomy_pub(autonomy_active)
                                         flight_command_active = True

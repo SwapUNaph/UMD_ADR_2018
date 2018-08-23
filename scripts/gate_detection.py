@@ -40,7 +40,7 @@ def mask_image(hsv, color):
         # lower_color = np.array([110, 80, 80])  # orange matlab dynamic
         # upper_color = np.array([130, 255, 255])  # orange matlab dynamic
 
-        lower_color = np.array([102, 115, 80])  # orange dynamic cypress
+        lower_color = np.array([87, 55, 100])  # orange dynamic cypress
         upper_color = np.array([117, 255, 255])  # orange dynamic cypress
 
         publisher = publisher_image_threshold_orange
@@ -48,8 +48,8 @@ def mask_image(hsv, color):
         # lower_color = np.array([40, 100, 50])  # green matlab pointer
         # upper_color = np.array([90, 255, 255])  # green matlab pointer
 
-        lower_color = np.array([0, 95, 60])  # green cypress pointer
-        upper_color = np.array([25, 220, 200])  # green cypress pointer
+        lower_color = np.array([20, 55, 100])  # green cypress pointer
+        upper_color = np.array([35, 255, 255])  # green cypress pointer
 
         publisher = publisher_image_threshold_dynamic
 
@@ -78,7 +78,7 @@ def mask_image(hsv, color):
     # output_im = bridge.cv2_to_imgmsg(mask, encoding="8UC1")
     # image_pub_dev1.publish(output_im)
 
-    # show = cv2.resize(debug,(1280,720))
+    # show = cv2.resize(res,(1280,720))
     # cv2.imshow("show",show)
     # if cv2.waitKey(1) & 0xFF == ord('q'):
     #    exit()
@@ -575,7 +575,7 @@ def callback_gate_size_changed(data):
 
 if __name__ == '__main__':
     signal.signal(signal.SIGINT, signal_handler)
-    rospy.init_node('gate_detection', anonymous=True)
+    rospy.init_node('gate_detection', anonymous=False)
 
     camera_matrix = None
 

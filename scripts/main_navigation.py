@@ -322,7 +322,7 @@ def calculate_blind_wp():
         # waypoint calculation based on own position and pose
         rospy.loginfo("state " + str(state_auto) + ": set blind waypoint")
 
-        blind_position = [0.5, 0.0, 1.0]  # front, left , up
+        blind_position = [0.5, 0.0, 0.7]  # front, left , up
         blind_position_global = cr.qv_mult(bebop_q, blind_position) + bebop_p
         blind_position_global = blind_position_global.tolist()
 
@@ -990,29 +990,29 @@ def state_machine_advancement(navigation_distance):
         nav_active = "off"
         wp_blind = None
         rospy.loginfo("land")
-        publisher_state_auto.publish(30)                               # 30 - fly blind towards G3, no detection
+        publisher_state_auto.publish(90)                               # 30 - fly blind towards G3, no detection
 
     elif state_auto == 20 and navigation_distance < 0.3:               # blind flight completed
         detection_active = True
         wp_blind = None
-        rospy.loginfo("fly blind towards G2, with detection")
+        rospy.loginfo("fly blind towards G3, with detection")
         publisher_state_auto.publish(state_auto + 1)                   # 31 - fly blind towards G3, with detection
 
-    elif state_auto == 21 and wp_average is not None:                  # G3 detected
+    elif state_auto == 31 and wp_average is not None:                  # G3 detected
         nav_active = "through"
         wp_blind = None
-        rospy.loginfo("fly visual to G2")
+        rospy.loginfo("fly visual to G3")
         publisher_state_auto.publish(state_auto + 1)                   # 32 - fly visual to G3
 
-    elif state_auto == 22 and navigation_distance < 0.5:               # drone close to G3
+    elif state_auto == 32 and navigation_distance < 0.5:               # drone close to G3
         detection_active = False
         nav_active = "point"
         wp_average = None
         wp_input_history = []
-        rospy.loginfo("pass G2 blind, no detection")
+        rospy.loginfo("pass G3 blind, no detection")
         publisher_state_auto.publish(state_auto + 1)                   # 33 - pass G3 blind, no detection
 
-    elif state_auto == 23 and navigation_distance < 0.3:               # G3 passed
+    elif state_auto == 33 and navigation_distance < 0.3:               # G3 passed
         nav_active = "off"
         wp_blind = None
         rospy.loginfo("land")

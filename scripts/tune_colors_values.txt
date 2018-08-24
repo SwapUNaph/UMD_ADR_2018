@@ -1,6 +1,15 @@
+108, 110, 90
+117, 255, 255
+orange kim hallway
+
+
+
 87, 40, 130
 117, 255, 255
 orange dynamic cypress
+
+
+
 
 20, 40, 100
 35, 255, 255

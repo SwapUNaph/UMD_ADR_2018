@@ -39,9 +39,12 @@ def mask_image(hsv, color):
 
         # lower_color = np.array([110, 80, 80])  # orange matlab dynamic
         # upper_color = np.array([130, 255, 255])  # orange matlab dynamic
+        #
+        # lower_color = np.array([87, 55, 100])  # orange dynamic cypress
+        # upper_color = np.array([117, 255, 255])  # orange dynamic cypress
 
-        lower_color = np.array([87, 55, 100])  # orange dynamic cypress
-        upper_color = np.array([117, 255, 255])  # orange dynamic cypress
+        lower_color = np.array([108, 120, 90])  # orange kim hallway
+        upper_color = np.array([117, 255, 255])  # orange kim hallway
 
         publisher = publisher_image_threshold_orange
     else:

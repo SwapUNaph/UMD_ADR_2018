@@ -128,6 +128,46 @@ class DynamicData:
         return theta % 2*math.pi
 
 
+class PID:
+    def __init__(self, p=2.0, i=0.0, d=1.0, derivator=0, integrator=0, integrator_max=.5, integrator_min=-.5):
+        self.kp = p
+        self.ki = i
+        self.kd = d
+        self.derivator = derivator
+        self.integrator = integrator
+        self.integrator_max = integrator_max
+        self.integrator_min = integrator_min
+        self.error = 0.0
+
+        self.p_value = None
+        self.i_value = None
+        self.d_value = None
+        self.set_point = None
+
+    def update(self, err):
+        self.error = err
+
+        self.p_value = self.kp * self.error
+        self.d_value = self.kd * (self.error - self.derivator)
+        self.derivator = self.error
+
+        self.integrator = self.integrator + self.error
+
+        if self.integrator > self.integrator_max:
+            self.integrator = self.integrator_max
+        elif self.integrator < self.integrator_min:
+            self.integrator = self.integrator_min
+
+        self.i_value = self.integrator * self.ki
+
+        return [self.p_value, self.i_value, self.d_value]
+
+    def reset(self, set_point):
+        self.set_point = set_point
+        self.integrator = 0
+        self.derivator = 0
+
+
 class PID2:
     def __init__(self, p=2.0, i=0.0, d=1.0, derivator=[0.0, 0.0, 0.0, 0.0], integrator=0, integrator_max=.5, integrator_min=-.5):
         self.kp = p

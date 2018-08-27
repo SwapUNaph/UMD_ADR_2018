@@ -174,7 +174,7 @@ def callback_visual_gate_detection_changed(data):
     # while there is no average yet: start collecting gate positions and evaluate standard deviation
     if wp_average is None:
         wp_input_history.append(wp_current)
-        if len(wp_input_history) > 10:
+        if len(wp_input_history) > 15:
             rospy.loginfo("enough measurements")
             del wp_input_history[0]
             # calculate std deviation of list
@@ -213,7 +213,7 @@ def callback_visual_gate_detection_changed(data):
     else:
         # now, add to list only if gate position is close to last one
         distance = np.linalg.norm(np.array(gate_global_p) - wp_input_history[-1].pos)
-        if distance < 1:
+        if distance < 0.5:
             rospy.loginfo("use detected gate")
             wp_input_history.append(wp_current)
             del wp_input_history[0]
@@ -310,17 +310,16 @@ def calculate_blind_wp():
     global wp_look
     global wp_blind_takeoff_time
 
-    bebop_position = bebop_odometry.pose.pose.position
-    bebop_orientation = bebop_odometry.pose.pose.orientation
-
-    bebop_p = [bebop_position.x, bebop_position.y, bebop_position.z]
-    bebop_q = [bebop_orientation.x, bebop_orientation.y, bebop_orientation.z, bebop_orientation.w]
-
     wp_blind_old = wp_blind or wp_blind_old
 
     if state_auto == 10 and wp_blind is None:
         # waypoint calculation based on own position and pose
         rospy.loginfo("state " + str(state_auto) + ": set blind waypoint")
+
+        bebop_position = bebop_odometry.pose.pose.position
+        bebop_orientation = bebop_odometry.pose.pose.orientation
+        bebop_p = [bebop_position.x, bebop_position.y, bebop_position.z]
+        bebop_q = [bebop_orientation.x, bebop_orientation.y, bebop_orientation.z, bebop_orientation.w]
 
         blind_position = [0.5, 0.0, 0.7]  # front, left , up
         blind_position_global = cr.qv_mult(bebop_q, blind_position) + bebop_p
@@ -337,6 +336,11 @@ def calculate_blind_wp():
     if state_auto == 11 and wp_blind is None:
         # waypoint calculation based on own position and pose
         rospy.loginfo("state " + str(state_auto) + ": set blind waypoint")
+
+        bebop_position = bebop_odometry.pose.pose.position
+        bebop_orientation = bebop_odometry.pose.pose.orientation
+        bebop_p = [bebop_position.x, bebop_position.y, bebop_position.z]
+        bebop_q = [bebop_orientation.x, bebop_orientation.y, bebop_orientation.z, bebop_orientation.w]
 
         blind_position = [1.0, 0.0, 0.0]  # front, left , up
         blind_position_global = cr.qv_mult(bebop_q, blind_position) + bebop_p
@@ -990,9 +994,12 @@ def state_machine_advancement(navigation_distance):
         nav_active = "off"
         wp_blind = None
         rospy.loginfo("land")
-        publisher_state_auto.publish(90)                               # 30 - fly blind towards G3, no detection
+        publisher_state_auto.publish(90)                               # 90 - land  #######################################################
+        # wp_blind = None
+        # rospy.loginfo("fly blind towards G3, no detection")
+        # publisher_state_auto.publish(30)                               # 30 - fly blind towards G3, no detection
 
-    elif state_auto == 20 and navigation_distance < 0.3:               # blind flight completed
+    elif state_auto == 30 and navigation_distance < 0.3:               # blind flight completed
         detection_active = True
         wp_blind = None
         rospy.loginfo("fly blind towards G3, with detection")
@@ -1016,7 +1023,87 @@ def state_machine_advancement(navigation_distance):
         nav_active = "off"
         wp_blind = None
         rospy.loginfo("land")
-        publisher_state_auto.publish(90)                               # 90 - land
+        publisher_state_auto.publish(90)                               # 90 - land  ##########################################################
+        # wp_blind = None
+        # rospy.loginfo("fly blind towards G4, no detection")
+        # publisher_state_auto.publish(40)                               # 40 - fly blind towards G4, no detection
+
+    elif state_auto == 40 and navigation_distance < 0.3:                   # blind flight completed
+        detection_active = True
+        wp_blind = None
+        rospy.loginfo("fly blind towards G4, with detection")
+        publisher_state_auto.publish(state_auto + 1)                   # 41 - fly blind towards G4, with detection
+
+    elif state_auto == 41 and wp_average is not None:                  # G4 detected
+        nav_active = "through"
+        wp_blind = None
+        rospy.loginfo("fly visual to G4")
+        publisher_state_auto.publish(state_auto + 1)                   # 42 - fly visual to G4
+
+    elif state_auto == 42 and navigation_distance < 0.5:               # drone close to G4
+        detection_active = False
+        nav_active = "point"
+        wp_average = None
+        wp_input_history = []
+        rospy.loginfo("pass G4 blind, no detection")
+        publisher_state_auto.publish(state_auto + 1)                   # 43 - pass G4 blind, no detection
+
+    elif state_auto == 43 and navigation_distance < 0.3:               # G4 passed
+        wp_blind = None
+        rospy.loginfo("fly blind towards G5, no detection")
+        publisher_state_auto.publish(50)                               # 50 - fly blind towards G5, no detection
+
+    elif state_auto == 50 and navigation_distance < 0.3:               # blind flight completed
+        detection_active = True
+        wp_blind = None
+        rospy.loginfo("fly blind towards G5, with detection")
+        publisher_state_auto.publish(state_auto + 1)                   # 51 - fly blind towards G5, with detection
+
+    elif state_auto == 51 and wp_average is not None:                  # G2 detected
+        nav_active = "through"
+        wp_blind = None
+        rospy.loginfo("fly visual to G5")
+        publisher_state_auto.publish(state_auto + 1)                   # 52 - fly visual to G5
+
+    elif state_auto == 52 and navigation_distance < 0.5:               # drone close to G5
+        detection_active = False
+        nav_active = "point"
+        wp_average = None
+        wp_input_history = []
+        rospy.loginfo("pass G5 blind, no detection")
+        publisher_state_auto.publish(state_auto + 1)                   # 53 - pass G5 blind, no detection
+
+    elif state_auto == 53 and navigation_distance < 0.3:               # G5 passed
+        publisher_gate_size.publish(1.0)
+        wp_blind = None
+        rospy.loginfo("fly blind towards G6, no detection")
+        publisher_state_auto.publish(60)                               # 60 - fly blind towards G6, no detection
+
+    elif state_auto == 60 and navigation_distance < 0.3:               # blind flight completed
+        detection_active = True
+        wp_blind = None
+        rospy.loginfo("fly blind towards G6, with detection")
+        publisher_state_auto.publish(state_auto + 1)                   # 61 - fly blind towards G6, with detection
+
+    elif state_auto == 61 and wp_average is not None:                  # G6 detected
+        nav_active = "through"
+        wp_blind = None
+        rospy.loginfo("fly visual to G6")
+        publisher_state_auto.publish(state_auto + 1)                   # 62 - fly visual to G6
+
+    elif state_auto == 62 and navigation_distance < 0.5:               # drone close to G6
+        detection_active = False
+        nav_active = "point"
+        wp_average = None
+        wp_input_history = []
+        rospy.loginfo("pass G6 blind, no detection")
+        publisher_state_auto.publish(state_auto + 1)                   # 63 - pass G6 blind, no detection
+
+    elif state_auto == 63 and navigation_distance < 0.3:               # G6 passed
+        publisher_gate_size.publish(2.1)
+        wp_blind = None
+        rospy.loginfo("fly blind towards G7, no detection")
+        publisher_state_auto.publish(70)                               # 70 - fly blind towards G7, no detection
 
     elif state_auto == 70 and navigation_distance < 0.3:               # blind flight completed
         nav_active = "point"
@@ -1037,12 +1124,41 @@ def state_machine_advancement(navigation_distance):
         publisher_state_auto.publish(state_auto + 1)                   # 73 - dynamic navigation flies through gate
 
     elif state_auto == 73 and detection_dynamic_data.state == 5:       # dynamic navigation has finished
+        publisher_gate_size.publish(1.4)
         detection_active = False
         publisher_dynamic_detection_on.publish(False)
         nav_active = "off"
         # wp
-        rospy.loginfo("Completed Dynamic Gate")
-        publisher_state_auto.publish(90)                               # 90 - Completed dynamic gate
+        rospy.loginfo("Completed Dynamic Gate. Land")
+        publisher_state_auto.publish(90)                               # 90 - land ############################################################
+        # wp_blind = None
+        # rospy.loginfo("fly blind towards G8, no detection")
+        # publisher_state_auto.publish(80)                               # 80 - fly blind towards G8, no detection
+
+    elif state_auto == 80 and navigation_distance < 0.3:               # blind flight completed
+        detection_active = True
+        wp_blind = None
+        rospy.loginfo("fly blind towards G8, with detection")
+        publisher_state_auto.publish(state_auto + 1)                   # 81 - fly blind towards G8, with detection
+
+    elif state_auto == 81 and wp_average is not None:                  # G8 detected
+        nav_active = "through"
+        wp_blind = None
+        rospy.loginfo("fly visual to G8")
+        publisher_state_auto.publish(state_auto + 1)                   # 82 - fly visual to G8
+
+    elif state_auto == 82 and navigation_distance < 0.5:               # drone close to G8
+        detection_active = False
+        nav_active = "point"
+        wp_average = None
+        wp_input_history = []
+        rospy.loginfo("pass G8 blind, no detection")
+        publisher_state_auto.publish(state_auto + 1)                   # 83 - pass G8 blind, no detection
+
+    elif state_auto == 83 and navigation_distance < 0.3:               # G8 passed
+        wp_blind = None
+        rospy.loginfo("mission finished. land")
+        publisher_state_auto.publish(90)                               # 90 - land
 
     elif state_auto == 90 and state_bebop == 4:                        # drone initiated landing
         rospy.loginfo("landing")
@@ -1157,13 +1273,13 @@ if __name__ == '__main__':
     nav_point_PID_y_pos = cr.PID2(.7, 0.1, 4.0)
     nav_point_PID_x_vel = cr.PID2(0.8, 0, 0.0)
     nav_point_PID_y_vel = cr.PID2(0.8, 0, 0.0)
-    nav_point_PID_z_vel = cr.PID2(1.0, 0, 0.0)  # PID
-    nav_point_PID_r_vel = cr.PID2(0.5, 0, 1.0)  # PID
+    nav_point_PID_z_vel = cr.PID(1.0, 0, 0.0)
+    nav_point_PID_r_vel = cr.PID(0.5, 0, 1.0)
     nav_through_PID_y_pos = cr.PID2(.7, 0.1, 3.0)
-    nav_through_PID_x_vel = cr.PID2(0.3, 0, 0.0)  # PID
+    nav_through_PID_x_vel = cr.PID(0.3, 0, 0.0)
     nav_through_PID_y_vel = cr.PID2(0.3, 0, 0.0)
-    nav_through_PID_z_vel = cr.PID2(1.0, 0, 0.0)  # PID
-    nav_through_PID_r_vel = cr.PID2(0.8, 0, 1.0)  # PID
+    nav_through_PID_z_vel = cr.PID(1.0, 0, 0.0)
+    nav_through_PID_r_vel = cr.PID(0.8, 0, 1.0)
     nav_limit_x = .1  # .25
     nav_limit_y = .1  # .4
     nav_limit_z = .2  # .75

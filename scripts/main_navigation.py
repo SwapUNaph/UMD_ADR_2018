@@ -213,7 +213,7 @@ def callback_visual_gate_detection_changed(data):
     else:
         # now, add to list only if gate position is close to last one
         distance = np.linalg.norm(np.array(gate_global_p) - wp_input_history[-1].pos)
-        if distance < 0.5:
+        if distance < 0.4:
             rospy.loginfo("use detected gate")
             wp_input_history.append(wp_current)
             del wp_input_history[0]
@@ -322,7 +322,7 @@ def calculate_blind_wp():
         bebop_p = [bebop_position.x, bebop_position.y, bebop_position.z]
         bebop_q = [bebop_orientation.x, bebop_orientation.y, bebop_orientation.z, bebop_orientation.w]
 
-        blind_position = [1.848+0.2, -0.278, 0.7]  # front, left , up
+        blind_position = [0.5, 0.0, 1.0]  # front, left , up
         blind_position_global = cr.qv_mult(bebop_q, blind_position) + bebop_p
         blind_position_global = blind_position_global.tolist()
 
@@ -343,7 +343,7 @@ def calculate_blind_wp():
         bebop_p = [bebop_position.x, bebop_position.y, bebop_position.z]
         bebop_q = [bebop_orientation.x, bebop_orientation.y, bebop_orientation.z, bebop_orientation.w]
 
-        blind_position = [1.0, 0.0, 0.0]  # front, left , up
+        blind_position = [0.4, 0.0, 0.0]  # front, left , up
         blind_position_global = cr.qv_mult(bebop_q, blind_position) + bebop_p
         blind_position_global = blind_position_global.tolist()
 
@@ -360,7 +360,7 @@ def calculate_blind_wp():
         rospy.loginfo("state " + str(state_auto) + ": set blind waypoint")
 
         fly_start = wp_visual_old.pos
-        fly_vector = [0.5, 0, 0]
+        fly_vector = [1.0, 0, 0]
         fly_x_heading = wp_visual_old.hdg
 
         look_start = wp_visual_old.pos
@@ -380,7 +380,7 @@ def calculate_blind_wp():
         rospy.loginfo("state " + str(state_auto) + ": set blind waypoint")
 
         fly_start = wp_visual_old.pos
-        fly_vector = [3.96, 0, 0]
+        fly_vector = [1.0, 0, 0]
         fly_x_heading = wp_visual_old.hdg
 
         look_start = wp_visual_old.pos
@@ -396,7 +396,7 @@ def calculate_blind_wp():
         rospy.loginfo("state " + str(state_auto) + ": set blind waypoint")
 
         fly_start = wp_visual_old.pos
-        fly_vector = [4.96, 0, 0]
+        fly_vector = [1.0, 0, 0]
         fly_x_heading = wp_visual_old.hdg
 
         look_start = wp_visual_old.pos
@@ -432,11 +432,11 @@ def calculate_blind_wp():
         rospy.loginfo("state " + str(state_auto) + ": set blind waypoint")
 
         fly_start = wp_visual_old.pos
-        fly_vector = [1.34, -1.0, 0]
+        fly_vector = [0.5, -0.0, 0]
         fly_x_heading = wp_visual_old.hdg
 
         look_start = wp_visual_old.pos
-        look_vector = [1.34, -3.5, 0]
+        look_vector = [1.34, 3.5, 0]
         look_x_heading = wp_visual_old.hdg
 
         wp_blind = calculate_relative_wp(fly_start, fly_vector, fly_x_heading)
@@ -448,11 +448,11 @@ def calculate_blind_wp():
         rospy.loginfo("state " + str(state_auto) + ": set blind waypoint")
 
         fly_start = wp_visual_old.pos
-        fly_vector = [1.34, -2.0, 0]
+        fly_vector = [0.8, -0.0, 0]
         fly_x_heading = wp_visual_old.hdg
 
         look_start = wp_visual_old.pos
-        look_vector = [1.34, -3.5, 0]
+        look_vector = [1.34, 3.5, 0]
         look_x_heading = wp_visual_old.hdg
 
         wp_blind = calculate_relative_wp(fly_start, fly_vector, fly_x_heading)
@@ -464,7 +464,7 @@ def calculate_blind_wp():
         rospy.loginfo("state " + str(state_auto) + ": set blind waypoint")
 
         fly_start = wp_visual_old.pos
-        fly_vector = [0.5, 0, 0]
+        fly_vector = [1.0, 0, 0]
         fly_x_heading = wp_visual_old.hdg
 
         look_start = wp_visual_old.pos
@@ -790,10 +790,10 @@ def navigate_through():
     y_pos_error = -dist * math.sin(d_theta)
     y_vel_des = nav_through_PID_y_pos.update(y_pos_error)
 
-    x_pos_error = cr.min_value(dist * math.cos(d_theta), 0.15)
+    x_pos_error = cr.min_value(dist * math.cos(d_theta), 0.1)
     x_vel_des = x_pos_error
 
-    if abs(.5 * x_pos_error) ** 3 + .2 < y_pos_error:
+    if abs(.5 * x_pos_error) ** 3 + .1 < y_pos_error:  # for small gate: .1 or even .05
         x_vel_des = 0
 
     z_error = diff_global[2]
@@ -804,8 +804,8 @@ def navigate_through():
     elif r_error < -math.pi:
         r_error = 2 * math.pi - r_error
 
-    y_vel_error = cr.limit_value(sum(y_vel_des), 0.2) - velocity.y
-    x_vel_error = x_vel_des - velocity.x
+    y_vel_error = cr.limit_value(sum(y_vel_des), 0.1) - velocity.y
+    x_vel_error = cr.limit_value(sum(x_vel_des), 0.6) - velocity.x
 
     nav_cmd_x = nav_through_PID_x_vel.update(x_vel_error)
     nav_cmd_y = nav_through_PID_y_vel.update(y_vel_error)
@@ -858,7 +858,7 @@ def navigate_through():
         nav_cmd_r[2]) + ", " + str(
         sum(nav_cmd_r)) + ", " + str(
         msg.r) + ", " + str(
-        0) + ", " + str(
+        time.time()) + ", " + str(
         0) + ", " + str(
         0) + ", " + str(
         0) + ", " + str(
@@ -970,7 +970,7 @@ def navigate_point():
         nav_cmd_r[2]) + ", " + str(
         sum(nav_cmd_r)) + ", " + str(
         msg.r) + ", " + str(
-        0) + ", " + str(
+        time.time()) + ", " + str(
         0) + ", " + str(
         0) + ", " + str(
         0) + ", " + str(
@@ -1196,13 +1196,13 @@ def state_machine_advancement(navigation_distance):
         publisher_state_auto.publish(state_auto + 1)                   # 23 - pass G2 blind, no detection
 
     elif state_auto == 23 and navigation_distance < 0.3:               # G2 passed
-        nav_active = "off"
-        wp_blind = None
-        rospy.loginfo("land")
-        publisher_state_auto.publish(90)                               # 90 - land  #######################################################
         # wp_blind = None
-        # rospy.loginfo("fly blind towards G3, no detection")
-        # publisher_state_auto.publish(30)                               # 30 - fly blind towards G3, no detection
+        # rospy.loginfo("land")
+        # nav_active = "off"
+        # publisher_state_auto.publish(90)                               # 90 - land  #######################################################
+        wp_blind = None
+        rospy.loginfo("fly blind towards G3, no detection")
+        publisher_state_auto.publish(30)                               # 30 - fly blind towards G3, no detection
 
     elif state_auto == 30 and navigation_distance < 0.3:               # blind flight completed
         detection_active = True
@@ -1362,6 +1362,7 @@ def state_machine_advancement(navigation_distance):
 
     elif state_auto == 83 and navigation_distance < 0.3:               # G8 passed
         wp_blind = None
+        nav_active = "off"
         rospy.loginfo("mission finished. land")
         publisher_state_auto.publish(90)                               # 90 - land
 
@@ -1486,7 +1487,7 @@ if __name__ == '__main__':
     nav_through_PID_z_vel = cr.PID(1.0, 0, 0.0)
     nav_through_PID_r_vel = cr.PID(0.8, 0, 1.0)
     nav_limit_x = .1  # .25
-    nav_limit_y = .1  # .4
+    nav_limit_y = .2  # .4
     nav_limit_z = .2  # .75
     nav_limit_r = 1.0  # 1
     auto_driving_msg = Auto_Driving_Msg()

@@ -1,12 +1,18 @@
-108, 110, 90
+106, 120, 90
 117, 255, 255
 orange kim hallway
+
+87, 180, 130
+117, 255, 255
+orange static cypress
 
 
 
 87, 40, 130
 117, 255, 255
 orange dynamic cypress
+
+
 
 
 

@@ -90,10 +90,10 @@ def mask_image(hsv, color):
     #    exit()
 
     global bridge
-    rgb = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
-    res = cv2.bitwise_and(rgb, rgb, mask=mask)
-    output_im = bridge.cv2_to_imgmsg(res, encoding="rgb8")
-    # output_im = bridge.cv2_to_imgmsg(mask, encoding="8UC1")
+    # rgb = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+    # res = cv2.bitwise_and(rgb, rgb, mask=mask)
+    # output_im = bridge.cv2_to_imgmsg(res, encoding="rgb8")
+    output_im = bridge.cv2_to_imgmsg(mask, encoding="8UC1")
     publisher.publish(output_im)
 
     # cv2.imshow("test",res)

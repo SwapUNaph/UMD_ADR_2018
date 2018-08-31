@@ -8,7 +8,7 @@
 import rospy
 from geometry_msgs.msg import Pose
 from nav_msgs.msg import Odometry
-from std_msgs.msg import String
+from std_msgs.msg import String, Empty
 from sensor_msgs.msg import Image, CameraInfo
 import cv2
 import numpy as np
@@ -46,8 +46,11 @@ def mask_image(hsv, color):
         # lower_color = np.array([87, 180, 130])  # orange static cypress
         # upper_color = np.array([117, 255, 255])  # orange static cypress
 
-        lower_color = np.array([106, 120, 90])  # orange kim hallway
-        upper_color = np.array([117, 255, 255])  # orange kim hallway
+        # lower_color = np.array([106, 120, 90])  # orange kim hallway
+        # upper_color = np.array([117, 255, 255])  # orange kim hallway
+
+        lower_color = np.array([110, 135, 90])  # orange grad office 3D
+        upper_color = np.array([120, 255, 255])  # orange grad office 3D
 
         publisher = publisher_image_threshold_orange
     else:
@@ -135,7 +138,7 @@ def stereo_callback(data):
 
     # probabilistic hough transform
     min_line_length = 720/4
-    max_line_gap = 25
+    max_line_gap = 30
 
     lines = cv2.HoughLinesP(mask, 5, np.pi / 90, 300, minLineLength=min_line_length, maxLineGap=max_line_gap)
 
@@ -193,8 +196,8 @@ def stereo_callback(data):
     y_ms_1 = np.array([])
     vote_ms_1 = np.array([])
 
-    # for i in range(np.shape(start)[1]):
-    #     cv2.circle(rgb, (int(start[0][i]), int(start[1][i])), 5, (0, 0, 255), 2)
+    # for i in range(np.shape(start_end)[1]):
+    #     cv2.circle(rgb, (int(start_end[0][i]), int(start_end[1][i])), 5, (0, 0, 255), 2)
 
     # cluster starts
     clusters_1 = np.zeros(np.shape(start_end)[1])
@@ -223,7 +226,7 @@ def stereo_callback(data):
         y_ms_1 = np.append(y_ms_1, y_m)
         vote_ms_1 = np.append(vote_ms_1, vote_m)
 
-    idx = vote_ms_1 * (3000-y_ms_1)
+    idx = (vote_ms_1 * (800-y_ms_1) * (600-abs(x_ms_1-1280/2)))/100000
 
     if cluster == 0:
         rospy.loginfo("empty sequence 1")
@@ -234,6 +237,8 @@ def stereo_callback(data):
     #
     # for index in range(len(vote_ms_1)):
     #     cv2.circle(rgb, (int(x_ms_1[index]), int(y_ms_1[index])), dist_thresh, (255, 255, 255), 2)
+    #     cv2.putText(rgb, str(int(idx[index])), (int(x_ms_1[index]), int(y_ms_1[index])), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2,
+    #                 cv2.LINE_AA)
 
     max_cluster = np.argmax(idx)+1
 
@@ -579,6 +584,11 @@ def callback_gate_size_changed(data):
     gate_size = data.data
 
 
+def emergency_shutdown(_):
+    rospy.loginfo("emergency shutdown")
+    rospy.signal_shutdown("emergency shutdown")
+
+
 if __name__ == '__main__':
     signal.signal(signal.SIGINT, signal_handler)
     rospy.init_node('gate_detection', anonymous=False)
@@ -596,6 +606,7 @@ if __name__ == '__main__':
     rospy.Subscriber("/bebop/odom", Odometry, pose_callback)
     rospy.Subscriber("/auto/dynamic_detection_on", Bool, callback_dynamic_detection_changed)
     rospy.Subscriber("/auto/gate_size", Float32, callback_gate_size_changed)
+    rospy.Subscriber("/auto/emergency_shutdown", Empty, emergency_shutdown)
 
     publisher_image_threshold_orange = rospy.Publisher("/auto/gate_detection_threshold_orange", Image, queue_size=1)
     publisher_image_threshold_dynamic = rospy.Publisher("/auto/gate_detection_threshold_dynamic", Image, queue_size=1)

@@ -64,7 +64,7 @@ def callback_state_bebop_changed(data):
     state_bebop = data.state
 
 
-def main():
+if __name__ == '__main__':
     # Enable killing the script with Ctrl+C.
     signal.signal(signal.SIGINT, signal_handler)
 
@@ -76,12 +76,9 @@ def main():
     clock = pygame.time.Clock()
 
     # Global variables for autonomy mode, and the status of the drone and the state machine
-    global autonomy_active
     autonomy_active = False
     flight_command_active = False
-    global state_bebop
     state_bebop = 0
-    global state_auto
     state_auto = None
 
     rospy.Subscriber("/bebop/states/ardrone3/PilotingState/FlyingStateChanged", Ardrone3PilotingStateFlyingStateChanged,
@@ -89,9 +86,9 @@ def main():
     rospy.Subscriber("/auto/state_auto", Int32, callback_state_auto_changed)
 
     # create a global publisher for driving manually
-    global cmd_vel_pub
     cmd_vel_pub = rospy.Publisher('/bebop/cmd_vel', Twist, queue_size=1, latch=True)
     state_auto_pub = rospy.Publisher('/auto/state_auto', Int32, queue_size=1, latch=True)
+    publisher_emergency_shutdown = rospy.Publisher("/auto/emergency_shutdown", Empty, queue_size=1, latch=True)
 
     # allow starting gcs without joystick
     start_without_joystick = False
@@ -222,8 +219,8 @@ def main():
                             elif i == 6:  # enter manual mode
                                 if True:  # autonomy_active:  # autonomous flight active
                                     if True:  # axis_throttleL == 0:  # throttle centered
-                                        cmd = "rosnode kill /gate_detection"
-                                        os.system(cmd)
+                                        publisher_emergency_shutdown.publish()
+                                        rospy.loginfo("terminate other nodes")
                                         autonomy_active = False
                                         autonomy_pub(autonomy_active)
                                         flight_command_active = True
@@ -276,6 +273,3 @@ def main():
 
         # run with 20Hz
         clock.tick(20)
-
-if __name__ == '__main__':
-    main()

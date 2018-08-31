@@ -10,7 +10,7 @@ import sys
 import math
 import numpy as np
 import time
-from std_msgs.msg import Int32, String, Float64MultiArray, Bool, Float32
+from std_msgs.msg import Int32, String, Float64MultiArray, Bool, Float32, Empty
 from bebop_msgs.msg import Ardrone3PilotingStateFlyingStateChanged
 from bebop_auto.msg import Auto_Driving_Msg, Gate_Detection_Msg, WP_Msg
 from nav_msgs.msg import Odometry
@@ -910,11 +910,16 @@ def callback_bebop_odometry_changed(data):
     rospy.loginfo([auto_driving_msg.x, auto_driving_msg.y, auto_driving_msg.z, auto_driving_msg.r])
 
 
+def emergency_shutdown(_):
+    rospy.loginfo("emergency shutdown")
+    rospy.signal_shutdown("emergency shutdown")
+
+
 if __name__ == '__main__':
     # Enable killing the script with Ctrl+C.
     signal.signal(signal.SIGINT, signal_handler)
 
-    rospy.init_node('main_navigation', anonymous=True)
+    rospy.init_node('main_navigation', anonymous=False)
 
     # Variables
     bebop_odometry = None
@@ -1032,6 +1037,7 @@ if __name__ == '__main__':
     rospy.Subscriber("/auto/gate_detection_result_dynamic", Float64MultiArray, callback_visual_gate_dynamic_changed)
     rospy.Subscriber("/bebop/states/ardrone3/PilotingState/FlyingStateChanged", Ardrone3PilotingStateFlyingStateChanged,
                      callback_states_changed, "state_bebop")
+    rospy.Subscriber("/auto/emergency_shutdown", Empty, emergency_shutdown)
 
     # initializes startup by publishing state 0
     publisher_state_auto.publish(0)

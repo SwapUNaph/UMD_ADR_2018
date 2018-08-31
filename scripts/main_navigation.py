@@ -213,7 +213,7 @@ def callback_visual_gate_detection_changed(data):
     else:
         # now, add to list only if gate position is close to last one
         distance = np.linalg.norm(np.array(gate_global_p) - wp_input_history[-1].pos)
-        if distance < 0.4:
+        if distance < 0.4:   ################################################################################################
             rospy.loginfo("use detected gate")
             wp_input_history.append(wp_current)
             del wp_input_history[0]
@@ -412,9 +412,9 @@ def navigate_through():
 
     x_pos_error = cr.min_value(dist * math.cos(d_theta), 0.1)
     if dist > 3:
-        x_vel_des = x_pos_error*(1-3*math.abs(d_theta)/math.pi)
+        x_vel_des = x_pos_error*cr.limit_value(1-4*abs(d_theta)/math.pi, 1.0)
     else:
-        x_vel_des = x_pos_error*(1-6*math.abs(d_theta)/math.pi) 
+        x_vel_des = x_pos_error*cr.limit_value(1-12*abs(d_theta)/math.pi, 1.0)
 
     if abs(.5 * x_pos_error) ** 3 + .1 < y_pos_error:  # for small gate: .1 or even .05
         x_vel_des = 0
@@ -427,8 +427,14 @@ def navigate_through():
     elif r_error < -math.pi:
         r_error = 2 * math.pi - r_error
 
-    y_vel_error = cr.limit_value(sum(y_vel_des), 0.1) - velocity.y
-    x_vel_error = cr.limit_value(sum(x_vel_des), 0.6) - velocity.x
+    y_vel_des_sum = sum(y_vel_des)
+    if y_vel_des_sum > 0.1:
+        y_vel_des_sum = (y_vel_des_sum - 0.1)/3 + 0.1
+    elif y_vel_des_sum < -0.1:
+        y_vel_des_sum = (y_vel_des_sum + 0.1)/3 - 0.1
+
+    y_vel_error = y_vel_des_sum - velocity.y
+    x_vel_error = cr.limit_value(x_vel_des, 0.6) - velocity.x
 
     nav_cmd_x = nav_through_PID_x_vel.update(x_vel_error)
     nav_cmd_y = nav_through_PID_y_vel.update(y_vel_error)
@@ -481,7 +487,7 @@ def navigate_through():
         nav_cmd_r[2]) + ", " + str(
         sum(nav_cmd_r)) + ", " + str(
         msg.r) + ", " + str(
-        time.time()) + ", " + str(
+        time.time()-t_log) + ", " + str(
         0) + ", " + str(
         0) + ", " + str(
         0) + ", " + str(
@@ -534,8 +540,20 @@ def navigate_point():
     x_vel_des = nav_point_PID_x_pos.update(x_pos_error)
     y_vel_des = nav_point_PID_y_pos.update(y_pos_error)
 
-    x_vel_error = cr.limit_value(sum(x_vel_des), 0.1) - global_vel[0]
-    y_vel_error = cr.limit_value(sum(y_vel_des), 0.1) - global_vel[1]
+    x_vel_des_sum = sum(x_vel_des)
+    if x_vel_des_sum > 0.1:
+        x_vel_des_sum = (x_vel_des_sum - 0.1)/3 + 0.1
+    elif x_vel_des_sum < -0.1:
+        x_vel_des_sum = (x_vel_des_sum + 0.1)/3 - 0.1
+
+    y_vel_des_sum = sum(y_vel_des)
+    if y_vel_des_sum > 0.1:
+        y_vel_des_sum = (y_vel_des_sum - 0.1)/3 + 0.1
+    elif y_vel_des_sum < -0.1:
+        y_vel_des_sum = (y_vel_des_sum + 0.1)/3 - 0.1
+
+    x_vel_error = x_vel_des_sum - global_vel[0]
+    y_vel_error = y_vel_des_sum - global_vel[1]
 
     z_error = diff_global[2]
 
@@ -593,7 +611,7 @@ def navigate_point():
         nav_cmd_r[2]) + ", " + str(
         sum(nav_cmd_r)) + ", " + str(
         msg.r) + ", " + str(
-        time.time()) + ", " + str(
+        time.time()-t_log) + ", " + str(
         0) + ", " + str(
         0) + ", " + str(
         0) + ", " + str(
@@ -762,6 +780,19 @@ class State:
         current_state = states[self.own_state]
         publisher_state_auto.publish(self.own_state)
 
+        # reset [0, 0, 0, 0.5]
+        nav_point_PID_x_pos.reset()
+        nav_point_PID_y_pos.reset()
+        nav_point_PID_x_vel.reset()
+        nav_point_PID_y_vel.reset()
+        nav_point_PID_z_vel.reset()
+        nav_point_PID_r_vel.reset()
+        nav_through_PID_y_pos.reset()
+        nav_through_PID_x_vel.reset()
+        nav_through_PID_y_vel.reset()
+        nav_through_PID_z_vel.reset()
+        nav_through_PID_r_vel.reset()
+
         if self.condition_type == "time":
             self.time = time.time()
 
@@ -926,6 +957,8 @@ if __name__ == '__main__':
     dist_exit_jungle = dist_exit_gate_wp - (dist_exit_gate_min + 1)  # distance to exit jungle
     dist_exit_gate = dist_exit_gate_wp - dist_exit_gate_min  # distance to exit wp
     auto_driving_msg = Auto_Driving_Msg()
+    current_state = None
+    t_log = 1455208500+4500
 
     # Publishers
     publisher_state_auto = rospy.Publisher("/auto/state_auto",     Int32,                queue_size=1, latch=True)
@@ -940,15 +973,6 @@ if __name__ == '__main__':
     publisher_dev_log = rospy.Publisher("/auto/dev_logger",        String,               queue_size=1, latch=True)
     publisher_dynamic_detection_on = rospy.Publisher("/auto/dynamic_detection_on", Bool, queue_size=1, latch=True)
     publisher_gate_size = rospy.Publisher("/auto/gate_size",       Float32,              queue_size=1, latch=True)
-
-    # Subscribers
-    rospy.Subscriber("/auto/state_auto", Int32, callback_states_changed, "state_auto")
-    rospy.Subscriber("/bebop/odom", Odometry, callback_bebop_odometry_changed)
-    # rospy.Subscriber("/zed/odom", Odometry, callback_zed_odometry_changed)
-    rospy.Subscriber("/auto/gate_detection_result", Gate_Detection_Msg, callback_visual_gate_detection_changed)
-    rospy.Subscriber("/auto/gate_detection_result_dynamic", Float64MultiArray, callback_visual_gate_dynamic_changed)
-    rospy.Subscriber("/bebop/states/ardrone3/PilotingState/FlyingStateChanged", Ardrone3PilotingStateFlyingStateChanged,
-                     callback_states_changed, "state_bebop")
 
     # BEBOP STATE overview
     #   0   landed
@@ -973,8 +997,8 @@ if __name__ == '__main__':
     states[21] = State(21, 22, "wp",    None,             0, 1, 0, "point",   None, [1.0, 0, 0], [6.46, 0, 0])
     states[22] = State(22, 23, "dist",  dist_gate_close,  1, 1, 0, "through", None, [], [])
     states[23] = State(23, 30, "dist",  dist_exit_gate,   0, 0, 0, "point",   None, [dist_egw, 0, 0], [dist_egw, 0, 0])
-    states[30] = State(30, 31, "dist",  dist_gate_blind,  0, 0, 0, "point",   1.4,  [0.5, 0, 0], [1.34, 3.5, 0])
-    states[31] = State(31, 32, "wp",    None,             0, 1, 0, "point",   None, [0.8, 0, 0], [1.34, 3.5, 0])
+    states[30] = State(30, 31, "dist",  dist_gate_blind,  0, 0, 0, "point",   1.4,  [0.5, 0.5, 0], [1.34, 3.5, 0])
+    states[31] = State(31, 32, "wp",    None,             0, 1, 0, "point",   None, [0.8, 0.5, 0], [1.34, 3.5, 0])
     states[32] = State(32, 33, "dist",  dist_gate_close,  1, 1, 0, "through", None, [], [])
     states[33] = State(33, 90, "dist",  dist_exit_gate,   0, 0, 0, "point",   None, [dist_egw, 0, 0], [dist_egw, 0, 0])
     states[40] = State(40, 41, "dist",  dist_gate_blind,  0, 0, 0, "point",   1.4,  [3.1, -0.88, 0], [3.1, -3.38, 0])
@@ -999,6 +1023,15 @@ if __name__ == '__main__':
     states[83] = State(83, 90, "dist",  dist_exit_gate,   0, 0, 0, "point",   None, [dist_egw, 0, 0], [dist_egw, 0, 0])
     states[90] = State(90, 91, "bebop", 4,                0, 0, 0, "off",     None, [], [])
     states[91] = State(91, 91, "bebop", 0,                0, 0, 0, "off",     None, [], [])
+
+    # Subscribers
+    rospy.Subscriber("/auto/state_auto", Int32, callback_states_changed, "state_auto")
+    rospy.Subscriber("/bebop/odom", Odometry, callback_bebop_odometry_changed)
+    # rospy.Subscriber("/zed/odom", Odometry, callback_zed_odometry_changed)
+    rospy.Subscriber("/auto/gate_detection_result", Gate_Detection_Msg, callback_visual_gate_detection_changed)
+    rospy.Subscriber("/auto/gate_detection_result_dynamic", Float64MultiArray, callback_visual_gate_dynamic_changed)
+    rospy.Subscriber("/bebop/states/ardrone3/PilotingState/FlyingStateChanged", Ardrone3PilotingStateFlyingStateChanged,
+                     callback_states_changed, "state_bebop")
 
     # initializes startup by publishing state 0
     publisher_state_auto.publish(0)

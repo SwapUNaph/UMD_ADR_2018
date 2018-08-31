@@ -142,9 +142,11 @@ class PID:
         self.p_value = None
         self.i_value = None
         self.d_value = None
-        self.set_point = None
 
     def update(self, err):
+        if self.derivator is None:
+            self.derivator = err
+
         self.error = err
 
         self.p_value = self.kp * self.error
@@ -162,10 +164,9 @@ class PID:
 
         return [self.p_value, self.i_value, self.d_value]
 
-    def reset(self, set_point):
-        self.set_point = set_point
+    def reset(self):
         self.integrator = 0
-        self.derivator = 0
+        self.derivator = None
 
 
 class PID2:
@@ -183,7 +184,10 @@ class PID2:
         self.d_value = 0.0    
 
     def update(self, err):
-        self.d_value = self.kd*((4*err - sum(self.derivator))/10)
+        if self.derivator is None:
+            self.derivator = [err, err, err, err]
+
+        self.d_value = self.kd * ((4 * err - sum(self.derivator)) / 10)
 
         self.derivator.pop(0)
         self.derivator.append(err)      
@@ -202,4 +206,4 @@ class PID2:
 
     def reset(self):
         self.integrator = 0
-        self.derivator = 0
+        self.derivator = None

@@ -412,9 +412,9 @@ def navigate_through():
 
     x_pos_error = cr.min_value(dist * math.cos(d_theta), 0.1)
     if dist > 3:
-        x_vel_des = x_pos_error*cr.limit_value(1-4*abs(d_theta)/math.pi, 1.0)
+        x_vel_des = x_pos_error*max(cr.limit_value(1-4*abs(d_theta)/math.pi, 1.0),-.5)
     else:
-        x_vel_des = x_pos_error*cr.limit_value(1-12*abs(d_theta)/math.pi, 1.0)
+        x_vel_des = x_pos_error*max(cr.limit_value(1-12*abs(d_theta)/math.pi, 1.0),-.5)
 
     if abs(.5 * x_pos_error) ** 3 + .1 < y_pos_error:  # for small gate: .1 or even .05
         x_vel_des = 0

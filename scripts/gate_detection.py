@@ -48,9 +48,12 @@ def mask_image(hsv, color):
 
         # lower_color = np.array([106, 120, 90])  # orange kim hallway
         # upper_color = np.array([117, 255, 255])  # orange kim hallway
+        #
+        # lower_color = np.array([110, 135, 90])  # orange grad office 3D
+        # upper_color = np.array([120, 255, 255])  # orange grad office 3D
 
-        lower_color = np.array([110, 135, 90])  # orange grad office 3D
-        upper_color = np.array([120, 255, 255])  # orange grad office 3D
+        lower_color = np.array([105, 115, 60])  # orange outdoor
+        upper_color = np.array([130, 255, 255])  # orange outdoor
 
         publisher = publisher_image_threshold_orange
     else:

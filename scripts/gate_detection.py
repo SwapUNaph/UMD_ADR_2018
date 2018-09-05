@@ -43,8 +43,8 @@ def mask_image(hsv, color):
         # lower_color = np.array([87, 55, 100])  # orange dynamic cypress
         # upper_color = np.array([117, 255, 255])  # orange dynamic cypress
 
-        # lower_color = np.array([87, 180, 130])  # orange static cypress
-        # upper_color = np.array([117, 255, 255])  # orange static cypress
+        lower_color = np.array([87, 60, 125])  # orange static cypress
+        upper_color = np.array([117, 255, 255])  # orange static cypress
 
         # lower_color = np.array([106, 120, 90])  # orange kim hallway
         # upper_color = np.array([117, 255, 255])  # orange kim hallway
@@ -52,8 +52,8 @@ def mask_image(hsv, color):
         # lower_color = np.array([110, 135, 90])  # orange grad office 3D
         # upper_color = np.array([120, 255, 255])  # orange grad office 3D
 
-        lower_color = np.array([105, 115, 60])  # orange outdoor
-        upper_color = np.array([130, 255, 255])  # orange outdoor
+        # lower_color = np.array([105, 115, 60])  # orange outdoor
+        # upper_color = np.array([130, 255, 255])  # orange outdoor
 
         publisher = publisher_image_threshold_orange
     else:
@@ -229,7 +229,7 @@ def stereo_callback(data):
         y_ms_1 = np.append(y_ms_1, y_m)
         vote_ms_1 = np.append(vote_ms_1, vote_m)
 
-    idx = (vote_ms_1 * (800-y_ms_1) * (600-abs(x_ms_1-1280/2)))/100000
+    idx = vote_ms_1 * (800-y_ms_1) # * (400-abs(x_ms_1-1280/2))/100000
 
     if cluster == 0:
         rospy.loginfo("empty sequence 1")

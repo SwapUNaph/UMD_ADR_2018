@@ -1,3 +1,8 @@
+87, 60, 125
+117, 255, 255
+orange static cypress
+
+
 105, 115, 60
 130, 255, 255
 orange outdoor
@@ -12,11 +17,6 @@ orange 3D gradoffice lights on
 106, 120, 90
 117, 255, 255
 orange kim hallway
-
-87, 180, 130
-117, 255, 255
-orange static cypress
-
 
 
 87, 40, 130

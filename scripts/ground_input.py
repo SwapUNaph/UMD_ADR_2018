@@ -309,8 +309,8 @@ class bebop_data:
 
         elif args == 'wp_visual':
 
-        	if data.hdg == 0.0 and data.pos.z ==0:
-        		return
+            if data.hdg == 0.0 and data.pos.z ==0:
+                return
             marker_array = MarkerArray()
 
             
@@ -451,11 +451,10 @@ class bebop_data:
 
         elif args == 'wp_blind':
 
-        	if data.hdg == 0.0 and data.pos.z ==0:
-        		return
+            if data.hdg == 0.0 and data.pos.z ==0:
+                return
             marker_array = MarkerArray()
 
-            
             quat = tf.transformations.quaternion_from_euler(0, 0, data.hdg)
             
             gate_marker_1 = Marker()

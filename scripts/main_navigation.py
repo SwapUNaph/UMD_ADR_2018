@@ -103,13 +103,13 @@ def callback_visual_gate_detection_changed(data):
 
     if not detection_active:
         rospy.loginfo("detection not active")
-        log_string = "0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0"
+        log_string = "0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0"
         publisher_visual_log.publish(log_string)
         return
 
     if data.tvec == ():
         rospy.loginfo("empty visual input")
-        log_string = "0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0"
+        log_string = "0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0"
         publisher_visual_log.publish(log_string)
         return
 
@@ -210,7 +210,8 @@ def callback_visual_gate_detection_changed(data):
             str(bebop_q[2]) + ", " + \
             str(heading_to_gate) + ", " + \
             str(std_deviation) + ", " + \
-            str(1.0)
+            str(1.0) + ", " + \
+            str(time.time()-t_log)
     else:
         # now, add to list only if gate position is close to last one
         distance = np.linalg.norm(np.array(gate_global_p) - wp_input_history[-1].pos)
@@ -241,7 +242,8 @@ def callback_visual_gate_detection_changed(data):
             str(bebop_q[2]) + ", " + \
             str(heading_to_gate) + ", " + \
             str(distance) + ", " + \
-            str(2.0)
+            str(2.0) + ", " + \
+            str(time.time()-t_log)
 
     publisher_visual_log.publish(log_string)
 
@@ -272,7 +274,7 @@ def calculate_visual_wp():
         # calculate WP 0.7m behind first jungle
         gate_pos = wp_average.pos
         gate_heading = wp_average.hdg
-        hover_distance = 0.7
+        hover_distance = 1.3
         extra_dist = np.array([hover_distance*math.cos(gate_heading), hover_distance*math.sin(gate_heading), 0])
         wp_visual = cr.WP(gate_pos + extra_dist, gate_heading)
 
@@ -426,7 +428,7 @@ def navigate_through():
     y_vel_des = nav_through_PID_y_pos.update(y_pos_error)
 
     x_pos_error = cr.min_value(dist * math.cos(d_theta), 0.1)
-    if dist > 2:
+    if dist > 3:
         x_vel_des = x_pos_error*max(cr.limit_value(1-4*abs(d_theta)/math.pi, 1.0),0)
     else:
         x_vel_des = x_pos_error*max(cr.limit_value(1-12*abs(d_theta)/math.pi, 1.0),-.25)
@@ -986,11 +988,11 @@ if __name__ == '__main__':
     dist_egw = dist_exit_gate_wp
     dist_exit_gate_min = 0.75  # how far from the gate until it is cleared
     dist_gate_dyn = 0.25  # how accurate hover in front of dynamic gate
-    dist_exit_jungle = dist_exit_gate_wp - (dist_exit_gate_min + 0.1)  # distance to exit jungle
+    dist_exit_jungle = dist_exit_gate_wp - (dist_exit_gate_min - 0.8)  # distance to exit jungle
     dist_exit_gate = dist_exit_gate_wp - dist_exit_gate_min  # distance to exit wp
     auto_driving_msg = Auto_Driving_Msg()
     current_state = None
-    t_log = 1455208500+4500
+    t_log = 1455208000
 
     # Publishers
     publisher_state_auto = rospy.Publisher("/auto/state_auto",     Int32,                queue_size=1, latch=True)
@@ -1041,10 +1043,10 @@ if __name__ == '__main__':
     states[51] = State(51, 52, "wp",    None,             0, 1, 0, "point",   None, [1.0, 0.0, 0], [4.0, 0.0, 0])
     states[52] = State(52, 53, "dist",  dist_gate_close,  1, 1, 0, "through", None, [], [])
     states[53] = State(53, 60, "dist",  dist_exit_gate,   0, 0, 0, "point",   None, [dist_egw, 0, 0], [dist_egw, 0, 0])
-    states[60] = State(60, 61, "dist",  dist_gate_blind,  0, 0, 0, "point",   1.0,  [0.0, 0.0, 1.0], [4.0, 0, 0])
-    states[61] = State(61, 62, "wp",    None,             0, 1, 0, "point",   None, [0.0, 0.0, -0.5], [4.0, 0.0, 0])
+    states[60] = State(60, 61, "dist",  dist_gate_blind,  0, 0, 0, "point",   1.0,  [0.0, 0.0, 0.8], [4.0, 0, 0])
+    states[61] = State(61, 62, "wp",    None,             0, 1, 0, "point",   None, [0.0, 0.0, -0.0], [4.0, 0.0, 0])
     states[62] = State(62, 63, "dist",  dist_gate_close,  0, 1, 0, "through", None, [], [])
-    states[63] = State(63, 64, "dist",  dist_gate_close,  1, 0, 0, "through", None, [], [])
+    states[63] = State(63, 64, "dist",  dist_gate_close,  1, 0, 0, "through", None, [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]) #######################
     states[64] = State(64, 90, "dist",  dist_exit_jungle, 0, 0, 0, "point",   None, [dist_egw, 0, 0], [dist_egw, 0, 0])
     states[70] = State(70, 71, "dist",  dist_gate_blind,  0, 0, 0, "point",   2.1,  [3.0, -3.0, 0], [4.52, 0, 0])
     states[71] = State(71, 72, "wp",    None,             0, 1, 0, "point",   None, [3.7, -3.0, 0], [4.52, 0, 0])

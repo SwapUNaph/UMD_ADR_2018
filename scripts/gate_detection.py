@@ -20,8 +20,6 @@ from std_msgs.msg import Float64MultiArray, Bool, Float32
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 
-from sklearn.cluster import MeanShift, estimate_bandwidth
-
 import signal
 import sys
 
@@ -43,7 +41,7 @@ def mask_image(hsv, color):
         # lower_color = np.array([87, 55, 100])  # orange dynamic cypress
         # upper_color = np.array([117, 255, 255])  # orange dynamic cypress
 
-        lower_color = np.array([87, 60, 125])  # orange static cypress
+        lower_color = np.array([87, 145, 90])  # orange static cypress
         upper_color = np.array([117, 255, 255])  # orange static cypress
 
         # lower_color = np.array([106, 120, 90])  # orange kim hallway
@@ -148,6 +146,7 @@ def stereo_callback(data):
     if lines is None or len(lines) < 2:
         rospy.loginfo("no lines")
         publisher_result.publish(Gate_Detection_Msg())
+        rgb = cv2.resize(rgb, (0, 0), fx=0.22, fy=0.22)
         output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
         publisher_image_gate.publish(output_im)
         return
@@ -234,6 +233,7 @@ def stereo_callback(data):
     if cluster == 0:
         rospy.loginfo("empty sequence 1")
         publisher_result.publish(Gate_Detection_Msg())
+        rgb = cv2.resize(rgb, (0, 0), fx=0.22, fy=0.22)
         output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
         publisher_image_gate.publish(output_im)
         return
@@ -299,6 +299,7 @@ def stereo_callback(data):
     if cluster < 2:
         rospy.loginfo("empty sequence 2")
         publisher_result.publish(Gate_Detection_Msg())
+        rgb = cv2.resize(rgb, (0, 0), fx=0.22, fy=0.22)
         output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
         publisher_image_gate.publish(output_im)
         return
@@ -414,6 +415,7 @@ def stereo_callback(data):
     if cluster == 0:
         rospy.loginfo("empty sequence 3")
         publisher_result.publish(Gate_Detection_Msg())
+        rgb = cv2.resize(rgb, (0, 0), fx=0.22, fy=0.22)
         output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
         publisher_image_gate.publish(output_im)
         return
@@ -493,6 +495,7 @@ def stereo_callback(data):
 
         if lines is None:
             rospy.loginfo("no dynamic lines")
+            rgb = cv2.resize(rgb, (0, 0), fx=0.22, fy=0.22)
             output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
             publisher_image_gate.publish(output_im)
             return
@@ -553,6 +556,7 @@ def stereo_callback(data):
         msg.data = [this_time, angle_m]
         publisher_dynamic.publish(msg)
 
+    rgb = cv2.resize(rgb, (0, 0), fx=0.22, fy=0.22)
     output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
     publisher_image_gate.publish(output_im)
 

@@ -45,7 +45,7 @@ def callback_visual_gate_dynamic_changed(input_data):
     if detection_dynamic_data.period is None:
         detection_dynamic_input_history = np.append(detection_dynamic_input_history,
                                                     [[measurement[0]], [measurement[1]]], axis=1)
-        if detection_dynamic_input_history.shape[1] > 12:
+        if detection_dynamic_input_history.shape[1] > 10:
             rospy.loginfo("enough measurements")
             detection_dynamic_input_history = np.delete(detection_dynamic_input_history, 0, axis=1)
             # calculate std deviation of list
@@ -55,6 +55,7 @@ def callback_visual_gate_dynamic_changed(input_data):
             if std_deviation < 0.6:
                 rospy.loginfo("measurements accepted")
                 detection_dynamic_data.period = np.mean(periods)
+                rospy.loginfo("std_deviation:")
                 rospy.loginfo(std_deviation)
             else:
                 rospy.loginfo("standard deviation too high:")
@@ -265,7 +266,17 @@ def calculate_visual_wp():
 
     wp_visual_old = wp_visual or wp_visual_old
 
-    if state_auto == 72:
+    if state_auto == 63:
+        rospy.loginfo("state 63, calculate 2nd jungle position")
+
+        # calculate WP 0.7m behind first jungle
+        gate_pos = wp_average.pos
+        gate_heading = wp_average.hdg
+        hover_distance = 0.7
+        extra_dist = np.array([hover_distance*math.cos(gate_heading), hover_distance*math.sin(gate_heading), 0])
+        wp_visual = cr.WP(gate_pos + extra_dist, gate_heading)
+
+    elif state_auto == 72:
         rospy.loginfo("state 72, calculate hover position")
 
         # hover 4m behind dynamic gate at -0.5 height
@@ -308,6 +319,10 @@ def calculate_blind_waypoint(fly, look):
     global wp_look
     global wp_blind_old
     wp_blind_old = wp_blind or wp_blind_old
+
+    if wp_scale is not None:
+        fly = wp_scale * fly
+        look = wp_scale * look
 
     if wp_visual_old is None:
         # waypoint calculation based on own position and pose
@@ -411,10 +426,10 @@ def navigate_through():
     y_vel_des = nav_through_PID_y_pos.update(y_pos_error)
 
     x_pos_error = cr.min_value(dist * math.cos(d_theta), 0.1)
-    if dist > 3:
-        x_vel_des = x_pos_error*max(cr.limit_value(1-4*abs(d_theta)/math.pi, 1.0),-.5)
+    if dist > 2:
+        x_vel_des = x_pos_error*max(cr.limit_value(1-4*abs(d_theta)/math.pi, 1.0),0)
     else:
-        x_vel_des = x_pos_error*max(cr.limit_value(1-12*abs(d_theta)/math.pi, 1.0),-.5)
+        x_vel_des = x_pos_error*max(cr.limit_value(1-12*abs(d_theta)/math.pi, 1.0),-.25)
 
     if abs(.5 * x_pos_error) ** 3 + .1 < y_pos_error:  # for small gate: .1 or even .05
         x_vel_des = 0
@@ -769,8 +784,8 @@ class State:
         self.dynamic_on = bool(dynamic_on)
         self.nav_active = nav_active_str
         self.gate_size = gate_size
-        self.fly = fly
-        self.look = look
+        self.fly = np.array(fly)
+        self.look = np.array(look)
         self.time = None
 
     def enter(self):
@@ -808,7 +823,7 @@ class State:
         publisher_dynamic_detection_on.publish(self.dynamic_on)
 
         # calculate blind waypoints
-        if self.fly:
+        if self.fly.any():
             calculate_blind_waypoint(self.fly, self.look)
 
     def exit(self):
@@ -858,14 +873,24 @@ def callback_bebop_odometry_changed(data):
     global wp_blind
     global wp_blind_old
     global wp_look
+    global wp_takeoff
+    global wp_scale
     global nav_active
+
+    # calculate map scale factor
+    if wp_takeoff is None:
+        bebop_position = bebop_odometry.pose.pose.position
+        wp_takeoff = [bebop_position.x, bebop_position.y, bebop_position.z]
+    if wp_scale is None and wp_visual is None and wp_visual_old is not None:
+        diff = wp_visual_old.pos - wp_takeoff
+        wp_scale = math.sqrt(diff[0]*diff[0] + diff[1]*diff[1]) / 3.5
+        rospy.loginfo("wp_scale")
+        rospy.loginfo(wp_scale)
 
     # state_machine_advancement (if conditions are met: distances, states, ...)
     navigation_distance = calculate_distance()
-
     rospy.loginfo("navigation distance")
     rospy.loginfo(navigation_distance)
-
     current_state.check(navigation_distance)
 
     if bebop_odometry is None:
@@ -934,6 +959,8 @@ if __name__ == '__main__':
     wp_blind_old = None
     wp_look = None
     wp_select = None
+    wp_takeoff = None
+    wp_scale = None
     detection_active = False
     detection_dynamic_data = cr.DynamicData()
     detection_dynamic_input_history = np.array([[], []])
@@ -951,15 +978,15 @@ if __name__ == '__main__':
     nav_through_PID_r_vel = cr.PID(0.8, 0, 1.0)
     nav_limit_x = .1  # .25
     nav_limit_y = .2  # .4
-    nav_limit_z = .2  # .75
+    nav_limit_z = .5  # .75
     nav_limit_r = 1.0  # 1
     dist_gate_blind = 0.3  # how exact go to blind wp
     dist_gate_close = 0.5  # how soon turn off detection
     dist_exit_gate_wp = 3.0  # how far exit waypoint
     dist_egw = dist_exit_gate_wp
-    dist_exit_gate_min = 0.5  # how far from the gate until it is cleared
+    dist_exit_gate_min = 0.75  # how far from the gate until it is cleared
     dist_gate_dyn = 0.25  # how accurate hover in front of dynamic gate
-    dist_exit_jungle = dist_exit_gate_wp - (dist_exit_gate_min + 1)  # distance to exit jungle
+    dist_exit_jungle = dist_exit_gate_wp - (dist_exit_gate_min + 0.1)  # distance to exit jungle
     dist_exit_gate = dist_exit_gate_wp - dist_exit_gate_min  # distance to exit wp
     auto_driving_msg = Auto_Driving_Msg()
     current_state = None
@@ -993,7 +1020,7 @@ if __name__ == '__main__':
     states = [State()] * 100
     states[02] = State(02, 03, "bebop", 1,                0, 0, 0, "off",     None, [], [])
     states[03] = State(03, 04, "bebop", 2,                0, 0, 0, "off",     None, [], [])
-    states[04] = State(04, 10, "time",  2.0,              0, 0, 0, "off",     None, [], [])
+    states[04] = State(04, 60, "time",  2.0,              0, 0, 0, "off",     None, [], [])
     states[10] = State(10, 11, "dist",  dist_gate_blind,  0, 0, 0, "point",   1.4,  [0.5, 0, 1], [4.4, 0, 0])
     states[11] = State(11, 12, "wp",    None,             0, 1, 0, "point",   None, [0.4, 0, 0], [4.4, 0, 0])
     states[12] = State(12, 13, "dist",  dist_gate_close,  1, 1, 0, "through", None, [], [])
@@ -1002,28 +1029,29 @@ if __name__ == '__main__':
     states[21] = State(21, 22, "wp",    None,             0, 1, 0, "point",   None, [1.0, 0, 0], [6.46, 0, 0])
     states[22] = State(22, 23, "dist",  dist_gate_close,  1, 1, 0, "through", None, [], [])
     states[23] = State(23, 30, "dist",  dist_exit_gate,   0, 0, 0, "point",   None, [dist_egw, 0, 0], [dist_egw, 0, 0])
-    states[30] = State(30, 31, "dist",  dist_gate_blind,  0, 0, 0, "point",   1.4,  [0.5, 0.5, 0], [1.34, 3.5, 0])
-    states[31] = State(31, 32, "wp",    None,             0, 1, 0, "point",   None, [0.8, 0.5, 0], [1.34, 3.5, 0])
+    states[30] = State(30, 31, "dist",  dist_gate_blind,  0, 0, 0, "point",   1.4,  [0.5, -0.5, 0], [1.34, -3.5, 0])
+    states[31] = State(31, 32, "wp",    None,             0, 1, 0, "point",   None, [0.8, -0.5, 0], [1.34, -3.5, 0])
     states[32] = State(32, 33, "dist",  dist_gate_close,  1, 1, 0, "through", None, [], [])
-    states[33] = State(33, 90, "dist",  dist_exit_gate,   0, 0, 0, "point",   None, [dist_egw, 0, 0], [dist_egw, 0, 0])
-    states[40] = State(40, 41, "dist",  dist_gate_blind,  0, 0, 0, "point",   1.4,  [3.1, -0.88, 0], [3.1, -3.38, 0])
-    states[41] = State(41, 42, "wp",    None,             0, 1, 0, "point",   None, [3.1, -1.88, 0], [3.1, -3.38, 0])
+    states[33] = State(33, 40, "dist",  dist_exit_gate,   0, 0, 0, "point",   None, [dist_egw, 0, 0], [dist_egw, 0, 0])
+    states[40] = State(40, 41, "dist",  dist_gate_blind,  0, 0, 0, "point",   1.4,  [0.5, -0.5, 0], [1.2, -3.5, 0])
+    states[41] = State(41, 42, "wp",    None,             0, 1, 0, "point",   None, [0.8, -0.5, 0], [3.1, -3.5, 0])
     states[42] = State(42, 43, "dist",  dist_gate_close,  1, 1, 0, "through", None, [], [])
-    states[43] = State(43, 50, "dist",  dist_exit_gate,   0, 0, 0, "point",   None, [dist_egw, 0, 0], [dist_egw, 0, 0])
-    states[50] = State(50, 51, "dist",  dist_gate_blind,  0, 0, 0, "point",   1.4,  [3.68, -0.1, 0], [6.18, -0.1, 0])
-    states[51] = State(51, 52, "wp",    None,             0, 1, 0, "point",   None, [4.68, -0.1, 0], [6.18, -0.1, 0])
+    states[43] = State(43, 90, "dist",  dist_exit_gate,   0, 0, 0, "point",   None, [dist_egw, 0, 0], [dist_egw, 0, 0])
+    states[50] = State(50, 51, "dist",  dist_gate_blind,  0, 0, 0, "point",   1.4,  [1.5, -0.1, 0.5], [4.0, -0.1, 0])
+    states[51] = State(51, 52, "wp",    None,             0, 1, 0, "point",   None, [1.0, 0.0, 0], [4.0, 0.0, 0])
     states[52] = State(52, 53, "dist",  dist_gate_close,  1, 1, 0, "through", None, [], [])
     states[53] = State(53, 60, "dist",  dist_exit_gate,   0, 0, 0, "point",   None, [dist_egw, 0, 0], [dist_egw, 0, 0])
-    states[60] = State(60, 61, "dist",  dist_gate_blind,  0, 0, 0, "point",   1.0,  [2.94, -3.1, -.7], [-0.06, -3.1, 0])
-    states[61] = State(61, 62, "wp",    None,             0, 1, 0, "point",   None, [2.24, -3.1, -.7], [-0.06, -3.1, 0])
-    states[62] = State(62, 63, "dist",  dist_gate_close,  1, 1, 0, "through", None, [], [])
-    states[63] = State(63, 70, "dist",  dist_exit_jungle, 0, 0, 0, "point",   None, [dist_egw, 0, 0], [dist_egw, 0, 0])
-    states[70] = State(70, 71, "dist",  dist_gate_blind,  0, 0, 0, "point",   2.1,  [3.52, -3.2, 0], [4.52, 0, 0])
-    states[71] = State(71, 72, "wp",    None,             0, 1, 0, "point",   None, [4.52, -3.2, 0], [4.52, 0, 0])
+    states[60] = State(60, 61, "dist",  dist_gate_blind,  0, 0, 0, "point",   1.0,  [0.0, 0.0, 1.0], [4.0, 0, 0])
+    states[61] = State(61, 62, "wp",    None,             0, 1, 0, "point",   None, [0.0, 0.0, -0.5], [4.0, 0.0, 0])
+    states[62] = State(62, 63, "dist",  dist_gate_close,  0, 1, 0, "through", None, [], [])
+    states[63] = State(63, 64, "dist",  dist_gate_close,  1, 0, 0, "through", None, [], [])
+    states[64] = State(64, 90, "dist",  dist_exit_jungle, 0, 0, 0, "point",   None, [dist_egw, 0, 0], [dist_egw, 0, 0])
+    states[70] = State(70, 71, "dist",  dist_gate_blind,  0, 0, 0, "point",   2.1,  [3.0, -3.0, 0], [4.52, 0, 0])
+    states[71] = State(71, 72, "wp",    None,             0, 1, 0, "point",   None, [3.7, -3.0, 0], [4.52, 0, 0])
     states[72] = State(72, 73, "dist",  dist_gate_dyn,    0, 1, 0, "point",   None, [], [])
     states[73] = State(73, 80, "dyn",   5,                1, 1, 1, "dynamic", None, [], [])
-    states[80] = State(80, 81, "dist",  dist_gate_blind,  0, 0, 0, "point",   1.4,  [3.37, 0.32, 0.7], [3.37, 2.82, 0])
-    states[81] = State(81, 82, "wp",    None,             0, 1, 0, "point",   None, [3.37, 1.32, 0.7], [3.37, 2.82, 0])
+    states[80] = State(80, 81, "dist",  dist_gate_blind,  0, 0, 0, "point",   1.4,  [3.5, 0.0, 0], [3.37, 2.82, 0])
+    states[81] = State(81, 82, "wp",    None,             0, 1, 0, "point",   None, [3.5, 1.0, 0], [3.37, 2.82, 0])
     states[82] = State(82, 83, "dist",  dist_gate_close,  1, 1, 0, "through", None, [], [])
     states[83] = State(83, 90, "dist",  dist_exit_gate,   0, 0, 0, "point",   None, [dist_egw, 0, 0], [dist_egw, 0, 0])
     states[90] = State(90, 91, "bebop", 4,                0, 0, 0, "off",     None, [], [])

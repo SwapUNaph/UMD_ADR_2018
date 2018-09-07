@@ -147,7 +147,7 @@ def callback_visual_gate_detection_changed(data):
     heading_to_gate = math.atan2((gate_global_p[1] - bebop_p[1]), gate_global_p[0] - bebop_p[0])
     heading_of_gate = math.atan2(gate_normal_vec[1], gate_normal_vec[0])
     heading_difference = math.fabs(heading_to_gate - heading_of_gate) * 180 / math.pi
-    #
+    
     # rospy.loginfo("gate_global_p")
     # rospy.loginfo(gate_global_p)
     # rospy.loginfo("gate_global_q")

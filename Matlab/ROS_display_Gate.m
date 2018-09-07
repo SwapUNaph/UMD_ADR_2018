@@ -86,10 +86,10 @@ for k = 1:10000
     
     if ~iscell(Gate_data{Gate_indx,k+1})
        break 
-    end
+     end
 end
 
-figure
+
 hold on
 grid on
 plot(dataTemp(:,19),dataTemp(:,4)*180/pi)

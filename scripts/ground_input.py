@@ -60,7 +60,7 @@ class bebop_data:
 
         rospy.Subscriber("/bebop/camera_control", Twist, self.callback, "cam_ctrl")
         rospy.Subscriber("/bebop/reset", Empty, self.callback, "reset")
-        rospy.Subscriber("/zed/odom", Empty, self.callback, "zed_odom")
+        rospy.Subscriber("/zed/odom", Odometry, self.callback, "zed_odom")
         rospy.Subscriber("/bebop/odom", Odometry, self.callback, "odom")
         rospy.Subscriber("/auto/auto_drive", Auto_Driving_Msg, self.callback, "cmds")
         rospy.Subscriber("/bebop/states/ardrone3/CameraState/Orientation", Ardrone3CameraStateOrientation, self.callback,"cam_orient")

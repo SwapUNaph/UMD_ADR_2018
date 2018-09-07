@@ -5,19 +5,17 @@ rosinit('192.168.1.2')
 global NavPID_data
 global NavPID_indx
 global temp_index_Nav
+NavPID_indx = NavPID_indx + 1;
+temp_index_Nav = 1;
+sub_nav = rossubscriber('/auto/navigation_logger','std_msgs/String',@nav_callback);
+
 global Gate_data
 global Gate_indx
 global temp_index_Gate
-
-
-NavPID_indx = NavPID_indx + 1;
 Gate_indx = Gate_indx+1;
-
-temp_index_Nav = 1;
 temp_index_Gate = 1;
-
-sub_nav = rossubscriber('/auto/navigation_logger','std_msgs/String',@nav_callback);
 sub_gate = rossubscriber('/auto/visual_logger','std_msgs/String',@gate_callback);
+
 fprintf('connected, recording on index %d and %d \n',NavPID_indx, Gate_indx)
 
 
@@ -45,8 +43,6 @@ NavPID_indx = NavPID_indx + 1
 Gate_indx = Gate_indx + 1
 
 %%
-
-
 
 NavPID_indx = 0;
 NavPID_data = cell(1000,10000);

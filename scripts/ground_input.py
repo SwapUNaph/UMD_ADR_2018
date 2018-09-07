@@ -60,7 +60,7 @@ class bebop_data:
 
         rospy.Subscriber("/bebop/camera_control", Twist, self.callback, "cam_ctrl")
         rospy.Subscriber("/bebop/reset", Empty, self.callback, "reset")
-        # rospy.Subscriber("/zed/odom", Empty, self.callback, "zed_odom")
+        rospy.Subscriber("/zed/odom", Empty, self.callback, "zed_odom")
         rospy.Subscriber("/bebop/odom", Odometry, self.callback, "odom")
         rospy.Subscriber("/auto/auto_drive", Auto_Driving_Msg, self.callback, "cmds")
         rospy.Subscriber("/bebop/states/ardrone3/CameraState/Orientation", Ardrone3CameraStateOrientation, self.callback,"cam_orient")
@@ -126,14 +126,66 @@ class bebop_data:
             point_marker.header.stamp    = rospy.get_rostime()
             point_marker.ns = "vehicle"
             point_marker.id = 0
+            point_marker.type = 1 # prism
+            point_marker.action = 0
+            point_marker.scale.x = .2
+            point_marker.scale.y = .05
+            point_marker.scale.z = .05
+            point_marker.pose.orientation.w = 1
+            # point_marker.color.r = 0
+            # point_marker.color.g = 0
+            point_marker.color.b = 1
+            point_marker.color.a = 1.0
+            point_marker.lifetime = rospy.Duration(0)
+            marker_array.markers.append(point_marker)
+
+            point_marker.color.r = .5
+            point_marker.color.g = .5
+            point_marker.color.b = .5
+            point_marker.type = 3
+            point_marker.pose.position.z = .02
+            point_marker.pose.position.x = .1
+            point_marker.pose.position.y = .1
+            point_marker.scale.x = .02
+            point_marker.scale.y = .12
+            point_marker.scale.z = .12
+            marker_array.markers.append(point_marker)
+
+            point_marker.pose.position.y = -.1
+            marker_array.markers.append(point_marker)
+            
+            point_marker.pose.position.x = -.1
+            marker_array.markers.append(point_marker)
+            
+            point_marker.pose.position.y = .1
+            marker_array.markers.append(point_marker)
+            
+            self.vichile_pub.publish(marker_array)
+            self.tbr.sendTransform((pos.x,pos.y,pos.z),(quat.x,quat.y,quat.z,quat.w),rospy.get_rostime(),'vehicle_frame', "odom")
+            
+            
+        elif args == "zed_odom":
+            quat = data.pose.pose.orientation
+            # print quat
+            pos = data.pose.pose.position
+            # quat = tf.transformations.quaternion_from_euler(quat.x,quat.y,quat.z,quat.w)
+
+            
+            marker_array = MarkerArray()
+
+            point_marker = Marker()
+            point_marker.header.frame_id = "zed_frame"
+            point_marker.header.stamp    = rospy.get_rostime()
+            point_marker.ns = "camera"
+            point_marker.id = 0
             point_marker.type = 2 # sphere
             point_marker.action = 0
             point_marker.scale.x = .4
             point_marker.scale.y = .2
             point_marker.scale.z = .1
             point_marker.pose.orientation.w = 1
-            # point_marker.color.r = 0
-            # point_marker.color.g = 0
+            point_marker.color.r = .5
+            point_marker.color.g = .5
             point_marker.color.b = 1
             point_marker.color.a = 1.0
             point_marker.lifetime = rospy.Duration(0)
@@ -141,39 +193,7 @@ class bebop_data:
             marker_array.markers.append(point_marker)
 
             self.vichile_pub.publish(marker_array)
-            self.tbr.sendTransform((pos.x,pos.y,pos.z),(quat.x,quat.y,quat.z,quat.w),rospy.get_rostime(),'vehicle_frame', "odom")
-            
-            
-        # elif args == "zed_odom":
-        #     quat = data.pose.pose.orientation
-        #     # print quat
-        #     pos = data.pose.pose.position
-        #     # quat = tf.transformations.quaternion_from_euler(quat.x,quat.y,quat.z,quat.w)
-
-            
-        #     marker_array = MarkerArray()
-
-        #     point_marker = Marker()
-        #     point_marker.header.frame_id = "zed_frame"
-        #     point_marker.header.stamp    = rospy.get_rostime()
-        #     point_marker.ns = "camera"
-        #     point_marker.id = 0
-        #     point_marker.type = 2 # sphere
-        #     point_marker.action = 0
-        #     point_marker.scale.x = .4
-        #     point_marker.scale.y = .2
-        #     point_marker.scale.z = .1
-        #     point_marker.pose.orientation.w = 1
-        #     point_marker.color.r = .5
-        #     point_marker.color.g = .5
-        #     point_marker.color.b = 1
-        #     point_marker.color.a = 1.0
-        #     point_marker.lifetime = rospy.Duration(0)
-
-        #     marker_array.markers.append(point_marker)
-
-        #     self.vichile_pub.publish(marker_array)
-        #     self.tbr.sendTransform((pos.x,pos.y,pos.z),(quat.x,quat.y,quat.z,quat.w),rospy.get_rostime(),'zed_frame', "odom")
+            self.tbr.sendTransform((pos.x,pos.y,pos.z),(quat.x,quat.y,quat.z,quat.w),rospy.get_rostime(),'zed_frame', "odom")
             
             
         elif args == "cam_orient":

@@ -17,10 +17,13 @@ sub_bebop = rossubscriber('/bebop/odom','nav_msgs/Odometry',@bebop_callback);
 
 fprintf('connected, recording on index %d and %d \n',zed_indx, bebop_indx)
 
-
+close all
+figure(1);
+plot3(0,0,0)
+hold on
 
 %%
-clear sub_nav
+clear sub_zed
 clear sub_bebop
 
 %%
@@ -32,23 +35,6 @@ bebop_indx = 0;
 bebop_data = cell(1000,10000);
 
 
-%%
-
-function zed_callback(src, msg)
-    global zed_data
-    global zed_indx
-    global temp_index_Nav
-    zed_data{zed_indx,temp_index_Nav} = cellstr(msg.Data);
-    temp_index_Nav = temp_index_Nav+1;
-end
-
-function bebop_callback(src, msg)
-    global bebop_data
-    global bebop_indx
-    global temp_index_bebop
-    bebop_data{bebop_indx,temp_index_bebop} = cellstr(msg.Data);
-    temp_index_bebop = temp_index_bebop+1;
-end
 
 %%
 dataTemp3 = zed_data(zed_indx,:);
@@ -75,3 +61,33 @@ plot(dataTemp(:,40),dataTemp(:,5))
 plot(dataTemp(:,40),dataTemp(:,6))
 % legend('X pos error','X Pos P','X Pos I','X Pos D','X Vel Des','Vel x')
 % title('Position X')
+
+
+%%
+
+function zed_callback(src, msg)
+    global bebop_data
+    global bebop_indx
+    bebop_q = bebop_data{bebop_indx,1}.Pose.Pose.Orientation;
+    bebop_q = [bebop_q.W, bebop_q.X, bebop_q.Y, bebop_q.Z];
+    
+    global zed_data
+    global zed_indx
+    global temp_index_zed
+    zed_data{zed_indx,temp_index_zed} = msg;
+    temp_index_zed = temp_index_zed+1;
+    pos = [msg.Pose.Pose.Position.X, msg.Pose.Pose.Position.Y, msg.Pose.Pose.Position.Z];
+    pos = quatrotate(quatinv(bebop_q),pos);
+    plot3(pos(1), pos(2), pos(3), 'xb')
+    axis equal
+end
+
+function bebop_callback(src, msg)
+    global bebop_data
+    global bebop_indx
+    global temp_index_bebop
+    bebop_data{bebop_indx,temp_index_bebop} = msg;
+    temp_index_bebop = temp_index_bebop+1;
+    plot3(msg.Pose.Pose.Position.X, msg.Pose.Pose.Position.Y, msg.Pose.Pose.Position.Z, 'xr')
+    axis equal
+end

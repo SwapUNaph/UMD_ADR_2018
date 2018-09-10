@@ -633,8 +633,8 @@ def navigate_point():
         0) + ", " + str(
         0) + ", " + str(
         0)
-    publisher_nav_log.publish(log_string)
 
+    publisher_nav_log.publish(log_string)
     return msg
     # rospy.loginfo("calculated")
     # rospy.loginfo(auto_driving_msg)
@@ -642,6 +642,8 @@ def navigate_point():
 
 
 def navigate_jungle():
+    global detection_jungle_data
+
     bebop_position = bebop_odometry.pose.pose.position
     bebop_orientation = bebop_odometry.pose.pose.orientation
 
@@ -655,117 +657,251 @@ def navigate_jungle():
     rospy.loginfo("fly to")
     rospy.loginfo(wp_select)
 
-    # quat = bebop_odometry.pose.pose.orientation
     angle = tfs.euler_from_quaternion(bebop_q)[2]
-
     velocity = bebop_odometry.twist.twist.linear
 
-    diff_global = wp_select.pos - bebop_p
 
-    dist = math.hypot(diff_global[0], diff_global[1])
 
-    gate_theta = wp_select.hdg
-    pos_theta = math.atan2(diff_global[1], diff_global[0])
+    # navigate point in front of gate
+    if detection_dynamic_data.state == 0:
 
-    d_theta = gate_theta - pos_theta
-    if d_theta > math.pi:
-        d_theta = -2 * math.pi + d_theta
-    elif d_theta < -math.pi:
-        d_theta = 2 * math.pi - d_theta
-    else:
-        pass
+        wp_lineup = [wp_select.pos[0]+3*math.cos(angle), wp_select.pos[1]+3*math.sin(angle), wp_select.pos[2]]
+        diff_global = wp_lineup - bebop_p
+        if math.hypot(diff_global[0],diff_global[1]) < .5:
 
-    y_pos_error = -dist * math.sin(d_theta)
-    y_vel_des = nav_through_PID_y_pos.update(y_pos_error)
+            detection_dynamic_data.state = 1
+            msg = Auto_Driving_Msg()
+            nav_point_PID_x_pos.reset()
+            nav_point_PID_y_pos.reset()
+            nav_point_PID_x_vel.reset()
+            nav_point_PID_y_vel.reset()
+            nav_point_PID_z_vel.reset()
+            nav_point_PID_r_vel.reset()
+        else:
+            
 
-    x_pos_error = cr.min_value(dist * math.cos(d_theta), 0.1)
-    if dist > 3:
-        x_vel_des = x_pos_error*max(cr.limit_value(1-4*abs(d_theta)/math.pi, 1.0),0)
-    else:
-        x_vel_des = x_pos_error*max(cr.limit_value(1-16*abs(d_theta)/math.pi, 1.0),-.25)
+            global_vel = [velocity.x * math.cos(angle) - velocity.y * math.sin(angle),
+                          velocity.y * math.cos(angle) + velocity.x * math.sin(angle),
+                          velocity.z]
 
-    if abs(.5 * x_pos_error) ** 3 + .1 < y_pos_error:  # for small gate: .1 or even .05
-        x_vel_des = 0
+            
+            diff_global_look = wp_select.pos - bebop_p
 
-    z_error = diff_global[2]
+            pos_theta = math.atan2(diff_global_look[1], diff_global_look[0])
 
-    r_error = -(angle - pos_theta)
-    if r_error > math.pi:
-        r_error = -2 * math.pi + r_error
-    elif r_error < -math.pi:
-        r_error = 2 * math.pi - r_error
+            r_error = -(angle - pos_theta)
+            if r_error > math.pi:
+                r_error = -2 * math.pi + r_error
+            elif r_error < -math.pi:
+                r_error = 2 * math.pi - r_error
 
-    y_vel_des_sum = sum(y_vel_des)
-    if y_vel_des_sum > 0.1:
-        y_vel_des_sum = (y_vel_des_sum - 0.1)/3 + 0.1
-    elif y_vel_des_sum < -0.1:
-        y_vel_des_sum = (y_vel_des_sum + 0.1)/3 - 0.1
+            x_pos_error = diff_global[0]
+            y_pos_error = diff_global[1]
 
-    y_vel_error = y_vel_des_sum - velocity.y
-    x_vel_error = cr.limit_value(x_vel_des, 0.6) - velocity.x
+            x_vel_des = nav_point_PID_x_pos.update(x_pos_error)
+            y_vel_des = nav_point_PID_y_pos.update(y_pos_error)
 
-    nav_cmd_x = nav_through_PID_x_vel.update(x_vel_error)
-    nav_cmd_y = nav_through_PID_y_vel.update(y_vel_error)
-    nav_cmd_z = nav_through_PID_z_vel.update(z_error)
-    nav_cmd_r = nav_through_PID_r_vel.update(r_error)
+            x_vel_des_sum = sum(x_vel_des)
+            if x_vel_des_sum > 0.1:
+                x_vel_des_sum = (x_vel_des_sum - 0.1)/3 + 0.1
+            elif x_vel_des_sum < -0.1:
+                x_vel_des_sum = (x_vel_des_sum + 0.1)/3 - 0.1
 
-    msg = Auto_Driving_Msg()
-    msg.x = cr.limit_value(sum(nav_cmd_x) + 0.04, nav_limit_x)
-    msg.y = cr.limit_value(sum(nav_cmd_y), nav_limit_y)
-    msg.z = cr.limit_value(sum(nav_cmd_z), nav_limit_z)
-    msg.r = cr.limit_value(sum(nav_cmd_r), nav_limit_r)
+            y_vel_des_sum = sum(y_vel_des)
+            if y_vel_des_sum > 0.1:
+                y_vel_des_sum = (y_vel_des_sum - 0.1)/3 + 0.1
+            elif y_vel_des_sum < -0.1:
+                y_vel_des_sum = (y_vel_des_sum + 0.1)/3 - 0.1
 
-    log_string = str(
-         dist) + ", " + str(
-        0)+', ' + str(
-        0)+', ' + str(
-        0)+', ' + str(
-        x_vel_des) + ", " + str(
-        velocity.x) + ", " + str(
-        x_vel_error) + ", " + str(
-        nav_cmd_x[0]) + ", " + str(
-        nav_cmd_x[1]) + ", " + str(
-        nav_cmd_x[2]) + ", " + str(
-        sum(nav_cmd_x)) + ", " + str(
-        msg.x) + ", " + str(
-        y_pos_error) + ", " + str(
-        y_vel_des[0]) + ", " + str(
-        y_vel_des[1]) + ", " + str(
-        y_vel_des[2]) + ", " + str(
-        sum(y_vel_des)) + ", " + str(
-        velocity.y) + ", " + str(
-        y_vel_error) + ", " + str(
-        nav_cmd_y[0]) + ", " + str(
-        nav_cmd_y[1]) + ", " + str(
-        nav_cmd_y[2]) + ", " + str(
-        sum(nav_cmd_y)) + ", " + str(
-        msg.y) + ", " + str(
-        diff_global[2]) + ", " + str(
-        z_error) + ", " + str(
-        nav_cmd_z[0]) + ", " + str(
-        nav_cmd_z[1]) + ", " + str(
-        nav_cmd_z[2]) + ", " + str(
-        sum(nav_cmd_z)) + ", " + str(
-        msg.z) + ", " + str(
-        pos_theta) + ", " + str(
-        angle) + ", " + str(
-        r_error) + ", " + str(
-        nav_cmd_r[0]) + ", " + str(
-        nav_cmd_r[1]) + ", " + str(
-        nav_cmd_r[2]) + ", " + str(
-        sum(nav_cmd_r)) + ", " + str(
-        msg.r) + ", " + str(
-        time.time()-t_log) + ", " + str(
-        0) + ", " + str(
-        0) + ", " + str(
-        0) + ", " + str(
-        0)
+            x_vel_error = x_vel_des_sum - global_vel[0]
+            y_vel_error = y_vel_des_sum - global_vel[1]
 
-    publisher_nav_log.publish(log_string)
+            z_error = diff_global[2]
+
+            nav_cmd_x = nav_point_PID_x_vel.update(x_vel_error)
+            nav_cmd_y = nav_point_PID_y_vel.update(y_vel_error)
+            nav_cmd_z = nav_point_PID_z_vel.update(z_error)
+            nav_cmd_r = nav_point_PID_r_vel.update(r_error)
+
+            nav_cmd_x_veh = sum(nav_cmd_x) * math.cos(-angle) - sum(nav_cmd_y) * math.sin(-angle)
+            nav_cmd_y_veh = sum(nav_cmd_y) * math.cos(-angle) + sum(nav_cmd_x) * math.sin(-angle)
+
+            msg = Auto_Driving_Msg()
+            msg.x = cr.limit_value(nav_cmd_x_veh, nav_limit_x)
+            msg.y = cr.limit_value(nav_cmd_y_veh, nav_limit_y)
+            msg.z = cr.limit_value(sum(nav_cmd_z), nav_limit_z)
+            msg.r = cr.limit_value(sum(nav_cmd_r), nav_limit_r)
+
+            log_string = str(
+                x_pos_error) + ", " + str(
+                x_vel_des[0]) + ", " + str(
+                x_vel_des[1]) + ", " + str(
+                x_vel_des[2]) + ", " + str(
+                sum(x_vel_des)) + ", " + str(
+                global_vel[0]) + ", " + str(
+                x_vel_error) + ", " + str(
+                nav_cmd_x[0]) + ", " + str(
+                nav_cmd_x[1]) + ", " + str(
+                nav_cmd_x[2]) + ", " + str(
+                sum(nav_cmd_x)) + ", " + str(
+                msg.x) + ", " + str(
+                y_pos_error) + ", " + str(
+                y_vel_des[0]) + ", " + str(
+                y_vel_des[1]) + ", " + str(
+                y_vel_des[2]) + ", " + str(
+                sum(y_vel_des)) + ", " + str(
+                global_vel[1]) + ", " + str(
+                y_vel_error) + ", " + str(
+                nav_cmd_y[0]) + ", " + str(
+                nav_cmd_y[1]) + ", " + str(
+                nav_cmd_y[2]) + ", " + str(
+                sum(nav_cmd_y)) + ", " + str(
+                msg.y) + ", " + str(
+                diff_global[2]) + ", " + str(
+                z_error) + ", " + str(
+                nav_cmd_z[0]) + ", " + str(
+                nav_cmd_z[1]) + ", " + str(
+                nav_cmd_z[2]) + ", " + str(
+                sum(nav_cmd_z)) + ", " + str(
+                msg.z) + ", " + str(
+                pos_theta) + ", " + str(
+                angle) + ", " + str(
+                r_error) + ", " + str(
+                nav_cmd_r[0]) + ", " + str(
+                nav_cmd_r[1]) + ", " + str(
+                nav_cmd_r[2]) + ", " + str(
+                sum(nav_cmd_r)) + ", " + str(
+                msg.r) + ", " + str(
+                time.time()-t_log) + ", " + str(
+                0) + ", " + str(
+                0) + ", " + str(
+                0) + ", " + str(
+                0)
+
+                publisher_nav_log.publish(log_string)
+
+
+    # pause
+    elif detection_dynamic_data.state == 1:
+        # check error again before sending command
+        if detection_dynamic_data.timer != 0.0:
+            if time.time()-detection_dynamic_data.timer > .8:
+                detection_dynamic_data.state = 1  
+                detection_dynamic_data.timer = 0.0
+        else:
+            detection_dynamic_data.timer = time.time()
+        msg = Auto_Driving_Msg()
+
+    # navigate_through
+    elif detection_dynamic_data.state == 2:
+
+        diff_global = wp_select.pos - bebop_p
+
+        dist = math.hypot(diff_global[0], diff_global[1])
+
+        gate_theta = wp_select.hdg
+        pos_theta = math.atan2(diff_global[1], diff_global[0])
+
+        d_theta = gate_theta - pos_theta
+        if d_theta > math.pi:
+            d_theta = -2 * math.pi + d_theta
+        elif d_theta < -math.pi:
+            d_theta = 2 * math.pi - d_theta
+        else:
+            pass
+
+        y_pos_error = -dist * math.sin(d_theta)
+        y_vel_des = nav_through_PID_y_pos.update(y_pos_error)
+
+        x_pos_error = cr.min_value(dist * math.cos(d_theta), 0.1)
+        if dist > 3:
+            x_vel_des = x_pos_error*max(cr.limit_value(1-4*abs(d_theta)/math.pi, 1.0),0)
+        else:
+            x_vel_des = x_pos_error*max(cr.limit_value(1-16*abs(d_theta)/math.pi, 1.0),-.25)
+
+        if abs(.5 * x_pos_error) ** 3 + .1 < y_pos_error:  # for small gate: .1 or even .05
+            x_vel_des = 0
+
+        z_error = diff_global[2]
+
+        r_error = -(angle - pos_theta)
+        if r_error > math.pi:
+            r_error = -2 * math.pi + r_error
+        elif r_error < -math.pi:
+            r_error = 2 * math.pi - r_error
+
+        y_vel_des_sum = sum(y_vel_des)
+        if y_vel_des_sum > 0.1:
+            y_vel_des_sum = (y_vel_des_sum - 0.1)/3 + 0.1
+        elif y_vel_des_sum < -0.1:
+            y_vel_des_sum = (y_vel_des_sum + 0.1)/3 - 0.1
+
+        y_vel_error = y_vel_des_sum - velocity.y
+        x_vel_error = cr.limit_value(x_vel_des, 0.6) - velocity.x
+
+        nav_cmd_x = nav_through_PID_x_vel.update(x_vel_error)
+        nav_cmd_y = nav_through_PID_y_vel.update(y_vel_error)
+        nav_cmd_z = nav_through_PID_z_vel.update(z_error)
+        nav_cmd_r = nav_through_PID_r_vel.update(r_error)
+
+        msg = Auto_Driving_Msg()
+        msg.x = cr.limit_value(sum(nav_cmd_x) + 0.04, nav_limit_x)
+        msg.y = cr.limit_value(sum(nav_cmd_y), nav_limit_y)
+        msg.z = cr.limit_value(sum(nav_cmd_z), nav_limit_z)
+        msg.r = cr.limit_value(sum(nav_cmd_r), nav_limit_r)
+
+        log_string = str(
+             dist) + ", " + str(
+            0)+', ' + str(
+            0)+', ' + str(
+            0)+', ' + str(
+            x_vel_des) + ", " + str(
+            velocity.x) + ", " + str(
+            x_vel_error) + ", " + str(
+            nav_cmd_x[0]) + ", " + str(
+            nav_cmd_x[1]) + ", " + str(
+            nav_cmd_x[2]) + ", " + str(
+            sum(nav_cmd_x)) + ", " + str(
+            msg.x) + ", " + str(
+            y_pos_error) + ", " + str(
+            y_vel_des[0]) + ", " + str(
+            y_vel_des[1]) + ", " + str(
+            y_vel_des[2]) + ", " + str(
+            sum(y_vel_des)) + ", " + str(
+            velocity.y) + ", " + str(
+            y_vel_error) + ", " + str(
+            nav_cmd_y[0]) + ", " + str(
+            nav_cmd_y[1]) + ", " + str(
+            nav_cmd_y[2]) + ", " + str(
+            sum(nav_cmd_y)) + ", " + str(
+            msg.y) + ", " + str(
+            diff_global[2]) + ", " + str(
+            z_error) + ", " + str(
+            nav_cmd_z[0]) + ", " + str(
+            nav_cmd_z[1]) + ", " + str(
+            nav_cmd_z[2]) + ", " + str(
+            sum(nav_cmd_z)) + ", " + str(
+            msg.z) + ", " + str(
+            pos_theta) + ", " + str(
+            angle) + ", " + str(
+            r_error) + ", " + str(
+            nav_cmd_r[0]) + ", " + str(
+            nav_cmd_r[1]) + ", " + str(
+            nav_cmd_r[2]) + ", " + str(
+            sum(nav_cmd_r)) + ", " + str(
+            msg.r) + ", " + str(
+            time.time()-t_log) + ", " + str(
+            0) + ", " + str(
+            0) + ", " + str(
+            0) + ", " + str(
+            0)
+            publisher_nav_log.publish(log_string)
+
+
+
 
     return msg
-    # rospy.loginfo("calculated")
-    # rospy.loginfo(auto_driving_msg)
+
 
 
 
@@ -1094,6 +1230,7 @@ if __name__ == '__main__':
     wp_scale = None
     detection_active = False
     detection_dynamic_data = cr.DynamicData()
+    detection_jungle_data = cr.DynamicData()
     detection_dynamic_input_history = np.array([[], []])
     nav_active = "off"
     nav_point_PID_x_pos = cr.PID2(.7, 0.1, 4.0)

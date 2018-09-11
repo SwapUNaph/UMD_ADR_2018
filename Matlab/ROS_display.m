@@ -252,7 +252,7 @@ end
 figure
 hold on
 grid on
-plot(dataTemp(:,40),dataTemp(:,32))
+plot(dataTemp(:,40),dataTemp(:,32),'x-')
 plot(dataTemp(:,40),dataTemp(:,33))
 plot(dataTemp(:,40),dataTemp(:,34))
 plot(dataTemp(:,40),dataTemp(:,35))

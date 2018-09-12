@@ -105,7 +105,7 @@ def mask_image(hsv, color):
         # lower_color = np.array([87, 55, 100])  # orange dynamic cypress
         # upper_color = np.array([117, 255, 255])  # orange dynamic cypress
 
-        lower_color = np.array([87, 70, 90])  # orange static cypress
+        lower_color = np.array([87, 145, 90])  # orange static cypress
         upper_color = np.array([117, 255, 255])  # orange static cypress
 
         # lower_color = np.array([106, 120, 90])  # orange kim hallway
@@ -178,7 +178,7 @@ def stereo_callback(data):
     global rvec
     global tvec
 
-    debug_on = True
+    debug_on = False
 
     if debug_on:
         global gate_detection_dynamic_on

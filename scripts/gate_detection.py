@@ -18,7 +18,6 @@ import math
 from bebop_auto.msg import Gate_Detection_Msg
 from std_msgs.msg import Float64MultiArray, Bool, Float32
 import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
 
 import signal
 import sys
@@ -26,20 +25,6 @@ import sys
 
 def signal_handler(signal, frame):
     sys.exit(0)
-
-
-def isect_lines(line1, line2):
-    for x1, y1, x2, y2 in line1:
-        for x3, y3, x4, y4 in line2:
-            try:
-                s = float((x2 - x1) * (y3 - y1) - (x3 - x1) * (y2 - y1)) / float(
-                    (x4 - x3) * (y2 - y1) - (x2 - x1) * (y4 - y3))
-                x = x3 + s * (x4 - x3)
-                y = y3 + s * (y4 - y3)
-                return x,y
-            except ZeroDivisionError:
-                rospy.loginfo("ZeroDivisionError in isect_lines")
-                return -1, -1
 
 
 def isect_lines_bundle(lines1, lines2, start, end):
@@ -67,28 +52,6 @@ def isect_lines_bundle(lines1, lines2, start, end):
     x = x3 + np.multiply(s, x4 - x3)
     y = y3 + np.multiply(s, y4 - y3)
 
-    #
-    # if np.isnan(x).any() or np.isnan(y).any() or np.isnan(s).any():
-    #     print('doooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo')
-    #     print('doooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo')
-    #     print('doooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo')
-    #     print('doooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo')
-    #     print('doooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo')
-    #     print('doooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo')
-    #     print('doooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo')
-    #     plt.clf()
-    #
-    #     ax = plt.axes()
-    #     for i in range(len(lines1)):
-    #         plt.plot((x1[i,1], x2[i,1]), (y1[i,1], y2[i,1]), 'bo-')
-    #     for i in range(len(lines2)):
-    #         plt.plot((x3[i,1], x4[i,1]), (y3[i,1], y4[i,1]), 'ro-')
-    #
-    #     plt.axis('equal')
-    #     plt.axis([0, 1000, 0, 700])
-    #     global sl
-    #     sl = True
-
     return np.ma.masked_invalid(x).mean(), np.ma.masked_invalid(y).mean()
 
 
@@ -105,8 +68,11 @@ def mask_image(hsv, color):
         # lower_color = np.array([87, 55, 100])  # orange dynamic cypress
         # upper_color = np.array([117, 255, 255])  # orange dynamic cypress
 
-        lower_color = np.array([87, 145, 90])  # orange static cypress
-        upper_color = np.array([117, 255, 255])  # orange static cypress
+        # lower_color = np.array([87, 145, 90])  # orange static cypress
+        # upper_color = np.array([117, 255, 255])  # orange static cypress
+
+        lower_color = np.array([87, 125, 50])  # orange armory
+        upper_color = np.array([117, 255, 255])  # orange armory
 
         # lower_color = np.array([106, 120, 90])  # orange kim hallway
         # upper_color = np.array([117, 255, 255])  # orange kim hallway
@@ -122,8 +88,11 @@ def mask_image(hsv, color):
         # lower_color = np.array([40, 100, 50])  # green matlab pointer
         # upper_color = np.array([90, 255, 255])  # green matlab pointer
 
-        lower_color = np.array([20, 55, 100])  # green cypress pointer
-        upper_color = np.array([35, 255, 255])  # green cypress pointer
+        # lower_color = np.array([20, 55, 100])  # green cypress pointer
+        # upper_color = np.array([35, 255, 255])  # green cypress pointer
+
+        lower_color = np.array([10, 105, 50])  # green armory
+        upper_color = np.array([35, 255, 255])  # green armory
 
         publisher = publisher_image_threshold_dynamic
 
@@ -220,8 +189,8 @@ def stereo_callback(data):
     # angles = []
 
     # shorten list of lines to only use good matches
-    # if len(lines) > 40:
-    #     lines = lines[:40]
+    if len(lines) > 40:
+        lines = lines[:40]
 
     # votes = np.array(list(reversed(range(len(lines))))) + 1
     # for counter, line in enumerate(lines):
@@ -297,7 +266,7 @@ def stereo_callback(data):
         y_ms_1 = np.append(y_ms_1, y_m)
         vote_ms_1 = np.append(vote_ms_1, vote_m)
 
-    idx = vote_ms_1 * (800-y_ms_1) / 10000 # * (400-abs(x_ms_1-1280/2))/100000
+    idx = vote_ms_1 * (800-y_ms_1) / 10000  # * (400-abs(x_ms_1-1280/2))/100000
 
     if cluster == 0:
         rospy.loginfo("empty sequence 1")
@@ -798,7 +767,7 @@ if __name__ == '__main__':
 
     latest_pose = None
     gate_detection_dynamic_on = False
-    gate_size = 1.0
+    gate_size = 1.4
     output_scale = 0.3
     # relocate_factor = 1.5
 

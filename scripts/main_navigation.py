@@ -677,13 +677,13 @@ def navigate_jungle():
 
     x_pos_error = cr.min_value(dist * math.cos(d_theta), 0.1)
     if dist > 2:
-        x_vel_des = x_pos_error*max(cr.limit_value(1-18*abs(d_theta)/math.pi, 1.0), 0)
-        if abs(d_theta) < math.pi/18:
-            x_vel_des = x_vel_des*max(1-abs(velocity.y/.07),0)
+        x_vel_des = x_pos_error * max(cr.limit_value(1 - 18 * abs(d_theta) / math.pi, 1.0), 0)
+        if abs(d_theta) < math.pi / 18:
+            x_vel_des = x_vel_des * max(1 - abs(velocity.y / .07), 0)
     elif dist > 1.2:
-        x_vel_des = x_pos_error*max(cr.limit_value(1-36*abs(d_theta)/math.pi, 1.0), -.02)
-        if abs(d_theta) < math.pi/36 and dist > 1.5:
-            x_vel_des = x_vel_des*max(1-abs(velocity.y/.07),0)
+        x_vel_des = x_pos_error * max(cr.limit_value(1 - 36 * abs(d_theta) / math.pi, 1.0), -.02)
+        if abs(d_theta) < math.pi / 36 and dist > 1.5:
+            x_vel_des = x_vel_des * max(1 - abs(velocity.y / .07), 0)
     else:
         x_vel_des = x_pos_error * max((.1 - abs(y_pos_error)) / .1, -.02)
 
@@ -1028,6 +1028,7 @@ def navigate_jungle():
 #     return msg
 #
 #
+
 
 def full_throttle_executer(duration):
     msg_brake = Auto_Driving_Msg()

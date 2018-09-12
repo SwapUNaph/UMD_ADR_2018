@@ -285,7 +285,7 @@ def calculate_visual_wp():
         # hover 4m behind dynamic gate at -0.5 height
         gate_pos = wp_average.pos
         gate_heading = wp_average.hdg
-        hover_distance = -2.6
+        hover_distance = -2.8
         hover_alt = -0.5
         extra_dist = np.array([hover_distance*math.cos(gate_heading), hover_distance*math.sin(gate_heading), hover_alt])
         wp_visual = cr.WP(gate_pos + extra_dist, gate_heading)
@@ -1149,7 +1149,7 @@ def calculate_distance():
         pos_theta = math.atan2(diff_global_look[1], diff_global_look[0])
         angular_diff = -(own_heading - pos_theta)
         angular_diff = min(angular_diff, math.pi-angular_diff)
-        return linear_distance + angular_diff * (180.0 / 20 * 0.3) / math.pi  # 20deg offset equal 30cm
+        return linear_distance + angular_diff * (180.0 / 15 * 0.3) / math.pi  # 15deg offset equal 30cm
 
     elif nav_active == "through" or nav_active == "jungle":
         flat_distance = np.linalg.norm([diff_global[0], diff_global[1], 0])
@@ -1380,7 +1380,7 @@ if __name__ == '__main__':
     dist_exit_gate_wp = 15.0  # how far exit waypoint
     dist_egw = dist_exit_gate_wp
     dist_exit_gate_min = 0.5  # how far from the gate until it is cleared
-    dist_gate_dyn = 0.25  # how accurate hover in front of dynamic gate
+    dist_gate_dyn = 0.2  # how accurate hover in front of dynamic gate
     dist_exit_jungle = dist_exit_gate_wp - (dist_exit_gate_min + 0.7)  # distance to exit jungle
     dist_exit_gate = dist_exit_gate_wp - dist_exit_gate_min  # distance to exit wp
     auto_driving_msg = Auto_Driving_Msg()

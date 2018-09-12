@@ -43,6 +43,30 @@
 % 0
 % 0
 
+%% X and Y Position/Des Vel
+
+dataTemp2 = NavPID_data(NavPID_indx,:);
+dataTemp = [];
+for k = 1:1000
+    dataTemp = [dataTemp;cellfun(@str2num,strsplit(dataTemp2{k}{1},', '))];
+    
+    if ~iscell(NavPID_data{NavPID_indx,k+1})
+       break 
+    end
+end
+
+figure
+hold on
+grid on
+plot(dataTemp(:,40),dataTemp(:,1))
+plot(dataTemp(:,40),dataTemp(:,5),'--')
+plot(dataTemp(:,40),dataTemp(:,6),'-o')
+plot(dataTemp(:,40),dataTemp(:,13))
+plot(dataTemp(:,40),dataTemp(:,17),'--')
+plot(dataTemp(:,40),dataTemp(:,18),'-o')
+
+legend('X pos error','X vel des','X vel','Y pos error','Y vel des','Y vel')
+title('Error and Des')
 %% X and Y Position
 
 dataTemp2 = NavPID_data(NavPID_indx,:);

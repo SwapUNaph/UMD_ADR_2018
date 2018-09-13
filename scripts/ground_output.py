@@ -155,7 +155,7 @@ if __name__ == '__main__':
     if joystick.get_name() == 'Saitek AV8R Joystick':
         rospy.loginfo('found yoke')
         controller = 'yoke'
-    elif:  # elif joystick.get_name() == 'xbox':
+    elif joystick.get_name() == 'Xbox 360 Wireless Reciever':
         rospy.loginfo('found xbox')
         controller = 'xbox'
         dead_zone = .08

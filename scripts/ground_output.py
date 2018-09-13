@@ -152,9 +152,17 @@ if __name__ == '__main__':
     print("GCS communicating")
     rospy.loginfo("GCS communicating")
 
-    dead_zone = .08
-    # controller = 'xbox'
-    controller = 'yoke'
+    if joystick.get_name() == 'Saitek AV8R Joystick':
+        rospy.loginfo('found yoke')
+        controller = 'yoke'
+    elif:  # elif joystick.get_name() == 'xbox':
+        rospy.loginfo('found xbox')
+        controller = 'xbox'
+        dead_zone = .08
+    else:
+        rospy.loginfo('controller unknown')
+        sys.exit()
+
     while True:
         # read in axis values
         # USB Joystick
@@ -165,7 +173,7 @@ if __name__ == '__main__':
             axis_yaw = -joystick.get_axis(3)
 
         # Xbox controller
-        elif controller == 'xbox'
+        elif controller == 'xbox':
             axis_roll = joystick.get_axis(1)
             axis_pitch = -joystick.get_axis(0)
             axis_throttle = -joystick.get_axis(3)

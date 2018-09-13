@@ -177,6 +177,9 @@ def stereo_callback(data):
 
     lines = cv2.HoughLinesP(mask, 5, np.pi / 90, 300, minLineLength=min_line_length, maxLineGap=max_line_gap)
 
+    if debug_on:
+        cv2.putText(rgb, "DEBUG", (400, 400), cv2.FONT_HERSHEY_SIMPLEX, 10, (255, 255, 255), 10, cv2.LINE_AA)
+
     if lines is None or len(lines) < 2:
         rospy.loginfo("no lines")
         publisher_result.publish(Gate_Detection_Msg())
@@ -708,8 +711,8 @@ def stereo_callback(data):
         cv2.line(rgb, (gate[0], gate[1]), (
             gate[0] + int(-250 * math.sin(angle_m)), gate[1] + int(-250 * math.cos(angle_m))),
                  (255, 255, 0), 6)
-        cv2.putText(rgb, str(angle_m * 180 / math.pi), (0, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2,
-                    cv2.LINE_AA)
+        # cv2.putText(rgb, str(angle_m * 180 / math.pi), (0, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2,
+        #             cv2.LINE_AA)
 
         # publish finding
         rospy.loginfo("detected pointer")

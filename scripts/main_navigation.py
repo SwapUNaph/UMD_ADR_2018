@@ -1360,8 +1360,8 @@ if __name__ == '__main__':
     # detection_jungle_data = cr.DynamicData()
     detection_dynamic_input_history = np.array([[], []])
     nav_active = "off"
-    nav_point_PID_x_pos = cr.PID2(.7, 0.1, 4.0)
-    nav_point_PID_y_pos = cr.PID2(.7, 0.1, 4.0)
+    nav_point_PID_x_pos = cr.PID2(.5, 0.1, 4.0)
+    nav_point_PID_y_pos = cr.PID2(.5, 0.1, 4.0)
     nav_point_PID_x_vel = cr.PID2(0.8, 0, 0.0)
     nav_point_PID_y_vel = cr.PID2(0.8, 0, 0.0)
     nav_point_PID_z_vel = cr.PID(1.0, 0, 0.0)

@@ -152,22 +152,41 @@ if __name__ == '__main__':
     print("GCS communicating")
     rospy.loginfo("GCS communicating")
 
+    dead_zone = .08
+    # controller = 'xbox'
+    controller = 'yoke'
     while True:
         # read in axis values
-        axis_roll = joystick.get_axis(0)
-        axis_pitch = joystick.get_axis(1)
-        axis_throttleL = joystick.get_axis(2)
-        axis_yaw = joystick.get_axis(3)
-        axis_throttleR = joystick.get_axis(4)
+        # USB Joystick
+        if controller == 'yoke':
+            axis_roll = -joystick.get_axis(0)
+            axis_pitch = -joystick.get_axis(1)
+            axis_throttle = -joystick.get_axis(2)
+            axis_yaw = -joystick.get_axis(3)
+
+        # Xbox controller
+        elif controller == 'xbox'
+            axis_roll = joystick.get_axis(1)
+            axis_pitch = -joystick.get_axis(0)
+            axis_throttle = -joystick.get_axis(3)
+            axis_yaw = joystick.get_axis(2)
+            if abs(axis_roll) < dead_zone:
+                axis_roll = 0.0
+            if abs(axis_pitch) < dead_zone:
+                axis_roll = 0.0
+            if abs(axis_throttle) < dead_zone:
+                axis_roll = 0.0
+            if abs(axis_yaw) < dead_zone:
+                axis_roll = 0.0
 
         # process all events that have happened
         for event in pygame.event.get():
             # Possible events are: JOYAXISMOTION JOYBALLMOTION JOYBUTTONDOWN JOYBUTTONUP JOYHATMOTION
             if event.type == pygame.JOYBUTTONDOWN or event.type == pygame.JOYBUTTONUP:
-                btn_status_new = [joystick.get_button(0),  # trigger
-                                  joystick.get_button(1),  # red
-                                  joystick.get_button(2),  # big
-                                  joystick.get_button(3),  # tall
+                btn_status_new = [joystick.get_button(0),  # trigger, A
+                                  joystick.get_button(1),  # red, B
+                                  joystick.get_button(2),  # big, X
+                                  joystick.get_button(3),  # tall, Y
                                   joystick.get_button(4),  # t1
                                   joystick.get_button(5),  # t2
                                   joystick.get_button(6),  # t3
@@ -184,17 +203,17 @@ if __name__ == '__main__':
                 if event.type == pygame.JOYBUTTONDOWN:  # button was pressed
                     for i in range(len(btn_status_diff)):  # loop through all buttons
                         if btn_status_diff[i] == 1:  # button with index i was pressed
-                            if i == 4:  # takeoff
+                            if (i == 4 and controller == 'yoke') or (i == 3 and controller == 'xbox'):  # takeoff
                                 if not autonomy_active:  # manual flight active
                                     if state_bebop == 0:  # drone on the ground
-                                        if axis_throttleL == 0:  # throttle centered
+                                        if axis_throttle == 0:  # throttle centered
                                             publish_status("takeoff")
                                             print("Takeoff")
                                             rospy.loginfo("Takeoff")
                                             flight_command_active = True
                                         else:
-                                            print("center throttle: " + "%.2f" % -axis_throttleL)
-                                            rospy.loginfo("center throttle: " + "%.2f" % -axis_throttleL)
+                                            print("center throttle: " + "%.2f" % axis_throttle)
+                                            rospy.loginfo("center throttle: " + "%.2f" % axis_throttle)
                                     else:
                                         print("not on the ground")
                                         rospy.loginfo("not on the ground")
@@ -202,7 +221,7 @@ if __name__ == '__main__':
                                     print("not in manual mode")
                                     rospy.loginfo("not in manual mode")
 
-                            if i == 5:  # land
+                            if (i == 5 and controller == 'yoke') or (i == 2 and controller == 'xbox'):  # land
                                 if True: #not autonomy_active:  # manual flight active
                                     if True: #state_bebop == 2 or state_bebop == 1 or state_bebop == 3:  # takeoff, hover, flight
                                         publish_status("land")
@@ -216,35 +235,35 @@ if __name__ == '__main__':
                                     print("not in manual mode")
                                     rospy.loginfo("not in manual mode")
 
-                            elif i == 6:  # enter manual mode
+                            elif (i == 6 and controller == 'yoke') or (i == 1 and controller == 'xbox'):  # enter manual mode
                                 if True:  # autonomy_active:  # autonomous flight active
-                                    if True:  # axis_throttleL == 0:  # throttle centered
+                                    if True:  # axis_throttle == 0:  # throttle centered
                                         publisher_emergency_shutdown.publish()
                                         rospy.loginfo("terminate other nodes")
                                         autonomy_active = False
                                         autonomy_pub(autonomy_active)
                                         flight_command_active = True
                                     else:
-                                        print("center throttle: " + "%.2f" % -axis_throttleL)
-                                        rospy.loginfo("center throttle: " + "%.2f" % -axis_throttleL)
+                                        print("center throttle: " + "%.2f" % axis_throttle)
+                                        rospy.loginfo("center throttle: " + "%.2f" % axis_throttle)
                                 else:
                                     print("already in manual mode")
                                     rospy.loginfo("already in manual mode")
 
-                            elif i == 7:  # enter automatic mode
+                            elif (i == 7 and controller == 'yoke') or (i == 0 and controller == 'xbox'):  # enter automatic mode
                                 if not autonomy_active:  # manual mode active
-                                    if axis_throttleL == 0:  # throttle centered
+                                    if axis_throttle == 0:  # throttle centered
                                         autonomy_active = True
                                         autonomy_pub(autonomy_active)
                                         flight_command_active = False
                                     else:
-                                        print("center throttle: " + "%.2f" % -axis_throttleL)
-                                        rospy.loginfo("center throttle: " + "%.2f" % -axis_throttleL)
+                                        print("center throttle: " + "%.2f" % axis_throttle)
+                                        rospy.loginfo("center throttle: " + "%.2f" % axis_throttle)
                                 else:
                                     print("already in automatic mode")
                                     rospy.loginfo("already in automatic mode")
 
-                            elif i == 12:  # emergency
+                            elif (i == 12 and controller == 'yoke') or (i == 7 and controller == 'xbox'):  # emergency
                                 publish_status("reset")
                                 print("Emergency")
                                 rospy.loginfo("Emergency")
@@ -264,12 +283,12 @@ if __name__ == '__main__':
 
         # if in manual mode and hovering or flying, publish commands
         if flight_command_active: #(not autonomy_active) and (state_bebop == 2 or state_bebop == 3):
-            publish_cmd(-axis_pitch, -axis_roll, -axis_throttleL, -axis_yaw)
+            publish_cmd(axis_pitch, axis_roll, axis_throttle, axis_yaw)
             rospy.loginfo("ground publish driving msg")
-            rospy.loginfo(-axis_pitch)
-            rospy.loginfo(-axis_roll)
-            rospy.loginfo(-axis_throttleL)
-            rospy.loginfo(-axis_yaw)
+            rospy.loginfo(axis_pitch)
+            rospy.loginfo(axis_roll)
+            rospy.loginfo(axis_throttle)
+            rospy.loginfo(axis_yaw)
 
         # run with 20Hz
         clock.tick(20)

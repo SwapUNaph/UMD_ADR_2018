@@ -72,7 +72,7 @@ def mask_image(hsv, color):
         # upper_color = np.array([117, 255, 255])  # orange static cypress
 
         lower_color = np.array([87, 125, 50])  # orange armory
-        upper_color = np.array([117, 255, 255])  # orange armory
+        upper_color = np.array([145, 255, 255])  # orange armory
 
         # lower_color = np.array([106, 120, 90])  # orange kim hallway
         # upper_color = np.array([117, 255, 255])  # orange kim hallway

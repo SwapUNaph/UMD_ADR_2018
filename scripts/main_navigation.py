@@ -37,32 +37,37 @@ def callback_states_changed(data, args):
 def callback_visual_gate_dynamic_changed(input_data):
     global detection_dynamic_input_history
     global detection_dynamic_data
+    global gate_detection_dynamic_counter 
 
     measurement = input_data.data
 
     rospy.loginfo("visual hand detected")
 
     if detection_dynamic_data.period is None:
-        detection_dynamic_input_history = np.append(detection_dynamic_input_history,
-                                                    [[measurement[0]], [measurement[1]]], axis=1)
-        if detection_dynamic_input_history.shape[1] > 15:
-            rospy.loginfo("enough measurements")
-            detection_dynamic_input_history = np.delete(detection_dynamic_input_history, 0, axis=1)
-            # calculate std deviation of list
-            periods = cr.calculate_periods(detection_dynamic_input_history)
-            std_deviation = np.std(periods)
-            # when std dev is low enough, provide period
-            if std_deviation < 0.4:
-                rospy.loginfo("measurements accepted")
-                detection_dynamic_data.period = np.mean(periods)
-                rospy.loginfo("std_deviation:")
-                rospy.loginfo(std_deviation)
-            else:
-                rospy.loginfo("standard deviation too high:")
-                rospy.loginfo(std_deviation)
+        if gate_detection_dynamic_counter < 5:
+            gate_detection_dynamic_counter = gate_detection_dynamic_counter + 1
         else:
-            rospy.loginfo("collecting measurements")
-            rospy.loginfo(detection_dynamic_input_history.shape[1])
+            gate_detection_dynamic_counter = 0
+            detection_dynamic_input_history = np.append(detection_dynamic_input_history,
+                                                        [[measurement[0]], [measurement[1]]], axis=1)
+            if detection_dynamic_input_history.shape[1] > 15:
+                rospy.loginfo("enough measurements")
+                detection_dynamic_input_history = np.delete(detection_dynamic_input_history, 0, axis=1)
+                # calculate std deviation of list
+                periods = cr.calculate_periods(detection_dynamic_input_history)
+                std_deviation = np.std(periods)
+                # when std dev is low enough, provide period
+                if std_deviation < 0.4:
+                    rospy.loginfo("measurements accepted")
+                    detection_dynamic_data.period = np.mean(periods)
+                    rospy.loginfo("std_deviation:")
+                    rospy.loginfo(std_deviation)
+                else:
+                    rospy.loginfo("standard deviation too high:")
+                    rospy.loginfo(std_deviation)
+            else:
+                rospy.loginfo("collecting measurements")
+                rospy.loginfo(detection_dynamic_input_history.shape[1])
     else:
         # add to list only if gate position is close to where it's supposed to be
         t_diff = np.array(measurement[1]) - detection_dynamic_input_history[0][-1]
@@ -182,7 +187,7 @@ def callback_visual_gate_detection_changed(data):
             average = cr.find_average(wp_input_history)
             std_deviation = cr.find_std_dev_waypoints(average, wp_input_history)
             # when std dev is low enough, provide waypoint
-            if std_deviation < 0.4:
+            if std_deviation < 0.25:
                 rospy.loginfo("measurements accepted")
                 wp_average = average
             else:
@@ -1362,8 +1367,8 @@ if __name__ == '__main__':
     nav_active = "off"
     nav_point_PID_x_pos = cr.PID2(.5, 0.1, 4.0)
     nav_point_PID_y_pos = cr.PID2(.5, 0.1, 4.0)
-    nav_point_PID_x_vel = cr.PID2(0.8, 0, 0.0)
-    nav_point_PID_y_vel = cr.PID2(0.8, 0, 0.0)
+    nav_point_PID_x_vel = cr.PID2(0.4, 0, 0.8)
+    nav_point_PID_y_vel = cr.PID2(0.4, 0, 0.8)
     nav_point_PID_z_vel = cr.PID(1.0, 0, 0.0)
     nav_point_PID_r_vel = cr.PID(0.5, 0, 1.0)
     nav_through_PID_y_pos = cr.PID2(.7, 0.1, 3.0)
@@ -1379,13 +1384,14 @@ if __name__ == '__main__':
     dist_gate_close = 0.5  # how soon turn off detection
     dist_exit_gate_wp = 15.0  # how far exit waypoint
     dist_egw = dist_exit_gate_wp
-    dist_exit_gate_min = 0.5  # how far from the gate until it is cleared
+    dist_exit_gate_min = 1.7  # how far from the gate until it is cleared
     dist_gate_dyn = 0.2  # how accurate hover in front of dynamic gate
     dist_exit_jungle = dist_exit_gate_wp - (dist_exit_gate_min + 0.7)  # distance to exit jungle
     dist_exit_gate = dist_exit_gate_wp - dist_exit_gate_min  # distance to exit wp
     auto_driving_msg = Auto_Driving_Msg()
     current_state = None
     t_log = 1455208000
+    gate_detection_dynamic_counter = 100 ###############
 
     # Publishers
     publisher_state_auto = rospy.Publisher("/auto/state_auto",     Int32,                queue_size=1, latch=True)
@@ -1415,7 +1421,7 @@ if __name__ == '__main__':
     states = [State()] * 100
     states[02] = State(02, 03, "bebop", 1,                0, 0, 0, "off",     None, [], [])
     states[03] = State(03, 04, "bebop", 2,                0, 0, 0, "off",     None, [], [])
-    states[04] = State(04, 40, "time",  1.0,              0, 0, 0, "off",     None, [], [])
+    states[04] = State(04, 10, "time",  2.0,              0, 0, 0, "off",     None, [], [])
     states[10] = State(10, 11, "dist",  dist_gate_blind,  0, 0, 0, "point",   1.4,  [1.5, 0, 0.4], [4.4, 0, 0])
     states[11] = State(11, 12, "wp",    None,             0, 1, 0, "point",   None, [1.5, 0, 0], [4.4, 0, 0])
     states[12] = State(12, 13, "dist",  dist_gate_close,  1, 1, 0, "through", None, [], [])

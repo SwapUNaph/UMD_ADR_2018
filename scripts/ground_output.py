@@ -129,12 +129,12 @@ if __name__ == '__main__':
                       joystick.get_button(5),
                       joystick.get_button(6),
                       joystick.get_button(7),
-                      joystick.get_button(8),
-                      joystick.get_button(9),
-                      joystick.get_button(10),
-                      joystick.get_button(11),
-                      joystick.get_button(12),
-                      joystick.get_button(13)]
+                      joystick.get_button(8)]
+                      # joystick.get_button(9),
+                      # joystick.get_button(10),
+                      # joystick.get_button(11),
+                      # joystick.get_button(12),
+                      # joystick.get_button(13)]
 
     # Wait until connection between ground and air is established
     while state_auto is None:
@@ -155,10 +155,10 @@ if __name__ == '__main__':
     if joystick.get_name() == 'Saitek AV8R Joystick':
         rospy.loginfo('found yoke')
         controller = 'yoke'
-    elif joystick.get_name() == 'Xbox 360 Wireless Reciever':
+    elif joystick.get_name() == 'Xbox 360 Wireless Receiver':
         rospy.loginfo('found xbox')
         controller = 'xbox'
-        dead_zone = .08
+        dead_zone = .2
     else:
         rospy.loginfo('controller unknown')
         sys.exit()
@@ -174,18 +174,18 @@ if __name__ == '__main__':
 
         # Xbox controller
         elif controller == 'xbox':
-            axis_roll = joystick.get_axis(1)
-            axis_pitch = -joystick.get_axis(0)
-            axis_throttle = -joystick.get_axis(3)
-            axis_yaw = joystick.get_axis(2)
+            axis_roll = -joystick.get_axis(3)
+            axis_pitch = -joystick.get_axis(4)
+            axis_throttle = -joystick.get_axis(1)
+            axis_yaw = -joystick.get_axis(0)
             if abs(axis_roll) < dead_zone:
                 axis_roll = 0.0
             if abs(axis_pitch) < dead_zone:
-                axis_roll = 0.0
+                axis_pitch = 0.0
             if abs(axis_throttle) < dead_zone:
-                axis_roll = 0.0
+                axis_throttle = 0.0
             if abs(axis_yaw) < dead_zone:
-                axis_roll = 0.0
+                axis_yaw = 0.0
 
         # process all events that have happened
         for event in pygame.event.get():
@@ -199,12 +199,12 @@ if __name__ == '__main__':
                                   joystick.get_button(5),  # t2
                                   joystick.get_button(6),  # t3
                                   joystick.get_button(7),  # t4
-                                  joystick.get_button(8),  # t5
-                                  joystick.get_button(9),  # t6
-                                  joystick.get_button(10),  # t7
-                                  joystick.get_button(11),  # t8
-                                  joystick.get_button(12),  # A
-                                  joystick.get_button(13)]  # B
+                                  joystick.get_button(8)]  # t5
+                                  # joystick.get_button(9),  # t6
+                                  # joystick.get_button(10),  # t7
+                                  # joystick.get_button(11),  # t8
+                                  # joystick.get_button(12),  # A
+                                  # joystick.get_button(13)]  # B
                 # compare old an new button status
                 btn_status_diff = list_compare(btn_status_old, btn_status_new)
 
@@ -271,7 +271,7 @@ if __name__ == '__main__':
                                     print("already in automatic mode")
                                     rospy.loginfo("already in automatic mode")
 
-                            elif (i == 12 and controller == 'yoke') or (i == 7 and controller == 'xbox'):  # emergency
+                            elif (i == 8 and controller == 'yoke') or (i == 7 and controller == 'xbox'):  # emergency
                                 publish_status("reset")
                                 print("Emergency")
                                 rospy.loginfo("Emergency")
@@ -282,7 +282,7 @@ if __name__ == '__main__':
                 if event.type == pygame.JOYBUTTONUP:  # button was released
                     for i in range(len(btn_status_diff)):
                         if btn_status_diff[i] == -1:
-                            if i == 12:  # emergency flipped back
+                            if i == 8:  # emergency flipped back
                                 print("Emergency Reset")
                                 rospy.loginfo("Emergency Reset")
                             btn_status_old[i] = 0

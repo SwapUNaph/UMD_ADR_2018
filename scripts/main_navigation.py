@@ -50,14 +50,14 @@ def callback_visual_gate_dynamic_changed(input_data):
             gate_detection_dynamic_counter = 0
             detection_dynamic_input_history = np.append(detection_dynamic_input_history,
                                                         [[measurement[0]], [measurement[1]]], axis=1)
-            if detection_dynamic_input_history.shape[1] > 15:
+            if detection_dynamic_input_history.shape[1] > 8:
                 rospy.loginfo("enough measurements")
                 detection_dynamic_input_history = np.delete(detection_dynamic_input_history, 0, axis=1)
                 # calculate std deviation of list
                 periods = cr.calculate_periods(detection_dynamic_input_history)
                 std_deviation = np.std(periods)
                 # when std dev is low enough, provide period
-                if std_deviation < 0.4:
+                if std_deviation < 0.3:
                     rospy.loginfo("measurements accepted")
                     detection_dynamic_data.period = np.mean(periods)
                     rospy.loginfo("std_deviation:")
@@ -1421,8 +1421,8 @@ if __name__ == '__main__':
     states = [State()] * 100
     states[02] = State(02, 03, "bebop", 1,                0, 0, 0, "off",     None, [], [])
     states[03] = State(03, 04, "bebop", 2,                0, 0, 0, "off",     None, [], [])
-    states[04] = State(04, 10, "time",  2.0,              0, 0, 0, "off",     None, [], [])
-    states[10] = State(10, 11, "dist",  dist_gate_blind,  0, 0, 0, "point",   1.4,  [1.5, 0, 0.4], [4.4, 0, 0])
+    states[04] = State(04, 10, "time",  1.0,              0, 0, 0, "off",     None, [], [])
+    states[10] = State(10, 11, "dist",  dist_gate_blind,  0, 0, 0, "point",   1.4,  [1.5, 0, 0.6], [4.4, 0, 0])
     states[11] = State(11, 12, "wp",    None,             0, 1, 0, "point",   None, [1.5, 0, 0], [4.4, 0, 0])
     states[12] = State(12, 13, "dist",  dist_gate_close,  1, 1, 0, "through", None, [], [])
     states[13] = State(13, 20, "dist",  dist_exit_gate,   0, 0, 0, "point",   None, [dist_egw, 0, 0], [dist_egw, 0, 0])

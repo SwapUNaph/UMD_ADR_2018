@@ -151,9 +151,10 @@ def stereo_callback(data):
 
     if debug_on:
         global gate_detection_dynamic_on
+        global gate_detection_jungle_on
         this_pose = Pose()
-        gate_detection_dynamic_on = True
-        gate_detection_dynamic_on = False
+        gate_detection_jungle_on = True
+        # gate_detection_dynamic_on = True
     else:
         if latest_pose is None:
             print("No position")
@@ -178,7 +179,7 @@ def stereo_callback(data):
     lines = cv2.HoughLinesP(mask, 5, np.pi / 90, 300, minLineLength=min_line_length, maxLineGap=max_line_gap)
 
     if debug_on:
-        cv2.putText(rgb, "DEBUG", (400, 400), cv2.FONT_HERSHEY_SIMPLEX, 10, (255, 255, 255), 10, cv2.LINE_AA)
+        cv2.putText(rgb, "DEBUG", (10, 85), cv2.FONT_HERSHEY_SIMPLEX, 3.5, (0, 0, 255), 10, cv2.LINE_AA)
 
     if lines is None or len(lines) < 2:
         rospy.loginfo("no lines")
@@ -269,7 +270,8 @@ def stereo_callback(data):
         y_ms_1 = np.append(y_ms_1, y_m)
         vote_ms_1 = np.append(vote_ms_1, vote_m)
 
-    idx = vote_ms_1 * (800-y_ms_1) / 10000  # * (400-abs(x_ms_1-1280/2))/100000
+    # normal algorithm (top is better)
+    idx = vote_ms_1 * (800-y_ms_1) / 1000  # * (400-abs(x_ms_1-1280/2))/100000
 
     if cluster == 0:
         rospy.loginfo("empty sequence 1")
@@ -278,7 +280,7 @@ def stereo_callback(data):
         output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
         publisher_image_gate.publish(output_im)
         return
-    #
+
     # for index in range(len(vote_ms_1)):
     #     cv2.circle(rgb, (int(x_ms_1[index]), int(y_ms_1[index])), dist_thresh, (255, 255, 255), 2)
     #     cv2.putText(rgb, str(int(idx[index])), (int(x_ms_1[index]), int(y_ms_1[index])), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2,
@@ -340,8 +342,12 @@ def stereo_callback(data):
         vote_ms_2 = np.append(vote_ms_2, vote_m)
 
     if cluster < 2:
-        rospy.loginfo("empty sequence 2")
-        publisher_result.publish(Gate_Detection_Msg())
+        if gate_detection_jungle_on:
+            gate_detection_jungle(vote_ms_1, y_ms_1, x_ms_1, lines, clusters_1, start, end, votes, dist_thresh, rgb, data,
+                              this_pose)
+        else:
+            rospy.loginfo("empty sequence 2")
+            publisher_result.publish(Gate_Detection_Msg())
         rgb = cv2.resize(rgb, (0, 0), fx=output_scale, fy=output_scale)
         output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
         publisher_image_gate.publish(output_im)
@@ -455,8 +461,12 @@ def stereo_callback(data):
         vote_ms_3a = np.append(vote_ms_3a, vote_m)
 
     if cluster == 0:
-        rospy.loginfo("empty sequence 3a")
-        publisher_result.publish(Gate_Detection_Msg())
+        if gate_detection_jungle_on:
+            gate_detection_jungle(vote_ms_1, y_ms_1, x_ms_1, lines, clusters_1, start, end, votes, dist_thresh, rgb, data,
+                              this_pose)
+        else:
+            rospy.loginfo("empty sequence 3a")
+            publisher_result.publish(Gate_Detection_Msg())
         rgb = cv2.resize(rgb, (0, 0), fx=output_scale, fy=output_scale)
         output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
         publisher_image_gate.publish(output_im)
@@ -528,8 +538,12 @@ def stereo_callback(data):
         vote_ms_3b = np.append(vote_ms_3b, vote_m)
 
     if cluster == 0:
-        rospy.loginfo("empty sequence 3b")
-        publisher_result.publish(Gate_Detection_Msg())
+        if gate_detection_jungle_on:
+            gate_detection_jungle(vote_ms_1, y_ms_1, x_ms_1, lines, clusters_1, start, end, votes, dist_thresh, rgb, data,
+                              this_pose)
+        else:
+            rospy.loginfo("empty sequence 3b")
+            publisher_result.publish(Gate_Detection_Msg())
         rgb = cv2.resize(rgb, (0, 0), fx=output_scale, fy=output_scale)
         output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
         publisher_image_gate.publish(output_im)
@@ -576,8 +590,12 @@ def stereo_callback(data):
     #     cv2.line(rgb, (start[0][line], start[1][line]), (end[0][line], end[1][line]), (255, 255, 0), 2)
 
     if not (lines1.any() and lines2.any() and lines3.any() and lines4.any()):
-        rospy.loginfo("not four lines")
-        publisher_result.publish(Gate_Detection_Msg())
+        if gate_detection_jungle_on:
+            gate_detection_jungle(vote_ms_1, y_ms_1, x_ms_1, lines, clusters_1, start, end, votes, dist_thresh, rgb, data,
+                              this_pose)
+        else:
+            rospy.loginfo("not four lines")
+            publisher_result.publish(Gate_Detection_Msg())
         rgb = cv2.resize(rgb, (0, 0), fx=output_scale, fy=output_scale)
         output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
         publisher_image_gate.publish(output_im)
@@ -588,14 +606,14 @@ def stereo_callback(data):
     (x3, y3) = isect_lines_bundle(lines2, lines4, start, end)
     (x4, y4) = isect_lines_bundle(lines3, lines4, start, end)
 
-    cv2.circle(rgb, (int(x1), int(y1)), dist_thresh, (255, 255, 255), 2)
-    cv2.circle(rgb, (int(x2), int(y2)), dist_thresh, (255, 255, 255), 2)
-    cv2.circle(rgb, (int(x3), int(y3)), dist_thresh, (255, 255, 255), 2)
-    cv2.circle(rgb, (int(x4), int(y4)), dist_thresh, (255, 255, 255), 2)
-    cv2.circle(rgb, (int(x1), int(y1)), 3, (255, 255, 255), 2)
-    cv2.circle(rgb, (int(x2), int(y2)), 3, (255, 255, 255), 2)
-    cv2.circle(rgb, (int(x3), int(y3)), 3, (255, 255, 255), 2)
-    cv2.circle(rgb, (int(x4), int(y4)), 3, (255, 255, 255), 2)
+    cv2.circle(rgb, (int(x1), int(y1)), dist_thresh, (0, 255, 255), 2)
+    cv2.circle(rgb, (int(x2), int(y2)), dist_thresh, (0, 255, 255), 2)
+    cv2.circle(rgb, (int(x3), int(y3)), dist_thresh, (0, 255, 255), 2)
+    cv2.circle(rgb, (int(x4), int(y4)), dist_thresh, (0, 255, 255), 2)
+    cv2.circle(rgb, (int(x1), int(y1)), 3, (0, 255, 255), 2)
+    cv2.circle(rgb, (int(x2), int(y2)), 3, (0, 255, 255), 2)
+    cv2.circle(rgb, (int(x3), int(y3)), 3, (0, 255, 255), 2)
+    cv2.circle(rgb, (int(x4), int(y4)), 3, (0, 255, 255), 2)
 
     corner_points = np.array([[x1, y1],[x2, y2],[x3,y3],[x4,y4]])
 
@@ -644,7 +662,7 @@ def stereo_callback(data):
         cv2.line(rgb, p1, p3, (0, 255, 255), 10)
         cv2.line(rgb, p2, p3, (0, 255, 255), 10)
     if True or max(p3) < 10000 and min(p3) > 0:
-        cv2.circle(rgb, p3, 10, (0, 0, 0), -1)
+        cv2.circle(rgb, p3, 10, (255, 0, 0), -1)
 
     if gate_detection_dynamic_on:
 
@@ -722,12 +740,389 @@ def stereo_callback(data):
         msg.data = [this_time, angle_m]
         publisher_dynamic.publish(msg)
 
+    elif gate_detection_jungle_on:
+        gate_detection_jungle(vote_ms_1, y_ms_1, x_ms_1, lines, clusters_1, start, end, votes, dist_thresh, rgb, data, this_pose)
+
     rgb = cv2.resize(rgb, (0, 0), fx=output_scale, fy=output_scale)
     output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
     publisher_image_gate.publish(output_im)
 
         # plt.pause(0.0001)
     # time.sleep(3)
+
+
+def gate_detection_jungle(vote_ms_1, y_ms_1, x_ms_1, lines, clusters_1, start, end, votes, dist_thresh, rgb, data, this_pose):
+    # altered for jungle to find second gate
+        idx = vote_ms_1 * (800-y_ms_1) / 1000  # * (400-abs(x_ms_1-1280/2))/100000
+        max_hor_id = np.argmax(idx)
+        idx[y_ms_1 > 360] = -2                       # cut away lower half
+        idx[y_ms_1 < y_ms_1[max_hor_id]+50] = -1    # cut away anything near and above max_horizontal
+        #
+        # for index in range(len(vote_ms_1)):
+        #     cv2.circle(rgb, (int(x_ms_1[index]), int(y_ms_1[index])), dist_thresh, (255, 255, 255), 2)
+        #     cv2.putText(rgb, str(int(idx[index])), (int(x_ms_1[index]), int(y_ms_1[index])), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2,
+        #                 cv2.LINE_AA)
+
+        max_cluster = np.argmax(idx) + 1
+
+        corner_points = np.zeros((5, 2))
+        corner_points[0, :] = [x_ms_1[max_cluster - 1], y_ms_1[max_cluster - 1]]
+
+        # cv2.circle(rgb, (int(corner_points[0, 0]), int(corner_points[0, 1])), dist_thresh, (255, 0, 0), 2)
+        # cv2.circle(rgb, (int(corner_points[0, 0]), int(corner_points[0, 1])), 2, (255, 0, 0), 2)
+
+        # find lines originating from this cluster and recluster its endpoints
+        to_cluster_id = np.where(clusters_1 == max_cluster)[0]
+        to_cluster_id1 = to_cluster_id[to_cluster_id < len(lines)]
+        to_cluster_id2 = to_cluster_id[to_cluster_id >= len(lines)] - len(lines)
+        lines_cluster_1 = np.concatenate((to_cluster_id1, to_cluster_id2))
+
+        #
+        # for line in to_cluster_id1:
+        #     cv2.line(rgb, (start[0][line], start[1][line]), (end[0][line], end[1][line]), (0, 0, 255), 2)
+        # for line in to_cluster_id2:
+        #     cv2.line(rgb, (start[0][line], start[1][line]), (end[0][line], end[1][line]), (0, 0, 255), 2)
+
+        to_cluster1 = end[:, to_cluster_id1]
+        to_cluster2 = start[:, to_cluster_id2]
+        to_cluster = np.concatenate((to_cluster1, to_cluster2), axis=1)
+        votes_2 = np.concatenate((votes[to_cluster_id1], votes[to_cluster_id2]))
+
+        clusters_2 = np.zeros(np.shape(to_cluster)[1])
+        cluster = 0
+        x_ms_2 = np.array([])
+        y_ms_2 = np.array([])
+        vote_ms_2 = np.array([])
+
+        while not clusters_2.all():
+            cluster = cluster + 1
+            s = np.where(clusters_2 == 0)[0][0]
+            x_m = to_cluster[0][s]
+            y_m = to_cluster[1][s]
+            vote_m = votes_2[s]
+            clusters_2[s] = cluster
+
+            for idx in np.where(clusters_2 == 0)[0]:
+                x = to_cluster[0][idx]
+                y = to_cluster[1][idx]
+                vote = votes_2[idx]
+                distance = math.sqrt((x - x_m) ** 2 + (y - y_m) ** 2)
+                # print distance
+                if distance < dist_thresh:
+                    x_m = (x_m * vote_m + x * vote) / (vote_m + vote)
+                    y_m = (y_m * vote_m + y * vote) / (vote_m + vote)
+                    vote_m = vote_m + vote
+                    clusters_2[idx] = cluster
+
+            x_ms_2 = np.append(x_ms_2, x_m)
+            y_ms_2 = np.append(y_ms_2, y_m)
+            vote_ms_2 = np.append(vote_ms_2, vote_m)
+
+        if cluster < 2:
+            rospy.loginfo("empty sequence 2")
+            publisher_result.publish(Gate_Detection_Msg())
+            rgb = cv2.resize(rgb, (0, 0), fx=output_scale, fy=output_scale)
+            output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
+            publisher_image_gate.publish(output_im)
+            return
+
+        maximum_ids = vote_ms_2.argsort()[-2:][::-1]
+
+        # find closest original clusters
+        x_diff = x_ms_1 - x_ms_2[maximum_ids[0]]
+        y_diff = y_ms_1 - y_ms_2[maximum_ids[0]]
+        diff = x_diff * x_diff + y_diff * y_diff
+        # temp_vote = vote_ms_1.copy()
+        # for index in range(len(temp_vote)):
+        #     if diff[index] > relocate_factor * relocate_factor * dist_thresh * dist_thresh:
+        #         temp_vote[index] = 0
+        # close_id1 = np.argmax(temp_vote)
+        close_id1 = np.argmin(diff)
+
+        x_diff = x_ms_1 - x_ms_2[maximum_ids[1]]
+        y_diff = y_ms_1 - y_ms_2[maximum_ids[1]]
+        diff = x_diff * x_diff + y_diff * y_diff
+        # temp_vote = vote_ms_1.copy()
+        # for index in range(len(temp_vote)):
+        #     if diff[index] > relocate_factor * relocate_factor * dist_thresh * dist_thresh:
+        #         temp_vote[index] = 0
+        # close_id2 = np.argmax(temp_vote)
+        close_id2 = np.argmin(diff)
+
+        corner_points[1, :] = [x_ms_1[close_id1], y_ms_1[close_id1]]
+        corner_points[2, :] = [x_ms_1[close_id2], y_ms_1[close_id2]]
+
+        # cv2.circle(rgb, (int(corner_points[1, 0]), int(corner_points[1, 1])), dist_thresh, (0, 255, 0), 2)
+        # cv2.circle(rgb, (int(corner_points[2, 0]), int(corner_points[2, 1])), dist_thresh, (0, 255, 0), 2)
+        # cv2.circle(rgb, (int(corner_points[1, 0]), int(corner_points[1, 1])), 2, (0, 255, 0), 2)
+        # cv2.circle(rgb, (int(corner_points[2, 0]), int(corner_points[2, 1])), 2, (0, 255, 0), 2)
+
+        # find lines originating from two median points and recluster its endpoints into two clusters
+        close_id1 = close_id1 + 1  # to equal cluster number
+        close_id2 = close_id2 + 1  # to equal cluster number
+
+        lines_cluster_2a_long = np.where(clusters_1 == close_id1)[0]
+        lines_cluster_2b_long = np.where(clusters_1 == close_id2)[0]
+
+        to_cluster_id1_a = lines_cluster_2a_long[lines_cluster_2a_long < len(lines)]
+        to_cluster_id2_a = lines_cluster_2a_long[lines_cluster_2a_long >= len(lines)] - len(lines)
+        to_cluster_id1_b = lines_cluster_2b_long[lines_cluster_2b_long < len(lines)]
+        to_cluster_id2_b = lines_cluster_2b_long[lines_cluster_2b_long >= len(lines)] - len(lines)
+
+        lines_cluster_2a = np.concatenate((to_cluster_id1_a, to_cluster_id2_a))
+        lines_cluster_2b = np.concatenate((to_cluster_id1_b, to_cluster_id2_b))
+
+        rm1a = np.in1d(to_cluster_id1_a, to_cluster_id1) + np.in1d(to_cluster_id1_a, to_cluster_id2)
+        rm2a = np.in1d(to_cluster_id2_a, to_cluster_id1) + np.in1d(to_cluster_id2_a, to_cluster_id2)
+        rm1b = np.in1d(to_cluster_id1_b, to_cluster_id1) + np.in1d(to_cluster_id1_b, to_cluster_id2)
+        rm2b = np.in1d(to_cluster_id2_b, to_cluster_id1) + np.in1d(to_cluster_id2_b, to_cluster_id2)
+
+        to_cluster_id1_a = np.delete(to_cluster_id1_a, np.where(rm1a))
+        to_cluster_id2_a = np.delete(to_cluster_id2_a, np.where(rm2a))
+        to_cluster_id1_b = np.delete(to_cluster_id1_b, np.where(rm1b))
+        to_cluster_id2_b = np.delete(to_cluster_id2_b, np.where(rm2b))
+
+        # for line in to_cluster_id1_a:
+        #     cv2.line(rgb, (start[0][line], start[1][line]), (end[0][line], end[1][line]), (0, 0, 0), 2)
+        # for line in to_cluster_id2_a:
+        #     cv2.line(rgb, (start[0][line], start[1][line]), (end[0][line], end[1][line]), (0, 0, 0), 2)
+        #
+        # for line in to_cluster_id1_b:
+        #     cv2.line(rgb, (start[0][line], start[1][line]), (end[0][line], end[1][line]), (255, 0, 0), 2)
+        # for line in to_cluster_id2_b:
+        #     cv2.line(rgb, (start[0][line], start[1][line]), (end[0][line], end[1][line]), (255, 0, 0), 2)
+
+        # cluster a
+        to_cluster1 = end[:, to_cluster_id1_a]
+        to_cluster2 = start[:, to_cluster_id2_a]
+        to_cluster = np.concatenate((to_cluster1, to_cluster2), axis=1)
+
+        votes_3a = np.concatenate((votes[to_cluster_id1_a], votes[to_cluster_id2_a]))
+        #
+        # for i in range(np.shape(to_cluster)[1]):
+        #     cv2.circle(rgb, (int(to_cluster[0][i]), int(to_cluster[1][i])), 2, (255, 0, 0), 2)
+
+        clusters_3a = np.zeros(np.shape(to_cluster)[1])
+        cluster = 0
+        x_ms_3a = np.array([])
+        y_ms_3a = np.array([])
+        vote_ms_3a = np.array([])
+
+        while not clusters_3a.all():
+            cluster = cluster + 1
+            s = np.where(clusters_3a == 0)[0][0]
+            x_m = to_cluster[0][s]
+            y_m = to_cluster[1][s]
+            vote_m = votes_3a[s]
+            clusters_3a[s] = cluster
+
+            for idx in np.where(clusters_3a == 0)[0]:
+                x = to_cluster[0][idx]
+                y = to_cluster[1][idx]
+                vote = votes_3a[idx]
+                distance = math.sqrt((x - x_m) ** 2 + (y - y_m) ** 2)
+                # print distance
+                if distance < dist_thresh:
+                    x_m = (x_m * vote_m + x * vote) / (vote_m + vote)
+                    y_m = (y_m * vote_m + y * vote) / (vote_m + vote)
+                    vote_m = vote_m + vote
+                    clusters_3a[idx] = cluster
+
+            x_ms_3a = np.append(x_ms_3a, x_m)
+            y_ms_3a = np.append(y_ms_3a, y_m)
+            vote_ms_3a = np.append(vote_ms_3a, vote_m)
+
+        if cluster == 0:
+            rospy.loginfo("empty sequence 3a")
+            publisher_result.publish(Gate_Detection_Msg())
+            rgb = cv2.resize(rgb, (0, 0), fx=output_scale, fy=output_scale)
+            output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
+            publisher_image_gate.publish(output_im)
+            return
+
+        maximum_id_3a = np.argmax(vote_ms_3a)
+
+        # find closest original cluster
+        x_diff = x_ms_1 - x_ms_3a[maximum_id_3a]
+        y_diff = y_ms_1 - y_ms_3a[maximum_id_3a]
+        diff = x_diff * x_diff + y_diff * y_diff
+        # temp_vote = vote_ms_1.copy()
+        # for index in range(len(temp_vote)):
+        #     if diff[index] > relocate_factor * relocate_factor * dist_thresh * dist_thresh:
+        #         temp_vote[index] = 0
+        # close_id_3a = np.argmax(temp_vote)
+        close_id_3a = np.argmin(diff)
+
+        corner_points[3, :] = [x_ms_1[close_id_3a], y_ms_1[close_id_3a]]
+
+        # cv2.circle(rgb, (int(corner_points[3, 0]), int(corner_points[3, 1])), dist_thresh, (0, 255, 255), 2)
+        # cv2.circle(rgb, (int(corner_points[3, 0]), int(corner_points[3, 1])), 2, (0, 255, 255), 2)
+
+        # find lines going to two endpoints
+        close_id_3a = close_id_3a + 1  # to equal cluster number
+        lines_cluster_3a_long = np.where(clusters_1 == close_id_3a)[0]
+        lines_cluster_3a_short1 = lines_cluster_3a_long[lines_cluster_3a_long < len(lines)]
+        lines_cluster_3a_short2 = lines_cluster_3a_long[lines_cluster_3a_long >= len(lines)] - len(lines)
+        lines_cluster_3a = np.concatenate((lines_cluster_3a_short1, lines_cluster_3a_short2))
+
+        # cluster b
+        to_cluster1 = end[:, to_cluster_id1_b]
+        to_cluster2 = start[:, to_cluster_id2_b]
+        to_cluster = np.concatenate((to_cluster1, to_cluster2), axis=1)
+
+        votes_3b = np.concatenate((votes[to_cluster_id1_b], votes[to_cluster_id2_b]))
+        #
+        # for i in range(np.shape(to_cluster)[1]):
+        #     cv2.circle(rgb, (int(to_cluster[0][i]), int(to_cluster[1][i])), 2, (255, 0, 0), 2)
+
+        clusters_3b = np.zeros(np.shape(to_cluster)[1])
+        cluster = 0
+        x_ms_3b = np.array([])
+        y_ms_3b = np.array([])
+        vote_ms_3b = np.array([])
+
+        while not clusters_3b.all():
+            cluster = cluster + 1
+            s = np.where(clusters_3b == 0)[0][0]
+            x_m = to_cluster[0][s]
+            y_m = to_cluster[1][s]
+            vote_m = votes_3b[s]
+            clusters_3b[s] = cluster
+
+            for idx in np.where(clusters_3b == 0)[0]:
+                x = to_cluster[0][idx]
+                y = to_cluster[1][idx]
+                vote = votes_3b[idx]
+                distance = math.sqrt((x - x_m) ** 2 + (y - y_m) ** 2)
+                # print distance
+                if distance < dist_thresh:
+                    x_m = (x_m * vote_m + x * vote) / (vote_m + vote)
+                    y_m = (y_m * vote_m + y * vote) / (vote_m + vote)
+                    vote_m = vote_m + vote
+                    clusters_3b[idx] = cluster
+
+            x_ms_3b = np.append(x_ms_3b, x_m)
+            y_ms_3b = np.append(y_ms_3b, y_m)
+            vote_ms_3b = np.append(vote_ms_3b, vote_m)
+
+        if cluster == 0:
+            rospy.loginfo("empty sequence 3b")
+            publisher_result.publish(Gate_Detection_Msg())
+            rgb = cv2.resize(rgb, (0, 0), fx=output_scale, fy=output_scale)
+            output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
+            publisher_image_gate.publish(output_im)
+            return
+
+        maximum_id_3b = np.argmax(vote_ms_3b)
+
+        # find closest original cluster
+        x_diff = x_ms_1 - x_ms_3b[maximum_id_3b]
+        y_diff = y_ms_1 - y_ms_3b[maximum_id_3b]
+        diff = x_diff * x_diff + y_diff * y_diff
+        # temp_vote = vote_ms_1.copy()
+        # for index in range(len(temp_vote)):
+        #     if diff[index] > relocate_factor * relocate_factor * dist_thresh * dist_thresh:
+        #         temp_vote[index] = 0
+        # close_id_3b = np.argmax(temp_vote)
+        close_id_3b = np.argmin(diff)
+
+        corner_points[4, :] = [x_ms_1[close_id_3b], y_ms_1[close_id_3b]]
+
+        # cv2.circle(rgb, (int(corner_points[4, 0]), int(corner_points[4, 1])), dist_thresh, (0, 0, 255), 2)
+        # cv2.circle(rgb, (int(corner_points[4, 0]), int(corner_points[4, 1])), 2, (0, 0, 255), 2)
+
+        # find lines going to two endpoints
+        close_id_3b = close_id_3b + 1  # to equal cluster number
+        lines_cluster_3b_long = np.where(clusters_1 == close_id_3b)[0]
+        lines_cluster_3b_short1 = lines_cluster_3b_long[lines_cluster_3b_long < len(lines)]
+        lines_cluster_3b_short2 = lines_cluster_3b_long[lines_cluster_3b_long >= len(lines)] - len(lines)
+        lines_cluster_3b = np.concatenate((lines_cluster_3b_short1, lines_cluster_3b_short2))
+
+        # intersect all lines that go together
+        lines1 = lines_cluster_1[np.in1d(lines_cluster_1, lines_cluster_2a)]
+        lines2 = lines_cluster_1[np.in1d(lines_cluster_1, lines_cluster_2b)]
+        lines3 = lines_cluster_2a[np.in1d(lines_cluster_2a, lines_cluster_3a)]
+        lines4 = lines_cluster_2b[np.in1d(lines_cluster_2b, lines_cluster_3b)]
+
+        # for line in lines1:
+        #     cv2.line(rgb, (start[0][line], start[1][line]), (end[0][line], end[1][line]), (0, 255, 0), 2)
+        # for line in lines2:
+        #     cv2.line(rgb, (start[0][line], start[1][line]), (end[0][line], end[1][line]), (255, 0, 0), 2)
+        # for line in lines3:
+        #     cv2.line(rgb, (start[0][line], start[1][line]), (end[0][line], end[1][line]), (255, 0, 255), 2)
+        # for line in lines4:
+        #     cv2.line(rgb, (start[0][line], start[1][line]), (end[0][line], end[1][line]), (255, 255, 0), 2)
+
+        if not (lines1.any() and lines2.any() and lines3.any() and lines4.any()):
+            rospy.loginfo("not four lines")
+            publisher_result.publish(Gate_Detection_Msg())
+            rgb = cv2.resize(rgb, (0, 0), fx=output_scale, fy=output_scale)
+            output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
+            publisher_image_gate.publish(output_im)
+            return
+
+        (x1, y1) = isect_lines_bundle(lines1, lines2, start, end)
+        (x2, y2) = isect_lines_bundle(lines1, lines3, start, end)
+        (x3, y3) = isect_lines_bundle(lines2, lines4, start, end)
+        (x4, y4) = isect_lines_bundle(lines3, lines4, start, end)
+
+        cv2.circle(rgb, (int(x1), int(y1)), dist_thresh, (255, 255, 255), 2)
+        cv2.circle(rgb, (int(x2), int(y2)), dist_thresh, (255, 255, 255), 2)
+        cv2.circle(rgb, (int(x3), int(y3)), dist_thresh, (255, 255, 255), 2)
+        cv2.circle(rgb, (int(x4), int(y4)), dist_thresh, (255, 255, 255), 2)
+        cv2.circle(rgb, (int(x1), int(y1)), 3, (255, 255, 255), 2)
+        cv2.circle(rgb, (int(x2), int(y2)), 3, (255, 255, 255), 2)
+        cv2.circle(rgb, (int(x3), int(y3)), 3, (255, 255, 255), 2)
+        cv2.circle(rgb, (int(x4), int(y4)), 3, (255, 255, 255), 2)
+
+        corner_points = np.array([[x1, y1], [x2, y2], [x3, y3], [x4, y4]])
+
+        # Assume no lens distortion
+        dist_coeffs = np.zeros((4, 1))
+
+        square_side = gate_size
+
+        # 3D model points.
+        model_points = np.array([
+            (+square_side / 2, +square_side / 2, 0.0),
+            (+square_side / 2, -square_side / 2, 0.0),
+            (-square_side / 2, +square_side / 2, 0.0),
+            (-square_side / 2, -square_side / 2, 0.0)])
+        (success, rvec, tvec) = cv2.solvePnP(model_points, corner_points, camera_matrix,
+                                             dist_coeffs, flags=cv2.SOLVEPNP_ITERATIVE)
+
+        rvec = np.squeeze(rvec)
+        tvec = np.squeeze(tvec)
+        # print "Rotation Vector:\n {0}".format(rvec)
+        # print "Translation Vector:\n {0}".format(tvec)
+
+        # publish results
+        msg = Gate_Detection_Msg()
+        msg.tvec = tvec
+        msg.rvec = rvec
+        msg.bebop_pose = this_pose
+        publisher_result.publish(msg)
+        rospy.loginfo("detected gate")
+
+        rospy.loginfo("corner_points")
+        rospy.loginfo(corner_points)
+
+        # draw a line sticking out of the plane
+        (center_point_2D_base, _) = cv2.projectPoints(np.array([(.0, .0, 0)]), rvec, tvec, camera_matrix, dist_coeffs)
+        (center_point_2D_back, _) = cv2.projectPoints(np.array([(.0, .0, square_side)]), rvec, tvec, camera_matrix,
+                                                      dist_coeffs)
+        (center_point_2D_frnt, _) = cv2.projectPoints(np.array([(.0, .0, -square_side)]), rvec, tvec, camera_matrix,
+                                                      dist_coeffs)
+
+        p1 = (int(center_point_2D_back[0][0][0]), int(center_point_2D_back[0][0][1]))
+        p2 = (int(center_point_2D_frnt[0][0][0]), int(center_point_2D_frnt[0][0][1]))
+        p3 = (int(center_point_2D_base[0][0][0]), int(center_point_2D_base[0][0][1]))
+
+        if True or max(p1) < 10000 and max(p2) < 10000 and min(p1) > 0 and min(p2) > 0:
+            cv2.line(rgb, p1, p3, (255, 255, 255), 10)
+            cv2.line(rgb, p2, p3, (255, 255, 255), 10)
+        if True or max(p3) < 10000 and min(p3) > 0:
+            cv2.circle(rgb, p3, 10, (0, 0, 0), -1)
 
 
 def pose_callback(data):
@@ -740,16 +1135,15 @@ def camera_info_update(data):
     global camera_matrix
     camera_matrix = np.resize(np.asarray(data.K), [3, 3])
 
-    # camera_matrix = np.array(
-    #     [[608.91474407, 0, 318.06264861]
-    #      [0, 568.01764401, 242.18421071]
-    #     [0, 0, 1]], dtype="double"
-    # )
-
 
 def callback_dynamic_detection_changed(data):
     global gate_detection_dynamic_on
     gate_detection_dynamic_on = data.data
+
+
+def callback_jungle_detection_changed(data):
+    global gate_detection_jungle_on
+    gate_detection_jungle_on = data.data
 
 
 def callback_gate_size_changed(data):
@@ -766,12 +1160,13 @@ if __name__ == '__main__':
     signal.signal(signal.SIGINT, signal_handler)
     rospy.init_node('gate_detection', anonymous=False)
 
-    camera_matrix = None
+    camera_matrix = None  # np.array([[669.86121, 0.0, 629.62378], [0.0, 669.86121, 384.62851], [0.0, 0.0, 1.0]])
 
     latest_pose = None
     gate_detection_dynamic_on = False
+    gate_detection_jungle_on = False
     gate_size = 1.4
-    output_scale = 0.3
+    output_scale = 0.4
     # relocate_factor = 1.5
 
     bridge = CvBridge()
@@ -780,6 +1175,7 @@ if __name__ == '__main__':
     rospy.Subscriber("/zed/rgb/image_rect_color", Image, stereo_callback)
     rospy.Subscriber("/bebop/odom", Odometry, pose_callback)
     rospy.Subscriber("/auto/dynamic_detection_on", Bool, callback_dynamic_detection_changed)
+    rospy.Subscriber("/auto/jungle_detection_on", Bool, callback_jungle_detection_changed)
     rospy.Subscriber("/auto/gate_size", Float32, callback_gate_size_changed)
     rospy.Subscriber("/auto/emergency_shutdown", Empty, emergency_shutdown)
 

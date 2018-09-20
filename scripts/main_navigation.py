@@ -789,7 +789,6 @@ def navigate_jungle2():
     rospy.loginfo("fly to")
     rospy.loginfo(wp_select)
 
-
     diff_global_look = wp_look.pos - bebop_p
     pos_theta = math.atan2(diff_global_look[1], diff_global_look[0])
     angle = tfs.euler_from_quaternion(bebop_q)[2]
@@ -800,7 +799,6 @@ def navigate_jungle2():
     elif r_error < -math.pi:
         r_error = 2 * math.pi + r_error
 
-
     diff_global = wp_select.pos - bebop_p
     dist = math.hypot(diff_global[0], diff_global[1])
 
@@ -808,9 +806,7 @@ def navigate_jungle2():
 
     y_pos_error = -(diff_global[1]/dist)*commanding
     x_pos_error = (diff_global[0]/dist)*commanding
-    
 
-    
     msg = Auto_Driving_Msg()
     msg.x = x_pos_error
     msg.y = y_pos_error
@@ -1176,7 +1172,7 @@ def callback_bebop_odometry_changed(data):
         auto_driving_msg = navigate_dynamic()
     elif nav_active == "jungle":
         auto_driving_msg = navigate_jungle()
-    elif nav_active == "jungle2"
+    elif nav_active == "jungle2":
         auto_driving_msg = navigate_jungle2()
 
     publisher_auto_drive.publish(auto_driving_msg)
@@ -1211,8 +1207,7 @@ if __name__ == '__main__':
     wp_takeoff = None
     wp_scale = None
     detection_active = False
-    detection_dynamic_data = cr.DynamicData()
-    # detection_jungle_data = cr.DynamicData()
+    detection_dynamic_data = cr.OpenloopData()
     detection_dynamic_input_history = np.array([[], []])
     nav_active = "off"
     nav_point_PID_x_pos = cr.PID2(.5, 0.1, 4.0)
@@ -1241,7 +1236,7 @@ if __name__ == '__main__':
     auto_driving_msg = Auto_Driving_Msg()
     current_state = None
     t_log = 1455208000
-    gate_detection_dynamic_counter = 100 ###############
+    gate_detection_dynamic_counter = 100  # ##############
 
     # Publishers
     publisher_state_auto = rospy.Publisher("/auto/state_auto",     Int32,                queue_size=1, latch=True)
@@ -1275,7 +1270,8 @@ if __name__ == '__main__':
     t = "through"
     o = "off"
 
-    # own_state, next_state, condition_type, condition_thres, exit_clear_visual, detection_active_bool, special_detection, nav_active_str, gate_size, fly, look
+    # own_state, next_state, condition_type, condition_thres, exit_clear_visual, detection_active_bool,
+    # special_detection, nav_active_str, gate_size, fly, look
 
     states = [State()] * 100
     states[02] = State(02, 03, "bebop", 1,                0, 0, 0, o, None, [], [])

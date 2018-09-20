@@ -1419,7 +1419,7 @@ if __name__ == '__main__':
     auto_driving_msg = Auto_Driving_Msg()
     current_state = None
     t_log = 1455208000
-    gate_detection_dynamic_counter = 100 ###############
+    gate_detection_dynamic_counter = 100  # ##############
 
     # Publishers
     publisher_state_auto = rospy.Publisher("/auto/state_auto",     Int32,                queue_size=1, latch=True)
@@ -1452,7 +1452,8 @@ if __name__ == '__main__':
     t = "through"
     o = "off"
 
-    # own_state, next_state, condition_type, condition_thres, exit_clear_visual, detection_active_bool, special_detection, nav_active_str, gate_size, fly, look
+    # own_state, next_state, condition_type, condition_thres, exit_clear_visual, detection_active_bool,
+    # special_detection, nav_active_str, gate_size, fly, look
 
     states = [State()] * 100
     states[02] = State(02, 03, "bebop", 1,                0, 0, 0, o, None, [], [])

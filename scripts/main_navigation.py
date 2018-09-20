@@ -363,7 +363,7 @@ def calculate_visual_wp():
         # hover 1.5m behind jungle gym gate
         gate_pos = wp_average.pos
         gate_heading = wp_average.hdg
-        hover_distance = -0.9
+        hover_distance = -1.2
         hover_alt = -0.0
         extra_dist = np.array(
             [hover_distance * math.cos(gate_heading), hover_distance * math.sin(gate_heading), hover_alt])
@@ -1037,7 +1037,7 @@ class State:
         publisher_dynamic_detection_on.publish(self.dynamic_on)
         publisher_jungle_detection_on.publish(self.jungle_on)
 
-        if self.jungle_on:
+        if self.jungle_on and self.own_state == 63:
             global wp_input_history2
             wp_input_history2 = list(wp_input_history)
             global wp_average1
@@ -1288,7 +1288,7 @@ if __name__ == '__main__':
     states[61] = State(61, 62, "wp",    None,             0, 1, 0, p, None, [2.2, -3.1, -0.4], [0.0, -3.1, 0])
     states[62] = State(62, 63, "dist",  0.4,              0, 1, 0, p, None, [], [])
     states[63] = State(63, 64, "dist",  0.1,              0, 1, j, p, None, [], [])
-    states[63] = State(64, 70, "open",  5,                1, 1, j, j, None, [], [])
+    states[64] = State(64, 70, "open",  5,                1, 1, j, j, None, [], [])
     states[70] = State(70, 71, "dist",  dist_gate_blind,  0, 0, 0, p, 2.1,  [3.5, -3.3, 0], [4.52, 0, 0])
     states[71] = State(71, 72, "wp",    None,             0, 1, 0, p, None, [4.5, -3.3, 0], [4.52, 0, 0])
     states[72] = State(72, 73, "dist",  dist_gate_dyn,    0, 1, 0, p, None, [], [])

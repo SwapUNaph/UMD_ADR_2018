@@ -147,13 +147,13 @@ def stereo_callback(data):
     global rvec
     global tvec
 
-    debug_on = False
+    debug_on = True
 
     if debug_on:
         global gate_detection_dynamic_on
         global gate_detection_jungle_on
         this_pose = Pose()
-        gate_detection_jungle_on = True
+        # gate_detection_jungle_on = True
         # gate_detection_dynamic_on = True
     else:
         if latest_pose is None:
@@ -199,10 +199,33 @@ def stereo_callback(data):
     # votes = np.array(list(reversed(range(len(lines))))) + 1
     # for counter, line in enumerate(lines):
     #     for x1, y1, x2, y2 in line:
-    #         # angles.append(math.atan2(y2 - y1, x2 - x1) * 180 / np.pi)  # between -90 and 90
-    #         cv2.circle(rgb, (x1, y1), 5, (votes[counter]*255.0/len(lines), votes[counter]*255.0/len(lines), votes[counter]*255.0/len(lines)), 2)
-    #         cv2.circle(rgb, (x2, y2), 5, (votes[counter]*255.0/len(lines), votes[counter]*255.0/len(lines), votes[counter]*255.0/len(lines)), 2)
-    #         # cv2.line(rgb, (x1, y1), (x2, y2), (0, 255, 0), 2)
+    # #         # angles.append(math.atan2(y2 - y1, x2 - x1) * 180 / np.pi)  # between -90 and 90
+    #         cv2.circle(rgb, (x1, y1), 5, (255, 0, 255), 2)
+    #         cv2.circle(rgb, (x2, y2), 5, (255, 0, 255), 2)
+    #         cv2.line(rgb, (x1, y1), (x2, y2), (0, 255, 0), 2)
+
+    xa1 = 0.0
+    xa2 = 0.0
+    c1 = 0
+    c2 = 0
+    for counter, line in enumerate(lines):
+        for x1, y1, x2, y2 in line:
+            if abs(y2 - y1) > 500:
+                for x in [x1, x2]:
+                    if x < 640:
+                        xa1 = xa1 + x
+                        c1 = c1 + 1
+                    else:
+                        xa2 = xa2 + x
+                        c2 = c2 + 1
+
+    xa1 = xa1 / c1
+    xa2 = xa2 / c2
+    xa = (xa1 + xa2) / 2
+
+    # cv2.line(rgb, (int(xa1), 0), (int(xa1), 1000), (255, 255, 0), 10)
+    # cv2.line(rgb, (int(xa2), 0), (int(xa2), 1000), (255, 255, 0), 10)
+    cv2.line(rgb, (int(xa), 0), (int(xa), 1000), (0, 0, 255), 10)
 
     # plt.clf()
     # hist = np.histogram(angles, 90, [-90.0, 90.0])

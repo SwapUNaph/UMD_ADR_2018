@@ -747,7 +747,7 @@ def navigate_jungle():
     bebop_p = [bebop_position.x, bebop_position.y, bebop_position.z]
     bebop_q = [bebop_orientation.x, bebop_orientation.y, bebop_orientation.z, bebop_orientation.w]
 
-    diff_global_look = wp_visual.pos - bebop_p
+    diff_global = wp_visual.pos - bebop_p
     
     gate_theta = wp_select.hdg
     
@@ -792,7 +792,7 @@ def navigate_jungle():
                 current_state.openloop_data.timer = 0.0
         else:
             current_state.openloop_data.timer = time.time()
-            rospy.loginfo("JUNGLE - timer started")v
+            rospy.loginfo("JUNGLE - timer started")
 
     # correct
     elif current_state.openloop_data.state == 1:

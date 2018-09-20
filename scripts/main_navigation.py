@@ -218,38 +218,84 @@ def callback_visual_gate_detection_changed(data):
             str(1.0) + ", " + \
             str(time.time()-t_log)
     else:
-        # now, add to list only if gate position is close to average
-        distance = np.linalg.norm(wp_current.pos - wp_average.pos)
-        hdg_diff = abs(math.atan2(math.sin(wp_current.hdg - wp_average.hdg), math.cos(wp_current.hdg - wp_average.hdg)))
-        if distance < 0.4 and hdg_diff < 15*math.pi/180:
-            rospy.loginfo("use detected gate")
-            wp_input_history.append(wp_current)
-            del wp_input_history[0]
-            wp_average = cr.find_average(wp_input_history)
-            rospy.loginfo("wp_average")
-            rospy.loginfo(wp_average)
-        else:
-            rospy.loginfo("discard detected gate")
+        if state_auto == 63:
+            # now, find out if you need to add or subtract .35
+            wp_current1 = wp_move(wp_current, 0.35, wp_current.hdg)
+            wp_current2 = wp_move(wp_current, -0.35, wp_current.hdg)
+            distance1 = np.linalg.norm(wp_current1.pos - wp_average.pos)
+            distance2 = np.linalg.norm(wp_current2.pos - wp_average.pos)
+            hdg_diff = abs(
+                math.atan2(math.sin(wp_current.hdg - wp_average.hdg), math.cos(wp_current.hdg - wp_average.hdg)))
+            if distance1 < 0.4 and hdg_diff < 15 * math.pi / 180:
+                rospy.loginfo("use detected gate (added)")
+                wp_input_history.append(wp_current1)
+                del wp_input_history[0]
+                wp_average = cr.find_average(wp_input_history)
+                rospy.loginfo("wp_average")
+                rospy.loginfo(wp_average)
+            elif distance2 < 0.4 and hdg_diff < 15 * math.pi / 180:
+                rospy.loginfo("use detected gate (subtr)")
+                wp_input_history.append(wp_current2)
+                del wp_input_history[0]
+                wp_average = cr.find_average(wp_input_history)
+                rospy.loginfo("wp_average")
+                rospy.loginfo(wp_average)
+            else:
+                rospy.loginfo("discard detected gate")
 
-        log_string = str(wp_current.pos[0]) + ", " + \
-            str(wp_current.pos[1]) + ", " + \
-            str(wp_current.pos[2]) + ", " + \
-            str(wp_current.hdg) + ", " + \
-            str(wp_average.pos[0]) + ", " + \
-            str(wp_average.pos[1]) + ", " + \
-            str(wp_average.pos[2]) + ", " + \
-            str(wp_average.hdg) + ", " + \
-            str(bebop_p[0]) + ", " + \
-            str(bebop_p[1]) + ", " + \
-            str(bebop_p[2]) + ", " + \
-            str(bebop_q[3]) + ", " + \
-            str(bebop_q[0]) + ", " + \
-            str(bebop_q[1]) + ", " + \
-            str(bebop_q[2]) + ", " + \
-            str(heading_to_gate) + ", " + \
-            str(distance) + ", " + \
-            str(2.0) + ", " + \
-            str(time.time()-t_log)
+            log_string = str(wp_current.pos[0]) + ", " + \
+                str(wp_current.pos[1]) + ", " + \
+                str(wp_current.pos[2]) + ", " + \
+                str(wp_current.hdg) + ", " + \
+                str(wp_average.pos[0]) + ", " + \
+                str(wp_average.pos[1]) + ", " + \
+                str(wp_average.pos[2]) + ", " + \
+                str(wp_average.hdg) + ", " + \
+                str(bebop_p[0]) + ", " + \
+                str(bebop_p[1]) + ", " + \
+                str(bebop_p[2]) + ", " + \
+                str(bebop_q[3]) + ", " + \
+                str(bebop_q[0]) + ", " + \
+                str(bebop_q[1]) + ", " + \
+                str(bebop_q[2]) + ", " + \
+                str(heading_to_gate) + ", " + \
+                str(min(distance1, distance2)) + ", " + \
+                str(2.0) + ", " + \
+                str(time.time() - t_log)
+        else:
+            # now, add to list only if gate position is close to average
+            distance = np.linalg.norm(wp_current.pos - wp_average.pos)
+            hdg_diff = abs(
+                math.atan2(math.sin(wp_current.hdg - wp_average.hdg), math.cos(wp_current.hdg - wp_average.hdg)))
+            if distance < 0.4 and hdg_diff < 15*math.pi/180:
+                rospy.loginfo("use detected gate")
+                wp_input_history.append(wp_current)
+                del wp_input_history[0]
+                wp_average = cr.find_average(wp_input_history)
+                rospy.loginfo("wp_average")
+                rospy.loginfo(wp_average)
+            else:
+                rospy.loginfo("discard detected gate")
+
+            log_string = str(wp_current.pos[0]) + ", " + \
+                str(wp_current.pos[1]) + ", " + \
+                str(wp_current.pos[2]) + ", " + \
+                str(wp_current.hdg) + ", " + \
+                str(wp_average.pos[0]) + ", " + \
+                str(wp_average.pos[1]) + ", " + \
+                str(wp_average.pos[2]) + ", " + \
+                str(wp_average.hdg) + ", " + \
+                str(bebop_p[0]) + ", " + \
+                str(bebop_p[1]) + ", " + \
+                str(bebop_p[2]) + ", " + \
+                str(bebop_q[3]) + ", " + \
+                str(bebop_q[0]) + ", " + \
+                str(bebop_q[1]) + ", " + \
+                str(bebop_q[2]) + ", " + \
+                str(heading_to_gate) + ", " + \
+                str(distance) + ", " + \
+                str(2.0) + ", " + \
+                str(time.time()-t_log)
 
     publisher_visual_log.publish(log_string)
 
@@ -288,27 +334,6 @@ def calculate_visual_wp():
         wp_blind = cr.WP(gate_pos + extra_dist, gate_heading)
 
         wp_look = wp_average
-
-    elif state_auto == 63:
-        rospy.loginfo("state 63, calculate 2nd jungle position")
-
-        # set WP 3m ahead in gate direction
-        gate_pos = wp_average.pos
-        bebop_position = bebop_odometry.pose.pose.position
-        bebop_p = [bebop_position.x, bebop_position.y, bebop_position.z]
-        gate_relative_pos = gate_pos - bebop_p
-        gate_heading = math.atan2(gate_relative_pos[1], gate_relative_pos[0])
-        gate_distance = 3.0
-        extra_dist = np.array(
-            [gate_distance * math.cos(gate_heading), gate_distance * math.sin(gate_heading), 0])
-        wp_visual = cr.WP(gate_pos + extra_dist, gate_heading)
-
-        # calculate wp_look 4m behind second jungle
-        gate_pos = wp_average.pos
-        gate_heading = wp_average.hdg
-        look_distance = 4.0
-        extra_dist = np.array([look_distance * math.cos(gate_heading), look_distance * math.sin(gate_heading), 0])
-        wp_look = cr.WP(gate_pos + extra_dist, 0)
 
     else:
         wp_visual = wp_average
@@ -1242,7 +1267,7 @@ class State:
         if self.jungle_on:
             global wp_input_history
             for idx, wp in enumerate(wp_input_history):
-                wp_input_history[idx] = wp_move(wp, 0.7, wp_average.hdg)
+                wp_input_history[idx] = wp_move(wp, 0.35, wp_average.hdg)
             global wp_average
             wp_average = cr.find_average(wp_input_history)
 
@@ -1481,9 +1506,9 @@ if __name__ == '__main__':
     states[53] = State(53, 60, "dist",  dist_exit_gate,   0, 0, 0, p, None, [dist_egw, 0, 0], [dist_egw, 0, 0])
     states[60] = State(60, 61, "dist",  dist_gate_blind,  0, 0, 0, p, 1.0,  [2.7, -3.3, -0.4], [0.0, -3.1, 0])
     states[61] = State(61, 62, "wp",    None,             0, 1, 0, p, None, [2.2, -3.1, -0.4], [0.0, -3.1, 0])
-    states[62] = State(62, 63, "dist",  1.0,              0, 1, 0, j, None, [], [])
-    states[63] = State(63, 64, "dist",  3.3,              0, 1, j, p, None, [], [])
-    states[64] = State(64, 70, "dist",  2.5,              1, 0, 0, p, None, [], [])
+    states[62] = State(62, 63, "dist",  1.5,              0, 1, 0, j, None, [], [])
+    states[63] = State(63, 64, "dist",  0.2,              1, 1, j, j, None, [], [])
+    states[64] = State(64, 70, "dist",  dist_exit_jungle, 0, 0, 0, p, None, [dist_egw, 0, 0], [dist_egw, 0, 0])
     states[70] = State(70, 71, "dist",  dist_gate_blind,  0, 0, 0, p, 2.1,  [3.5, -3.3, 0], [4.52, 0, 0])
     states[71] = State(71, 72, "wp",    None,             0, 1, 0, p, None, [4.5, -3.3, 0], [4.52, 0, 0])
     states[72] = State(72, 73, "dist",  dist_gate_dyn,    0, 1, 0, p, None, [], [])

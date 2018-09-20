@@ -1,6 +1,8 @@
 rosshutdown
 rosinit('192.168.1.2')
 
+clear sub_nav
+clear sub_gate
 
 global NavPID_data
 global NavPID_indx

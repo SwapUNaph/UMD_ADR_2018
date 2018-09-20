@@ -748,8 +748,23 @@ def navigate_jungle():
     bebop_q = [bebop_orientation.x, bebop_orientation.y, bebop_orientation.z, bebop_orientation.w]
 
     diff_global_look = wp_visual.pos - bebop_p
+    
+    gate_theta = wp_select.hdg
+    
+    pos_theta = math.atan2(diff_global[1], diff_global[0])
+
+    dist = math.hypot(diff_global[0], diff_global[1])
+
+
+    d_theta = gate_theta - pos_theta
+    if d_theta > math.pi:
+        d_theta = d_theta - 2 * math.pi
+    elif d_theta < -math.pi:
+        d_theta = d_theta + 2 * math.pi
+
+    y_pos_error = -dist * math.sin(d_theta)
+
     angle = tfs.euler_from_quaternion(bebop_q)[2]
-    pos_theta = math.atan2(diff_global_look[1], diff_global_look[0])
     r_error = angle - pos_theta
     if r_error > math.pi:
         r_error = -2 * math.pi + r_error
@@ -766,31 +781,41 @@ def navigate_jungle():
         # start a timer
         if current_state.openloop_data.timer != 0.0:
             # when timer has elapsed, check yaw error
-            if time.time() - current_state.openloop_data.timer > .8:
+            if time.time() - current_state.openloop_data.timer > .75:
                 rospy.loginfo("JUNGLE - check yaw error")
-                if r_error < .08:
-                    rospy.loginfo("JUNGLE - yaw ok, state 2")
+                if abs(r_error) < .05 and abs(y_pos_error) < .05:
+                    rospy.loginfo("JUNGLE - yaw and Y ok, state 2")
                     current_state.openloop_data.state = 2  # error is small -> go forward
                 else:
-                    rospy.loginfo("JUNGLE - yaw error high, state 1")
+                    rospy.loginfo("JUNGLE - error high, state 1")
                     current_state.openloop_data.state = 1  # error is large -> correct yaw
                 current_state.openloop_data.timer = 0.0
         else:
             current_state.openloop_data.timer = time.time()
-            rospy.loginfo("JUNGLE - timer started")
+            rospy.loginfo("JUNGLE - timer started")v
 
-    # rotate
+    # correct
     elif current_state.openloop_data.state == 1:
         msg = Auto_Driving_Msg()
+        if current_state.openloop_data.timer == 0.0:
+            current_state.openloop_data.timer = time.time()
         # check error again before sending command
-        if r_error < .08:
-            rospy.loginfo("JUNGLE - yaw ok, state 0")
-            current_state.openloop_data.state = 0
+        if abs(r_error) < .05:
+            rospy.loginfo("JUNGLE - yaw ok")
         else:
             rospy.loginfo("JUNGLE - yawing")
-            msg.r = cr.limit_value(r_error, .1)
+            msg.r = cr.limit_value(r_error, .2)
+        if abs(y_pos_error) < .05:
+            rospy.loginfo("JUNGLE - Y ok")
+        else:
+            rospy.loginfo("JUNGLE - y moving")
+            msg.y =  .2*cr.limit_value(y_pos_error, .1)
+        if (abs(r_error) < .05 and abs(y_pos_error) < .05) or time.time() - current_state.openloop_data.timer > 1.5:
+            rospy.loginfo("JUNGLE - state 0")
+            current_state.openloop_data.state = 0
 
-    # wait for gate rotation
+
+    # Go
     elif current_state.openloop_data.state == 2:
         rospy.loginfo("JUNGLE - thrust triggered, state 3")
         current_state.openloop_data.state = 3
@@ -862,7 +887,7 @@ def navigate_dynamic():
             # when timer has elapsed, check yaw error
             if time.time()-current_state.openloop_data.timer > .8:
                 rospy.loginfo("DYN - check yaw error")
-                if r_error < .08:
+                if abs(r_error) < .08:
                     rospy.loginfo("DYN - yaw ok, state 2")
                     current_state.openloop_data.state = 2  # error is small -> wait for gate rotatiom
                 else:
@@ -877,7 +902,7 @@ def navigate_dynamic():
     elif current_state.openloop_data.state == 1:
         msg = Auto_Driving_Msg()
         # check error again before sending command
-        if r_error < .08:
+        if abs(r_error) < .08:
             rospy.loginfo("DYN - yaw ok, state 0")
             current_state.openloop_data.state = 0
         else:

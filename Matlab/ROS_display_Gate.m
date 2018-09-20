@@ -18,6 +18,9 @@
 % 17 std deviation
 % 18 number
 % 19 time stamp
+% 20 arm_theta
+% 21 arm_theta_avg
+
 
                      
 %% All

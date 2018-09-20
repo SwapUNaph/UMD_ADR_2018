@@ -790,15 +790,23 @@ def navigate_jungle2():
     rospy.loginfo(wp_select)
 
 
-    diff_global = wp_select.pos - bebop_p
+    diff_global_look = wp_look.pos - bebop_p
+    pos_theta = math.atan2(diff_global_look[1], diff_global_look[0])
+    angle = tfs.euler_from_quaternion(bebop_q)[2]
 
+    r_error = -(angle - pos_theta)
+    if r_error > math.pi:
+        r_error = -2 * math.pi + r_error
+    elif r_error < -math.pi:
+        r_error = 2 * math.pi + r_error
+
+
+    diff_global = wp_select.pos - bebop_p
     dist = math.hypot(diff_global[0], diff_global[1])
 
-    
-    commanding = .1    
+    commanding = .25   
 
     y_pos_error = -(diff_global[1]/dist)*commanding
-    
     x_pos_error = (diff_global[0]/dist)*commanding
     
 
@@ -807,7 +815,7 @@ def navigate_jungle2():
     msg.x = x_pos_error
     msg.y = y_pos_error
     msg.z = 0
-    msg.r = 0
+    msg.r = r_error
 
     log_string = str(
          dist) + ", " + str(

@@ -119,7 +119,7 @@ class DynamicData:
         self.timer = 0.0
         self.period = None
         self.theta = None
-        self.time_taken_to_gate = 2.2
+        self.time_taken_to_gate = 1.8
         self.throttle_counter = 0
 
     def theta_trigger(self):

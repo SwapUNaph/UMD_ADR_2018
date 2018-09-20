@@ -292,25 +292,15 @@ def calculate_visual_wp():
     elif state_auto == 63:
         rospy.loginfo("state 63, calculate 2nd jungle position")
 
-        # set WP 3m ahead in gate direction
-        gate_pos = wp_average.pos
-        bebop_position = bebop_odometry.pose.pose.position
-        bebop_p = [bebop_position.x, bebop_position.y, bebop_position.z]
-        gate_relative_pos = gate_pos - bebop_p
-        gate_heading = math.atan2(gate_relative_pos[1], gate_relative_pos[0])
-        gate_distance = 3.0
-
-        # extra_dist = np.array(
-        #     [gate_distance * math.cos(gate_heading), gate_distance * math.sin(gate_heading), 0])
-        # wp_visual = cr.WP(gate_pos + extra_dist, gate_heading)
-        wp_visual = cr.WP(gate_pos, gate_heading)
-
-        # calculate wp_look 4m behind second jungle
+        # set WP 1m ahead in gate direction
         gate_pos = wp_average.pos
         gate_heading = wp_average.hdg
-        look_distance = 4.0
-        extra_dist = np.array([look_distance * math.cos(gate_heading), look_distance * math.sin(gate_heading), 0])
-        wp_look = cr.WP(gate_pos + extra_dist, 0)
+        hover_distance = 1.0
+        extra_dist = np.array(
+            [hover_distance * math.cos(gate_heading), hover_distance * math.sin(gate_heading), 0])
+        wp_visual = cr.WP(gate_pos + extra_dist, gate_heading)
+
+        wp_look = wp_blind
 
     else:
         wp_visual = wp_average
@@ -913,7 +903,7 @@ def navigate_dynamic():
             # when timer has elapsed, check yaw error
             if time.time()-detection_dynamic_data.timer > .8:
                 rospy.loginfo("DYN - check yaw error")
-                if r_error < .08:
+                if abs(r_error) < .08:
                     rospy.loginfo("DYN - yaw ok, state 2")
                     detection_dynamic_data.state = 2  # error is small -> wait for gate rotatiom
                 else:
@@ -928,7 +918,7 @@ def navigate_dynamic():
     elif detection_dynamic_data.state == 1:
         msg = Auto_Driving_Msg()
         # check error again before sending command
-        if r_error < .08:
+        if abs(r_error) < .08:
             rospy.loginfo("DYN - yaw ok, state 0")
             detection_dynamic_data.state = 0
         else:
@@ -1305,9 +1295,8 @@ if __name__ == '__main__':
     states[53] = State(53, 60, "dist",  dist_exit_gate,   0, 0, 0, p, None, [dist_egw, 0, 0], [dist_egw, 0, 0])
     states[60] = State(60, 61, "dist",  dist_gate_blind,  0, 0, 0, p, 1.0,  [2.7, -3.3, -0.4], [0.0, -3.1, 0])
     states[61] = State(61, 62, "wp",    None,             0, 1, 0, p, None, [2.2, -3.1, -0.4], [0.0, -3.1, 0])
-    states[62] = State(62, 63, "dist",  1.0,              0, 1, 0, j, None, [], [])
-    states[63] = State(63, 70, "dist",  2.0,              1, 1, j, j2, None, [], [])
-    states[64] = State(64, 70, "dist",  dist_exit_jungle, 0, 0, 0, p, None, [dist_egw, 0, 0], [dist_egw, 0, 0])
+    states[62] = State(62, 63, "dist",  0.3,              0, 1, 0, j, None, [], [])
+    states[63] = State(63, 70, "dist",  0.3,              1, 1, j, j2,None, [], [])
     states[70] = State(70, 71, "dist",  dist_gate_blind,  0, 0, 0, p, 2.1,  [3.5, -3.3, 0], [4.52, 0, 0])
     states[71] = State(71, 72, "wp",    None,             0, 1, 0, p, None, [4.5, -3.3, 0], [4.52, 0, 0])
     states[72] = State(72, 73, "dist",  dist_gate_dyn,    0, 1, 0, p, None, [], [])

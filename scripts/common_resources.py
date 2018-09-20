@@ -113,7 +113,7 @@ class WP:
 #
 
 
-class DynamicData:
+class OpenloopData:
     def __init__(self):
         self.state = 0
         self.timer = 0.0

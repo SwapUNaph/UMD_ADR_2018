@@ -1166,7 +1166,7 @@ if __name__ == '__main__':
     gate_detection_dynamic_on = False
     gate_detection_jungle_on = False
     gate_size = 1.4
-    output_scale = 0.4
+    output_scale = 0.25
     # relocate_factor = 1.5
 
     bridge = CvBridge()

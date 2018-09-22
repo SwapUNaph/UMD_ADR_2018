@@ -119,13 +119,18 @@ class OpenloopData:
         self.timer = 0.0
         self.period = None
         self.theta = None
-        self.time_taken_to_gate = 1.8
+        self.time_taken_to_gate = 2.3
         self.throttle_counter = 0
+        self.std_dev = 2
 
     def theta_trigger(self):
-        rotations = self.time_taken_to_gate/self.period
-        theta = -(2*math.pi*rotations+(2*math.pi/(5*self.period)))
-        return theta % 2*math.pi
+        try:
+            rotations = self.time_taken_to_gate/self.period
+            theta = -(2*math.pi*rotations+(2*math.pi/(5*self.period)))
+            return theta % 2 * math.pi
+        except:
+            return None
+
 
 
 class PID:

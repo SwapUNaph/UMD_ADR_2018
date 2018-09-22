@@ -50,12 +50,13 @@ def callback_visual_gate_dynamic_changed(input_data):
             gate_detection_dynamic_counter = 0
             detection_dynamic_input_history = np.append(detection_dynamic_input_history,
                                                         [[measurement[0]], [measurement[1]]], axis=1)
-            if detection_dynamic_input_history.shape[1] > 8:
+            if detection_dynamic_input_history.shape[1] > 12:
                 rospy.loginfo("enough measurements")
                 detection_dynamic_input_history = np.delete(detection_dynamic_input_history, 0, axis=1)
                 # calculate std deviation of list
                 periods = cr.calculate_periods(detection_dynamic_input_history)
                 std_deviation = np.std(periods)
+                detection_dynamic_data.std_dev = std_deviation
                 # when std dev is low enough, provide period
                 if std_deviation < 0.3:
                     rospy.loginfo("measurements accepted")
@@ -69,34 +70,38 @@ def callback_visual_gate_dynamic_changed(input_data):
                 rospy.loginfo("collecting measurements")
                 rospy.loginfo(detection_dynamic_input_history.shape[1])
     else:
-        # add to list only if gate position is close to where it's supposed to be
-        t_diff = np.array(measurement[1]) - detection_dynamic_input_history[0][-1]
-        angle_theory = t_diff / (2*math.pi*detection_dynamic_data.period) + detection_dynamic_input_history[1][-1]
-        angle_theory = angle_theory % (2 * math.pi)
-        diff = math.fabs(angle_theory - measurement[0])
-        diff = min(diff, 2 * math.pi - diff)
-        if diff < 20 * math.pi / 180:
-            rospy.loginfo("use detected pointer")
-            detection_dynamic_input_history = np.append(detection_dynamic_input_history,
-                                                        [[measurement[0]], [measurement[1]]], axis=1)
-            detection_dynamic_input_history = np.delete(detection_dynamic_input_history, 0, axis=1)
-            periods = cr.calculate_periods(detection_dynamic_input_history)
-            detection_dynamic_data.period = np.mean(periods)
-
-            # calculate current pointer position based on 5 last measurements
-            t_delta = time.time() - detection_dynamic_input_history[0][-5:]
-            a_delta = t_delta / (2*math.pi*detection_dynamic_data.period)
-            angles = a_delta + detection_dynamic_input_history[1][-5:]
-            angles = angles % (2 * math.pi)
-
-            current_angle = math.atan2(np.sum(np.sin(angles)), np.sum(np.cos(angles)))
-            if current_angle < 0:
-                current_angle = current_angle + math.pi
-            detection_dynamic_data.theta = current_angle
-            rospy.loginfo("detection_dynamic_data.theta")
-            rospy.loginfo(current_angle)
+        if gate_detection_dynamic_counter < 5:
+            gate_detection_dynamic_counter = gate_detection_dynamic_counter + 1
         else:
-            rospy.loginfo("discard detected pointer")
+            gate_detection_dynamic_counter = 0
+            # add to list only if gate position is close to where it's supposed to be
+            t_diff = np.array(measurement[1]) - detection_dynamic_input_history[0][-1]
+            angle_theory = t_diff / (2*math.pi*detection_dynamic_data.period) + detection_dynamic_input_history[1][-1]
+            angle_theory = angle_theory % (2 * math.pi)
+            diff = math.fabs(angle_theory - measurement[0])
+            diff = min(diff, 2 * math.pi - diff)
+            if diff < 20 * math.pi / 180:
+                rospy.loginfo("use detected pointer")
+                detection_dynamic_input_history = np.append(detection_dynamic_input_history,
+                                                            [[measurement[0]], [measurement[1]]], axis=1)
+                detection_dynamic_input_history = np.delete(detection_dynamic_input_history, 0, axis=1)
+                periods = cr.calculate_periods(detection_dynamic_input_history)
+                detection_dynamic_data.period = np.mean(periods)
+
+                # calculate current pointer position based on 5 last measurements
+                t_delta = time.time() - detection_dynamic_input_history[0][-5:]
+                a_delta = t_delta / (2*math.pi*detection_dynamic_data.period)
+                angles = a_delta + detection_dynamic_input_history[1][-5:]
+                angles = angles % (2 * math.pi)
+
+                current_angle = math.atan2(np.sum(np.sin(angles)), np.sum(np.cos(angles)))
+                if current_angle < 0:
+                    current_angle = current_angle + math.pi
+                detection_dynamic_data.theta = current_angle
+                rospy.loginfo("detection_dynamic_data.theta")
+                rospy.loginfo(current_angle)
+            else:
+                rospy.loginfo("discard detected pointer")
 
     rospy.loginfo("visual hand period")
     rospy.loginfo(detection_dynamic_data.period)
@@ -281,11 +286,11 @@ def calculate_visual_wp():
         # hover 2.8m behind dynamic gate at -0.5 height
         gate_pos = wp_average.pos
         gate_heading = wp_average.hdg
-        hover_distance = -2.8
+        hover_distance = -3.0
         hover_alt = -0.5
         extra_dist = np.array(
             [hover_distance * math.cos(gate_heading), hover_distance * math.sin(gate_heading), hover_alt])
-        wp_blind = cr.WP(gate_pos + extra_dist, gate_heading)
+        wp_visual = cr.WP(gate_pos + extra_dist, gate_heading)
 
         wp_look = wp_average
 
@@ -300,7 +305,7 @@ def calculate_visual_wp():
             [hover_distance * math.cos(gate_heading), hover_distance * math.sin(gate_heading), 0])
         wp_visual = cr.WP(gate_pos + extra_dist, gate_heading)
 
-        wp_look = wp_blind
+        wp_look = wp_visual
 
     else:
         wp_visual = wp_average
@@ -802,16 +807,21 @@ def navigate_jungle2():
     diff_global = wp_select.pos - bebop_p
     dist = math.hypot(diff_global[0], diff_global[1])
 
-    commanding = .25   
+    commanding = .25
 
-    y_pos_error = -(diff_global[1]/dist)*commanding
-    x_pos_error = (diff_global[0]/dist)*commanding
+    x_pos_error = diff_global[0] * math.cos(-angle) - diff_global[1] * math.sin(-angle)
+    y_pos_error = 3 * (diff_global[1] * math.cos(-angle) + diff_global[0] * math.sin(-angle))
+
+    nav_cmd_x = (x_pos_error / math.hypot(x_pos_error, y_pos_error)) * commanding
+    nav_cmd_y = (y_pos_error / math.hypot(x_pos_error, y_pos_error)) * commanding
+
+    nav_cmd_r = cr.limit_value(r_error, nav_limit_r)
 
     msg = Auto_Driving_Msg()
-    msg.x = x_pos_error
-    msg.y = y_pos_error
+    msg.x = nav_cmd_x
+    msg.y = nav_cmd_y
     msg.z = 0
-    msg.r = r_error
+    msg.r = nav_cmd_r
 
     log_string = str(
          dist) + ", " + str(
@@ -820,8 +830,8 @@ def navigate_jungle2():
         diff_global[2])+', ' + str(
         msg.x) + ", " + str(
         msg.y) + ", " + str(
-        0) + ", " + str(
-        0) + ", " + str(
+        x_pos_error) + ", " + str(
+        y_pos_error) + ", " + str(
         0) + ", " + str(
         0) + ", " + str(
         0) + ", " + str(
@@ -886,10 +896,17 @@ def navigate_dynamic():
     bebop_p = [bebop_position.x, bebop_position.y, bebop_position.z]
     bebop_q = [bebop_orientation.x, bebop_orientation.y, bebop_orientation.z, bebop_orientation.w]
 
+    bebop_x_vec = cr.qv_mult(bebop_q, [1, 0, 0])
+    hdg = math.atan2(bebop_x_vec[1], bebop_x_vec[0])
+    rospy.loginfo("fly from")
+    rospy.loginfo([bebop_p[0], bebop_p[1], bebop_p[2], hdg])
+    rospy.loginfo("fly to")
+    rospy.loginfo(wp_select)
+
     diff_global_look = wp_visual.pos - bebop_p
     angle = tfs.euler_from_quaternion(bebop_q)[2]
     pos_theta = math.atan2(diff_global_look[1], diff_global_look[0])
-    r_error = angle - pos_theta
+    r_error = -(angle - pos_theta)
     if r_error > math.pi:
         r_error = -2 * math.pi + r_error
     elif r_error < -math.pi:
@@ -939,7 +956,7 @@ def navigate_dynamic():
                 rospy.loginfo("DYN - pointer angle triggered, state 3")
                 detection_dynamic_data.state = 3
                 # during execution of full throttle other instances of the callback go into mode 3 and wait there
-                full_throttle_executer(1.4)
+                full_throttle_executer(1.3)
                 detection_dynamic_data.state = 4
                 # at this point a break message will be returned
                 rospy.loginfo("DYN - second break command")
@@ -962,6 +979,65 @@ def navigate_dynamic():
         else:
             # send brake command
             rospy.loginfo("DYN - real break command")
+
+    try:
+        trig = detection_dynamic_data.theta_trigger()
+    except:
+        trig = 0
+
+    try:
+        diff = detection_dynamic_data.theta - trig
+    except:
+        diff = 0
+
+    log_string = str(
+        detection_dynamic_data.state or -1) + ", " + str(
+        detection_dynamic_data.period or 0) + ", " + str(
+        detection_dynamic_data.theta or 0)+', ' + str(
+        trig or 0)+', ' + str(
+        diff or 0) + ', ' + str(
+        r_error or 0) + ", " + str(
+        detection_dynamic_data.std_dev) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        time.time()-t_log) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0)
+
+    publisher_nav_log.publish(log_string)
+
     return msg
 
 
@@ -981,11 +1057,11 @@ def calculate_distance():
         own_heading = tfs.euler_from_quaternion(bebop_q)[2]
         diff_global_look = wp_look.pos - bebop_p
         pos_theta = math.atan2(diff_global_look[1], diff_global_look[0])
-        angular_diff = -(own_heading - pos_theta)
-        angular_diff = min(angular_diff, math.pi-angular_diff)
+        angular_diff = abs(own_heading - pos_theta)
+        angular_diff = min(angular_diff, 2*math.pi-angular_diff)
         return linear_distance + angular_diff * (180.0 / 15 * 0.3) / math.pi  # 15deg offset equal 30cm
 
-    elif nav_active == "through" or nav_active == "jungle":
+    elif nav_active == "through" or nav_active == "jungle" or nav_active == "jungle2":
         flat_distance = np.linalg.norm([diff_global[0], diff_global[1], 0])
         heading_to_gate = math.atan2(wp_select.pos[1] - bebop_position.y, wp_select.pos[0] - bebop_position.x)
         heading_of_gate = wp_select.hdg
@@ -1205,15 +1281,15 @@ if __name__ == '__main__':
     wp_look = None
     wp_select = None
     wp_takeoff = None
-    wp_scale = None
+    wp_scale = 1.0
     detection_active = False
     detection_dynamic_data = cr.OpenloopData()
     detection_dynamic_input_history = np.array([[], []])
     nav_active = "off"
-    nav_point_PID_x_pos = cr.PID2(.5, 0.1, 4.0)
-    nav_point_PID_y_pos = cr.PID2(.5, 0.1, 4.0)
-    nav_point_PID_x_vel = cr.PID2(0.4, 0, 0.8)
-    nav_point_PID_y_vel = cr.PID2(0.4, 0, 0.8)
+    nav_point_PID_x_pos = cr.PID2(.5, 0.1, 1.0)
+    nav_point_PID_y_pos = cr.PID2(.5, 0.1, 1.0)
+    nav_point_PID_x_vel = cr.PID2(0.4, 0, 0.4)
+    nav_point_PID_y_vel = cr.PID2(0.4, 0, 0.4)
     nav_point_PID_z_vel = cr.PID(1.0, 0, 0.0)
     nav_point_PID_r_vel = cr.PID(0.5, 0, 1.0)
     nav_through_PID_y_pos = cr.PID2(.7, 0.1, 3.0)
@@ -1276,7 +1352,7 @@ if __name__ == '__main__':
     states = [State()] * 100
     states[02] = State(02, 03, "bebop", 1,                0, 0, 0, o, None, [], [])
     states[03] = State(03, 04, "bebop", 2,                0, 0, 0, o, None, [], [])
-    states[04] = State(04, 10, "time",  1.0,              0, 0, 0, o, None, [], [])
+    states[04] = State(04, 50, "time",  1.0,              0, 0, 0, o, None, [], [])
     states[10] = State(10, 11, "dist",  dist_gate_blind,  0, 0, 0, p, 1.4,  [1.0, 0, 1.2], [4.4, 0, 0])
     states[11] = State(11, 12, "wp",    None,             0, 1, 0, p, None, [2.0, 0, 0], [4.4, 0, 0])
     states[12] = State(12, 13, "dist",  dist_gate_close,  1, 1, 0, t, None, [], [])
@@ -1293,20 +1369,20 @@ if __name__ == '__main__':
     states[41] = State(41, 42, "wp",    None,             0, 1, 0, p, None, [3.5, 1.0, 0], [3.1, -3.4, 0])
     states[42] = State(42, 43, "dist",  dist_gate_close,  1, 1, 0, t, None, [], [])
     states[43] = State(43, 50, "dist",  dist_exit_gate,   0, 0, 0, p, None, [dist_egw, 0, 0], [dist_egw, 0, 0])
-    states[50] = State(50, 51, "dist",  dist_gate_blind,  0, 0, 0, p, 1.4,  [2.0, -0.1, 0], [6.2, -0.1, 0])
-    states[51] = State(51, 52, "wp",    None,             0, 1, 0, p, None, [5.0, -0.1, 0], [6.2, -0.1, 0])
+    states[50] = State(50, 51, "dist",  dist_gate_blind,  0, 0, 0, p, 1.4,  [2.0, -0.0, 1.2], [6.2, -0.0, 0])
+    states[51] = State(51, 52, "wp",    None,             0, 1, 0, p, None, [2.0, -0.0, 0], [6.2, -0.0, 0])
     states[52] = State(52, 53, "dist",  dist_gate_close,  1, 1, 0, t, None, [], [])
     states[53] = State(53, 60, "dist",  dist_exit_gate,   0, 0, 0, p, None, [dist_egw, 0, 0], [dist_egw, 0, 0])
-    states[60] = State(60, 61, "dist",  dist_gate_blind,  0, 0, 0, p, 1.0,  [2.7, -3.3, -0.4], [0.0, -3.1, 0])
-    states[61] = State(61, 62, "wp",    None,             0, 1, 0, p, None, [2.2, -3.1, -0.4], [0.0, -3.1, 0])
+    states[60] = State(60, 61, "dist",  dist_gate_blind,  0, 0, 0, p, 1.0,  [2.1, -3.3, -0.2], [0.0, -2.9, 0])
+    states[61] = State(61, 62, "wp",    None,             0, 1, 0, p, None, [1.6, -3.1, -0.2], [0.0, -2.9, 0])
     states[62] = State(62, 63, "dist",  0.3,              0, 1, 0, j, None, [], [])
-    states[63] = State(63, 70, "dist",  0.3,              1, 1, j, j2,None, [], [])
-    states[70] = State(70, 71, "dist",  dist_gate_blind,  0, 0, 0, p, 2.1,  [3.5, -3.3, 0], [4.52, 0, 0])
-    states[71] = State(71, 72, "wp",    None,             0, 1, 0, p, None, [4.5, -3.3, 0], [4.52, 0, 0])
+    states[63] = State(63, 70, "dist",  0.8,              1, 1, j, j2,None, [], [])
+    states[70] = State(70, 71, "dist",  dist_gate_blind,  0, 0, 0, p, 2.1,  [2.15, -3.3, 0.3], [3.15, 0, 0])
+    states[71] = State(71, 72, "wp",    None,             0, 1, 0, p, None, [3.15, -3.3, 0.3], [3.15, 0, 0])
     states[72] = State(72, 73, "dist",  dist_gate_dyn,    0, 1, 0, p, None, [], [])
     states[73] = State(73, 80, "dyn",   5,                1, 1, d, d, None, [], [])
-    states[80] = State(80, 81, "dist",  dist_gate_blind,  0, 0, 0, p, 1.4,  [3.5, 0.0, 0], [3.37, 2.82, 0])
-    states[81] = State(81, 82, "wp",    None,             0, 1, 0, p, None, [3.4, 1.0, 0], [3.37, 2.82, 0])
+    states[80] = State(80, 81, "dist",  dist_gate_blind,  0, 0, 0, p, 1.4,  [3.5, 0.0, 0.8], [3.37, 2.82, 0])
+    states[81] = State(81, 82, "wp",    None,             0, 1, 0, p, None, [3.4, 0.2, 0.8], [3.37, 2.82, 0])
     states[82] = State(82, 83, "dist",  dist_gate_close,  1, 1, 0, t, None, [], [])
     states[83] = State(83, 90, "dist",  dist_exit_gate,   0, 0, 0, p, None, [dist_egw, 0, 0], [dist_egw, 0, 0])
     states[90] = State(90, 91, "bebop", 4,                0, 0, 0, o, None, [], [])

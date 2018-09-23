@@ -115,22 +115,15 @@ class WP:
 
 class OpenloopData:
     def __init__(self):
-        self.state = 0
-        self.timer = 0.0
+        self.timer = None
         self.period = None
         self.theta = None
         self.time_taken_to_gate = 2.3
-        self.throttle_counter = 0
-        self.std_dev = 2
+        self.std_dev = None
 
-    def theta_trigger(self):
-        try:
-            rotations = self.time_taken_to_gate/self.period
-            theta = -(2*math.pi*rotations+(2*math.pi/(5*self.period)))
-            return theta % 2 * math.pi
-        except:
-            return None
-
+        self.rotate_perform = False
+        self.counter = 0
+        self.triggered = False
 
 
 class PID:
@@ -212,3 +205,28 @@ class PID2:
     def reset(self):
         self.integrator = 0
         self.derivator = None
+
+
+class Bebop:
+    # BEBOP STATE overview
+    #   0   landed
+    #   1   takeoff
+    #   2   hovering
+    #   3   flying
+    #   4   landing
+    #   5   emergency
+    #   6   not observed (usertakeoff, User take off state. Waiting for user action to take off)
+    #   7   not observed (for fixed wing, motor ramping state)
+    #   8   not observed (emergency landing after sensor defect. Only YAW is taken into account)
+
+    def __init__(self):
+        pass
+    LANDED = 0
+    TAKEOFF = 1
+    HOVERING = 2
+    FLYING = 3
+    LANDING = 4
+    EMERGENCY = 5
+    USERTAKEOFF = 6
+    MOTOR_RAMP = 7
+    SENSOR_DEFECT = 8

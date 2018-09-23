@@ -37,17 +37,22 @@ def callback_states_changed(data, args):
 def callback_visual_gate_dynamic_changed(input_data):
     global detection_dynamic_input_history
     global detection_dynamic_data
-    global gate_detection_dynamic_counter 
 
-    measurement = input_data.data
+    angle_theory = None
+    diff = None
+    theta_current = None
+    theta_trigger = None
+    angle_diff = None
+    measurement = input_data.data  # [time, angle]
 
     rospy.loginfo("visual hand detected")
 
-    if detection_dynamic_data.period is None:
-        if gate_detection_dynamic_counter < 5:
-            gate_detection_dynamic_counter = gate_detection_dynamic_counter + 1
-        else:
-            gate_detection_dynamic_counter = 0
+    if detection_dynamic_data.counter > 0:
+        detection_dynamic_data.counter = detection_dynamic_data.counter - 1
+    else:
+        detection_dynamic_data.counter = 8
+
+        if detection_dynamic_data.period is None:
             detection_dynamic_input_history = np.append(detection_dynamic_input_history,
                                                         [[measurement[0]], [measurement[1]]], axis=1)
             if detection_dynamic_input_history.shape[1] > 12:
@@ -55,56 +60,112 @@ def callback_visual_gate_dynamic_changed(input_data):
                 detection_dynamic_input_history = np.delete(detection_dynamic_input_history, 0, axis=1)
                 # calculate std deviation of list
                 periods = cr.calculate_periods(detection_dynamic_input_history)
-                std_deviation = np.std(periods)
-                detection_dynamic_data.std_dev = std_deviation
+                detection_dynamic_data.std_dev = np.std(periods)
                 # when std dev is low enough, provide period
-                if std_deviation < 0.3:
+                if detection_dynamic_data.std_dev < 0.3:
                     rospy.loginfo("measurements accepted")
                     detection_dynamic_data.period = np.mean(periods)
                     rospy.loginfo("std_deviation:")
-                    rospy.loginfo(std_deviation)
+                    rospy.loginfo(detection_dynamic_data.std_dev)
                 else:
                     rospy.loginfo("standard deviation too high:")
-                    rospy.loginfo(std_deviation)
+                    rospy.loginfo(detection_dynamic_data.std_dev)
             else:
                 rospy.loginfo("collecting measurements")
                 rospy.loginfo(detection_dynamic_input_history.shape[1])
-    else:
-        if gate_detection_dynamic_counter < 5:
-            gate_detection_dynamic_counter = gate_detection_dynamic_counter + 1
+
         else:
-            gate_detection_dynamic_counter = 0
             # add to list only if gate position is close to where it's supposed to be
-            t_diff = np.array(measurement[1]) - detection_dynamic_input_history[0][-1]
-            angle_theory = t_diff / (2*math.pi*detection_dynamic_data.period) + detection_dynamic_input_history[1][-1]
+            t_diff = np.array(measurement[0]) - detection_dynamic_input_history[0][-1]
+            angle_theory = t_diff / (2*math.pi*detection_dynamic_data.period) + detection_dynamic_input_history[0][-1]
             angle_theory = angle_theory % (2 * math.pi)
-            diff = math.fabs(angle_theory - measurement[0])
+            diff = math.fabs(angle_theory - measurement[1])
             diff = min(diff, 2 * math.pi - diff)
-            if diff < 20 * math.pi / 180:
+            if diff < 40 * math.pi / 180:
                 rospy.loginfo("use detected pointer")
                 detection_dynamic_input_history = np.append(detection_dynamic_input_history,
                                                             [[measurement[0]], [measurement[1]]], axis=1)
                 detection_dynamic_input_history = np.delete(detection_dynamic_input_history, 0, axis=1)
                 periods = cr.calculate_periods(detection_dynamic_input_history)
+                detection_dynamic_data.std_dev = np.std(periods)
                 detection_dynamic_data.period = np.mean(periods)
 
-                # calculate current pointer position based on 5 last measurements
-                t_delta = time.time() - detection_dynamic_input_history[0][-5:]
-                a_delta = t_delta / (2*math.pi*detection_dynamic_data.period)
-                angles = a_delta + detection_dynamic_input_history[1][-5:]
-                angles = angles % (2 * math.pi)
-
-                current_angle = math.atan2(np.sum(np.sin(angles)), np.sum(np.cos(angles)))
-                if current_angle < 0:
-                    current_angle = current_angle + math.pi
-                detection_dynamic_data.theta = current_angle
-                rospy.loginfo("detection_dynamic_data.theta")
-                rospy.loginfo(current_angle)
             else:
                 rospy.loginfo("discard detected pointer")
 
-    rospy.loginfo("visual hand period")
-    rospy.loginfo(detection_dynamic_data.period)
+    if nav_active == "fast" and detection_dynamic_data.period is not None and not detection_dynamic_data.triggered:
+        # calculate current pointer position based on 5 last measurements
+        t_delta = time.time() - detection_dynamic_input_history[0][-5:]
+        a_delta = 2 * math.pi * t_delta / detection_dynamic_data.period
+        angles = a_delta + detection_dynamic_input_history[1][-5:]
+        theta_current = math.atan2(np.sum(np.sin(angles)), np.sum(np.cos(angles)))
+        if theta_current < 0:
+            theta_current = theta_current + 2 * math.pi
+        detection_dynamic_data.theta = theta_current
+        rospy.loginfo("detection_dynamic_data.theta")
+        rospy.loginfo(theta_current)
+
+        # calculate trigger angle and difference
+        theta_trigger = -2 * math.pi * detection_dynamic_data.time_taken_to_gate / detection_dynamic_data.period
+        angle_diff = abs(theta_trigger - theta_current)
+
+        if angle_diff < 20*math.pi/180:  # abs(2*math.pi/(detection_dynamic_data.period*5)*.7):
+            # execute throttle and turn off own navigation
+            detection_dynamic_data.triggered = True
+            full_throttle_executer(1.3)
+            global nav_active
+            nav_active = "off"
+        else:
+            # wait for rotation
+            pass
+
+    log_string = str(
+        0) + ", " + str(
+        measurement[1]) + ", " + str(
+        detection_dynamic_data.counter) + ', ' + str(
+        detection_dynamic_input_history.shape[1]) + ', ' + str(
+        detection_dynamic_data.std_dev or 0) + ", " + str(
+        detection_dynamic_data.period or 0) + ', ' + str(
+        angle_theory or 0) + ", " + str(
+        diff or 0) + ", " + str(
+        theta_current or 0) + ", " + str(
+        theta_trigger or 0) + ", " + str(
+        angle_diff or 0) + ", " + str(
+        int(detection_dynamic_data.triggered)) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        time.time() - t_log) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0) + ", " + str(
+        0)
+
+    publisher_nav_log.publish(log_string)
 
 
 def callback_visual_gate_detection_changed(data):
@@ -884,8 +945,11 @@ def full_throttle_executer(duration):
         rospy.loginfo("DYN - full thrust command")
         publisher_auto_drive.publish(msg_thrust)
         time.sleep(0.01)
-    publisher_auto_drive.publish(msg_brake)
-    rospy.loginfo("DYN - first break command")
+
+    while not state_bebop == cr.Bebop.HOVERING:
+        rospy.loginfo("DYN - brake command")
+        publisher_auto_drive.publish(msg_brake)
+        time.sleep(0.1)
 
 
 def navigate_dynamic():
@@ -914,131 +978,225 @@ def navigate_dynamic():
 
     msg = Auto_Driving_Msg()
 
-    rospy.loginfo("DYN - dynamic state")
-    rospy.loginfo(detection_dynamic_data.state)
-
-    # stabilize
-    if detection_dynamic_data.state == 0:
-        # start a timer
-        if detection_dynamic_data.timer != 0.0:
-            # when timer has elapsed, check yaw error
-            if time.time()-detection_dynamic_data.timer > .8:
-                rospy.loginfo("DYN - check yaw error")
-                if abs(r_error) < .08:
-                    rospy.loginfo("DYN - yaw ok, state 2")
-                    detection_dynamic_data.state = 2  # error is small -> wait for gate rotatiom
-                else:
-                    rospy.loginfo("DYN - yaw error high, state 1")
-                    detection_dynamic_data.state = 1  # error is large -> correct yaw
-                detection_dynamic_data.timer = 0.0
-        else:
-            detection_dynamic_data.timer = time.time()
-            rospy.loginfo("DYN - timer started")
-
-    # rotate
-    elif detection_dynamic_data.state == 1:
-        msg = Auto_Driving_Msg()
-        # check error again before sending command
+    if detection_dynamic_data.rotate_perform:
+        # test and perform rotation
         if abs(r_error) < .08:
-            rospy.loginfo("DYN - yaw ok, state 0")
-            detection_dynamic_data.state = 0
+            detection_dynamic_data.rotate_perform = False
         else:
-            rospy.loginfo("DYN - yawing")
             msg.r = cr.limit_value(r_error, .1)
-
-    # wait for gate rotation
-    elif detection_dynamic_data.state == 2:
-        if detection_dynamic_data.period is None:
-            rospy.loginfo("DYN - no period yet, wait")
+    elif detection_dynamic_data.timer is None:
+        detection_dynamic_data.timer = time.time()
+    elif time.time() - detection_dynamic_data.timer > .8:
+        detection_dynamic_data.timer = None
+        if abs(r_error) < .08:
+            global nav_active
+            nav_active = "fast"
         else:
-            angle_difference = abs(detection_dynamic_data.theta-detection_dynamic_data.theta_trigger())
-            if angle_difference < abs(2*math.pi/(detection_dynamic_data.period*5)*.7):
-                rospy.loginfo("DYN - pointer angle triggered, state 3")
-                detection_dynamic_data.state = 3
-                # during execution of full throttle other instances of the callback go into mode 3 and wait there
-                full_throttle_executer(1.3)
-                detection_dynamic_data.state = 4
-                # at this point a break message will be returned
-                rospy.loginfo("DYN - second break command")
-            else:
-                rospy.loginfo("DYN - wait for rotation")
+            detection_dynamic_data.rotate.perform = True
 
-    # wait
-    elif detection_dynamic_data.state == 3:
-        # wait here and don't return a msg
-        while detection_dynamic_data.state == 3:
-            time.sleep(0.1)
-        rospy.loginfo("DYN - stacked break command")
+        log_string = str(
+            r_error) + ", " + str(
+            0) + ", " + str(
+            0) + ', ' + str(
+            0) + ', ' + str(
+            0) + ', ' + str(
+            0) + ", " + str(
+            0) + ", " + str(
+            0) + ", " + str(
+            0) + ", " + str(
+            0) + ", " + str(
+            0) + ", " + str(
+            0) + ", " + str(
+            0) + ", " + str(
+            0) + ", " + str(
+            0) + ", " + str(
+            0) + ", " + str(
+            0) + ", " + str(
+            0) + ", " + str(
+            0) + ", " + str(
+            0) + ", " + str(
+            0) + ", " + str(
+            0) + ", " + str(
+            0) + ", " + str(
+            0) + ", " + str(
+            0) + ", " + str(
+            0) + ", " + str(
+            0) + ", " + str(
+            0) + ", " + str(
+            0) + ", " + str(
+            0) + ", " + str(
+            0) + ", " + str(
+            0) + ", " + str(
+            0) + ", " + str(
+            0) + ", " + str(
+            0) + ", " + str(
+            0) + ", " + str(
+            0) + ", " + str(
+            0) + ", " + str(
+            0) + ", " + str(
+            time.time() - t_log) + ", " + str(
+            0) + ", " + str(
+            0) + ", " + str(
+            0) + ", " + str(
+            0)
 
-    # brake
-    elif detection_dynamic_data.state == 4:
-        if state_bebop == 2:
-            # advance own state to advance state machine
-            rospy.loginfo("DYN - completed")
-            detection_dynamic_data.state = 5
-        else:
-            # send brake command
-            rospy.loginfo("DYN - real break command")
-
-    try:
-        trig = detection_dynamic_data.theta_trigger()
-    except:
-        trig = 0
-
-    try:
-        diff = detection_dynamic_data.theta - trig
-    except:
-        diff = 0
-
-    log_string = str(
-        detection_dynamic_data.state or -1) + ", " + str(
-        detection_dynamic_data.period or 0) + ", " + str(
-        detection_dynamic_data.theta or 0)+', ' + str(
-        trig or 0)+', ' + str(
-        diff or 0) + ', ' + str(
-        r_error or 0) + ", " + str(
-        detection_dynamic_data.std_dev) + ", " + str(
-        0) + ", " + str(
-        0) + ", " + str(
-        0) + ", " + str(
-        0) + ", " + str(
-        0) + ", " + str(
-        0) + ", " + str(
-        0) + ", " + str(
-        0) + ", " + str(
-        0) + ", " + str(
-        0) + ", " + str(
-        0) + ", " + str(
-        0) + ", " + str(
-        0) + ", " + str(
-        0) + ", " + str(
-        0) + ", " + str(
-        0) + ", " + str(
-        0) + ", " + str(
-        0) + ", " + str(
-        0) + ", " + str(
-        0) + ", " + str(
-        0) + ", " + str(
-        0) + ", " + str(
-        0) + ", " + str(
-        0) + ", " + str(
-        0) + ", " + str(
-        0) + ", " + str(
-        0) + ", " + str(
-        0) + ", " + str(
-        0) + ", " + str(
-        0) + ", " + str(
-        0) + ", " + str(
-        0) + ", " + str(
-        time.time()-t_log) + ", " + str(
-        0) + ", " + str(
-        0) + ", " + str(
-        0) + ", " + str(
-        0)
-
-    publisher_nav_log.publish(log_string)
+        publisher_nav_log.publish(log_string)
 
     return msg
+
+#
+#
+# def navigate_dynamic():
+#     global detection_dynamic_data
+#     bebop_position = bebop_odometry.pose.pose.position
+#     bebop_orientation = bebop_odometry.pose.pose.orientation
+#
+#     bebop_p = [bebop_position.x, bebop_position.y, bebop_position.z]
+#     bebop_q = [bebop_orientation.x, bebop_orientation.y, bebop_orientation.z, bebop_orientation.w]
+#
+#     bebop_x_vec = cr.qv_mult(bebop_q, [1, 0, 0])
+#     hdg = math.atan2(bebop_x_vec[1], bebop_x_vec[0])
+#     rospy.loginfo("fly from")
+#     rospy.loginfo([bebop_p[0], bebop_p[1], bebop_p[2], hdg])
+#     rospy.loginfo("fly to")
+#     rospy.loginfo(wp_select)
+#
+#     diff_global_look = wp_visual.pos - bebop_p
+#     angle = tfs.euler_from_quaternion(bebop_q)[2]
+#     pos_theta = math.atan2(diff_global_look[1], diff_global_look[0])
+#     r_error = -(angle - pos_theta)
+#     if r_error > math.pi:
+#         r_error = -2 * math.pi + r_error
+#     elif r_error < -math.pi:
+#         r_error = 2 * math.pi + r_error
+#
+#     msg = Auto_Driving_Msg()
+#
+#     rospy.loginfo("DYN - dynamic state")
+#     rospy.loginfo(detection_dynamic_data.state)
+#
+#     # stabilize
+#     if detection_dynamic_data.state == 0:
+#         # start a timer
+#         if detection_dynamic_data.timer != 0.0:
+#             # when timer has elapsed, check yaw error
+#             if time.time()-detection_dynamic_data.timer > .8:
+#                 rospy.loginfo("DYN - check yaw error")
+#                 if abs(r_error) < .08:
+#                     rospy.loginfo("DYN - yaw ok, state 2")
+#                     detection_dynamic_data.state = 2  # error is small -> wait for gate rotatiom
+#                 else:
+#                     rospy.loginfo("DYN - yaw error high, state 1")
+#                     detection_dynamic_data.state = 1  # error is large -> correct yaw
+#                 detection_dynamic_data.timer = 0.0
+#         else:
+#             detection_dynamic_data.timer = time.time()
+#             rospy.loginfo("DYN - timer started")
+#
+#     # rotate
+#     elif detection_dynamic_data.state == 1:
+#         msg = Auto_Driving_Msg()
+#         # check error again before sending command
+#         if abs(r_error) < .08:
+#             rospy.loginfo("DYN - yaw ok, state 0")
+#             detection_dynamic_data.state = 0
+#         else:
+#             rospy.loginfo("DYN - yawing")
+#             msg.r = cr.limit_value(r_error, .1)
+#
+#     # wait for gate rotation
+#     elif detection_dynamic_data.state == 2:
+#         if detection_dynamic_data.period is None:
+#             rospy.loginfo("DYN - no period yet, wait")
+#         else:
+#             angle_difference = abs(detection_dynamic_data.theta-detection_dynamic_data.theta_trigger())
+#             if angle_difference < abs(2*math.pi/(detection_dynamic_data.period*5)*.7):
+#                 rospy.loginfo("DYN - pointer angle triggered, state 3")
+#                 detection_dynamic_data.state = 3
+#                 # during execution of full throttle other instances of the callback go into mode 3 and wait there
+#                 full_throttle_executer(1.3)
+#                 detection_dynamic_data.state = 4
+#                 # at this point a break message will be returned
+#                 rospy.loginfo("DYN - second break command")
+#             else:
+#                 rospy.loginfo("DYN - wait for rotation")
+#
+#     # wait
+#     elif detection_dynamic_data.state == 3:
+#         # wait here and don't return a msg
+#         while detection_dynamic_data.state == 3:
+#             time.sleep(0.1)
+#         rospy.loginfo("DYN - stacked break command")
+#
+#     # brake
+#     elif detection_dynamic_data.state == 4:
+#         if state_bebop == 2:
+#             # advance own state to advance state machine
+#             rospy.loginfo("DYN - completed")
+#             detection_dynamic_data.state = 5
+#         else:
+#             # send brake command
+#             rospy.loginfo("DYN - real break command")
+#
+#     try:
+#         trig = detection_dynamic_data.theta_trigger()
+#     except:
+#         trig = 0
+#
+#     try:
+#         diff = detection_dynamic_data.theta - trig
+#     except:
+#         diff = 0
+#
+#     log_string = str(
+#         detection_dynamic_data.state or -1) + ", " + str(
+#         detection_dynamic_data.period or 0) + ", " + str(
+#         detection_dynamic_data.theta or 0)+', ' + str(
+#         trig or 0)+', ' + str(
+#         diff or 0) + ', ' + str(
+#         r_error or 0) + ", " + str(
+#         detection_dynamic_data.std_dev) + ", " + str(
+#         0) + ", " + str(
+#         0) + ", " + str(
+#         0) + ", " + str(
+#         0) + ", " + str(
+#         0) + ", " + str(
+#         0) + ", " + str(
+#         0) + ", " + str(
+#         0) + ", " + str(
+#         0) + ", " + str(
+#         0) + ", " + str(
+#         0) + ", " + str(
+#         0) + ", " + str(
+#         0) + ", " + str(
+#         0) + ", " + str(
+#         0) + ", " + str(
+#         0) + ", " + str(
+#         0) + ", " + str(
+#         0) + ", " + str(
+#         0) + ", " + str(
+#         0) + ", " + str(
+#         0) + ", " + str(
+#         0) + ", " + str(
+#         0) + ", " + str(
+#         0) + ", " + str(
+#         0) + ", " + str(
+#         0) + ", " + str(
+#         0) + ", " + str(
+#         0) + ", " + str(
+#         0) + ", " + str(
+#         0) + ", " + str(
+#         0) + ", " + str(
+#         0) + ", " + str(
+#         time.time()-t_log) + ", " + str(
+#         0) + ", " + str(
+#         0) + ", " + str(
+#         0) + ", " + str(
+#         0)
+#
+#     publisher_nav_log.publish(log_string)
+#
+#     return msg
 
 
 def calculate_distance():
@@ -1145,7 +1303,7 @@ class State:
 
     def exit(self):
         # do things when state is finished
-        print("exit")
+        print("exit state " + str(self.own_state))
         if self.exit_clear_visual:
             global wp_average
             global wp_input_history
@@ -1173,8 +1331,8 @@ class State:
             if time.time() > self.time + self.condition_thres:
                 self.exit()
 
-        elif self.condition_type == "dyn":
-            if detection_dynamic_data.state == 5:
+        elif self.condition_type == "nav":
+            if nav_active == self.condition_thres:
                 self.exit()
 
 
@@ -1312,7 +1470,6 @@ if __name__ == '__main__':
     auto_driving_msg = Auto_Driving_Msg()
     current_state = None
     t_log = 1455208000
-    gate_detection_dynamic_counter = 100  # ##############
 
     # Publishers
     publisher_state_auto = rospy.Publisher("/auto/state_auto",     Int32,                queue_size=1, latch=True)
@@ -1329,16 +1486,6 @@ if __name__ == '__main__':
     publisher_jungle_detection_on = rospy.Publisher("/auto/jungle_detection_on", Bool,   queue_size=1, latch=True)
     publisher_gate_size = rospy.Publisher("/auto/gate_size",       Float32,              queue_size=1, latch=True)
 
-    # BEBOP STATE overview
-    #   0   landed
-    #   1   takeoff
-    #   2   hovering
-    #   3   flying
-    #   4   landing
-    #   5   emergency
-    #   6   not observed (usertakeoff, User take off state. Waiting for user action to take off)
-    #   7   not observed (for fixed wing, motor ramping state)
-    #   8   not observed (emergency landing after sensor defect. Only YAW is taken into account)
     d = "dynamic"
     j = "jungle"
     j2 = "jungle2"
@@ -1350,43 +1497,43 @@ if __name__ == '__main__':
     # special_detection, nav_active_str, gate_size, fly, look
 
     states = [State()] * 100
-    states[02] = State(02, 03, "bebop", 1,                0, 0, 0, o, None, [], [])
-    states[03] = State(03, 04, "bebop", 2,                0, 0, 0, o, None, [], [])
-    states[04] = State(04, 50, "time",  1.0,              0, 0, 0, o, None, [], [])
-    states[10] = State(10, 11, "dist",  dist_gate_blind,  0, 0, 0, p, 1.4,  [1.0, 0, 1.2], [4.4, 0, 0])
-    states[11] = State(11, 12, "wp",    None,             0, 1, 0, p, None, [2.0, 0, 0], [4.4, 0, 0])
-    states[12] = State(12, 13, "dist",  dist_gate_close,  1, 1, 0, t, None, [], [])
-    states[13] = State(13, 20, "dist",  dist_exit_gate,   0, 0, 0, p, None, [dist_egw, 0, 0], [dist_egw, 0, 0])
-    states[20] = State(20, 21, "dist",  dist_gate_blind,  0, 0, 0, p, 1.4,  [2.0, 0, 0], [6.46, 0, 0])
-    states[21] = State(21, 22, "wp",    None,             0, 1, 0, p, None, [3.5, 0, 0], [6.46, 0, 0])
-    states[22] = State(22, 23, "dist",  dist_gate_close,  1, 1, 0, t, None, [], [])
-    states[23] = State(23, 30, "dist",  dist_exit_gate,   0, 0, 0, p, None, [dist_egw, 0, 0], [dist_egw, 0, 0])
-    states[30] = State(30, 31, "dist",  dist_gate_blind,  0, 0, 0, p, 1.4,  [1.6, -0.5, 0], [1.34, -3.5, 0])
-    states[31] = State(31, 32, "wp",    None,             0, 1, 0, p, None, [1.3, -1.5, 0], [1.34, -3.5, 0])
-    states[32] = State(32, 33, "dist",  dist_gate_close,  1, 1, 0, t, None, [], [])
-    states[33] = State(33, 40, "dist",  dist_exit_gate,   0, 0, 0, p, None, [dist_egw, 0, 0], [dist_egw, 0, 0])
-    states[40] = State(40, 41, "dist",  dist_gate_blind,  0, 0, 0, p, 1.4,  [2.5, 0.0, 0.0], [3.1, -3.4, 0])
-    states[41] = State(41, 42, "wp",    None,             0, 1, 0, p, None, [3.5, 1.0, 0], [3.1, -3.4, 0])
-    states[42] = State(42, 43, "dist",  dist_gate_close,  1, 1, 0, t, None, [], [])
-    states[43] = State(43, 50, "dist",  dist_exit_gate,   0, 0, 0, p, None, [dist_egw, 0, 0], [dist_egw, 0, 0])
-    states[50] = State(50, 51, "dist",  dist_gate_blind,  0, 0, 0, p, 1.4,  [2.0, -0.0, 1.2], [6.2, -0.0, 0])
-    states[51] = State(51, 52, "wp",    None,             0, 1, 0, p, None, [2.0, -0.0, 0], [6.2, -0.0, 0])
-    states[52] = State(52, 53, "dist",  dist_gate_close,  1, 1, 0, t, None, [], [])
-    states[53] = State(53, 60, "dist",  dist_exit_gate,   0, 0, 0, p, None, [dist_egw, 0, 0], [dist_egw, 0, 0])
-    states[60] = State(60, 61, "dist",  dist_gate_blind,  0, 0, 0, p, 1.0,  [2.1, -3.3, -0.2], [0.0, -2.9, 0])
-    states[61] = State(61, 62, "wp",    None,             0, 1, 0, p, None, [1.6, -3.1, -0.2], [0.0, -2.9, 0])
-    states[62] = State(62, 63, "dist",  0.3,              0, 1, 0, j, None, [], [])
-    states[63] = State(63, 70, "dist",  0.8,              1, 1, j, j2,None, [], [])
-    states[70] = State(70, 71, "dist",  dist_gate_blind,  0, 0, 0, p, 2.1,  [2.15, -3.3, 0.3], [3.15, 0, 0])
-    states[71] = State(71, 72, "wp",    None,             0, 1, 0, p, None, [3.15, -3.3, 0.3], [3.15, 0, 0])
-    states[72] = State(72, 73, "dist",  dist_gate_dyn,    0, 1, 0, p, None, [], [])
-    states[73] = State(73, 80, "dyn",   5,                1, 1, d, d, None, [], [])
-    states[80] = State(80, 81, "dist",  dist_gate_blind,  0, 0, 0, p, 1.4,  [3.5, 0.0, 0.8], [3.37, 2.82, 0])
-    states[81] = State(81, 82, "wp",    None,             0, 1, 0, p, None, [3.4, 0.2, 0.8], [3.37, 2.82, 0])
-    states[82] = State(82, 83, "dist",  dist_gate_close,  1, 1, 0, t, None, [], [])
-    states[83] = State(83, 90, "dist",  dist_exit_gate,   0, 0, 0, p, None, [dist_egw, 0, 0], [dist_egw, 0, 0])
-    states[90] = State(90, 91, "bebop", 4,                0, 0, 0, o, None, [], [])
-    states[91] = State(91, 91, "bebop", 0,                0, 0, 0, o, None, [], [])
+    states[02] = State(02, 03, "bebop", cr.Bebop.TAKEOFF,  0, 0, 0, o,  None, [], [])
+    states[03] = State(03, 04, "bebop", cr.Bebop.HOVERING, 0, 0, 0, o,  None, [], [])
+    states[04] = State(04, 50, "time",  1.0,               0, 0, 0, o,  None, [], [])
+    states[10] = State(10, 11, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  [1.0, 0, 1.2], [4.4, 0, 0])
+    states[11] = State(11, 12, "wp",    None,              0, 1, 0, p,  None, [2.0, 0, 0], [4.4, 0, 0])
+    states[12] = State(12, 13, "dist",  dist_gate_close,   1, 1, 0, t,  None, [], [])
+    states[13] = State(13, 20, "dist",  dist_exit_gate,    0, 0, 0, p,  None, [dist_egw, 0, 0], [dist_egw, 0, 0])
+    states[20] = State(20, 21, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  [2.0, 0, 0], [6.46, 0, 0])
+    states[21] = State(21, 22, "wp",    None,              0, 1, 0, p,  None, [3.5, 0, 0], [6.46, 0, 0])
+    states[22] = State(22, 23, "dist",  dist_gate_close,   1, 1, 0, t,  None, [], [])
+    states[23] = State(23, 30, "dist",  dist_exit_gate,    0, 0, 0, p,  None, [dist_egw, 0, 0], [dist_egw, 0, 0])
+    states[30] = State(30, 31, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  [1.6, -0.5, 0], [1.34, -3.5, 0])
+    states[31] = State(31, 32, "wp",    None,              0, 1, 0, p,  None, [1.3, -1.5, 0], [1.34, -3.5, 0])
+    states[32] = State(32, 33, "dist",  dist_gate_close,   1, 1, 0, t,  None, [], [])
+    states[33] = State(33, 40, "dist",  dist_exit_gate,    0, 0, 0, p,  None, [dist_egw, 0, 0], [dist_egw, 0, 0])
+    states[40] = State(40, 41, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  [2.5, 0.0, 0.0], [3.1, -3.4, 0])
+    states[41] = State(41, 42, "wp",    None,              0, 1, 0, p,  None, [3.5, 1.0, 0], [3.1, -3.4, 0])
+    states[42] = State(42, 43, "dist",  dist_gate_close,   1, 1, 0, t,  None, [], [])
+    states[43] = State(43, 50, "dist",  dist_exit_gate,    0, 0, 0, p,  None, [dist_egw, 0, 0], [dist_egw, 0, 0])
+    states[50] = State(50, 51, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  [2.0, -0.0, 1.2], [6.2, -0.0, 0])
+    states[51] = State(51, 52, "wp",    None,              0, 1, 0, p,  None, [2.0, -0.0, 0], [6.2, -0.0, 0])
+    states[52] = State(52, 53, "dist",  dist_gate_close,   1, 1, 0, t,  None, [], [])
+    states[53] = State(53, 60, "dist",  dist_exit_gate,    0, 0, 0, p,  None, [dist_egw, 0, 0], [dist_egw, 0, 0])
+    states[60] = State(60, 61, "dist",  dist_gate_blind,   0, 0, 0, p,  1.0,  [2.1, -3.3, -0.2], [0.0, -2.9, 0])
+    states[61] = State(61, 62, "wp",    None,              0, 1, 0, p,  None, [1.6, -3.1, -0.2], [0.0, -2.9, 0])
+    states[62] = State(62, 63, "dist",  0.3,               0, 1, 0, j,  None, [], [])
+    states[63] = State(63, 70, "dist",  0.8,               1, 1, j, j2, None, [], [])
+    states[70] = State(70, 71, "dist",  dist_gate_blind,   0, 0, 0, p,  2.1,  [2.15, -3.3, 0.3], [3.15, 0, 0])
+    states[71] = State(71, 72, "wp",    None,              0, 1, 0, p,  None, [3.15, -3.3, 0.3], [3.15, 0, 0])
+    states[72] = State(72, 73, "dist",  dist_gate_dyn,     0, 1, 0, p,  None, [], [])
+    states[73] = State(73, 80, "nav",   "off",             1, 1, d, d,  None, [], [])
+    states[80] = State(80, 81, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  [3.5, 0.0, 0.8], [3.37, 2.82, 0])
+    states[81] = State(81, 82, "wp",    None,              0, 1, 0, p,  None, [3.4, 0.2, 0.8], [3.37, 2.82, 0])
+    states[82] = State(82, 83, "dist",  dist_gate_close,   1, 1, 0, t,  None, [], [])
+    states[83] = State(83, 90, "dist",  dist_exit_gate,    0, 0, 0, p,  None, [dist_egw, 0, 0], [dist_egw, 0, 0])
+    states[90] = State(90, 91, "bebop", cr.Bebop.LANDING,  0, 0, 0, o,  None, [], [])
+    states[91] = State(91, 91, "bebop", cr.Bebop.LANDED,   0, 0, 0, o,  None, [], [])
 
     # Subscribers
     rospy.Subscriber("/auto/state_auto", Int32, callback_states_changed, "state_auto")

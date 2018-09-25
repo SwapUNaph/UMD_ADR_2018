@@ -306,3 +306,33 @@ plot(dataTemp(:,40),dataTemp(:,42))
 plot(dataTemp(:,40),dataTemp(:,43))
 plot(dataTemp(:,40),dataTemp(:,44))
 legend('1','2','3','4','5')
+
+
+%% dyn
+dataTemp2 = NavPID_data(NavPID_indx,:);
+dataTemp = [];
+for k = 1:1000
+    dataTemp = [dataTemp;cellfun(@str2num,strsplit(dataTemp2{k}{1},', '))];
+    
+    if ~iscell(NavPID_data{NavPID_indx,k+1})
+       break 
+    end
+end
+
+vec = dataTemp(:,11);
+vec(vec==0)=[];
+
+figure
+hold on
+grid on
+plot(dataTemp(:,40),dataTemp(:,2))
+plot(dataTemp(:,40),dataTemp(:,3))
+plot(dataTemp(:,4),dataTemp(:,5))
+plot(dataTemp(:,40),dataTemp(:,6))
+plot(dataTemp(:,40),dataTemp(:,7),'og')
+plot(dataTemp(:,40),dataTemp(:,9),'xr')
+plot(dataTemp(:,40),dataTemp(:,10),'ok')
+plot(vec,0*ones(length(vec),1),'xm')
+% plot(dataTemp(:,40),dataTemp(:,12))
+
+legend('freq','offset','measurement','deviation','current_angle','theta trigger','angle_diff','exec time', 'throttle')

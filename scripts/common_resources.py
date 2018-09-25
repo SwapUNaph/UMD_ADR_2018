@@ -118,7 +118,7 @@ class OpenloopData:
         self.timer = None
         self.period = None
         self.theta = None
-        self.time_taken_to_gate = 2.3
+        self.time_taken_to_gate = 1.7
         self.std_dev = None
 
         self.rotate_perform = False
@@ -230,3 +230,116 @@ class Bebop:
     USERTAKEOFF = 6
     MOTOR_RAMP = 7
     SENSOR_DEFECT = 8
+
+
+def fourier(data, freq, plot_freq_domain, plot_imag):
+    # Convert data to numpy arrays
+    global cur_ax, ax, nplots
+    dnp = np.array(data)
+    fnp = np.array(freq)
+    # Tally # of data points
+    L = max(np.shape(dnp))
+    # Make sure frequency is correct shape
+    if (fnp.ndim > 1 and np.shape(fnp)[1] > 1):
+        fnp = np.transpose(fnp)
+
+    # respones(freq) = 1/N SUM{k = 1 to N: data(t_k) * exp(-2*pi*j*freq*t_k)}
+    # where frequency is modulated to find peak response for freq.
+    # Create exp part of transform:
+    exp_mat = dnp[:, 0]
+    exp_mat = (-2 * math.pi * 1j) * exp_mat
+    exp_mat = np.expand_dims(exp_mat, 1)
+    fnp = np.expand_dims(fnp, 1)
+    exp_mat = fnp * np.transpose(exp_mat)
+    exp_mat = np.exp(exp_mat)
+
+    # Create data part of fourier transform:
+    source = np.cos(dnp[:, 1])
+    source = np.expand_dims(source, 1)
+
+    # Multiply the two together to get whole fourier transform
+    val = np.matmul(exp_mat, source) / L
+
+    # # Plotting
+    # freq_dom = None
+    # if (plot_freq_domain):
+    #     cur_ax += 1
+    #     ax = plt.subplot(nplots, 1, cur_ax)
+    #     freq_dom = plt.plot(freq, np.real(val))
+    # return val, freq_dom
+    return val
+
+
+# def fourier_imag_plane(data, freq):
+#     # All this is to plot fourier response in imaginary plane
+#     global cur_ax, ax, nplots
+#     dnp = np.array(data)
+#     fnp = np.array(freq)
+#     L = max(np.shape(dnp))
+#     if (fnp.ndim > 1 and np.shape(fnp)[1] > 1):
+#         fnp = np.transpose(fnp)
+#
+#     print(fnp)
+#     exp_mat = dnp[:, 0]
+#     exp_mat = (-2 * math.pi * 1j) * exp_mat
+#     exp_mat = np.expand_dims(exp_mat, 1)
+#     fnp = np.expand_dims(fnp, 1)
+#     exp_mat = fnp * np.transpose(exp_mat)
+#     exp_mat = np.exp(exp_mat)
+#     source = np.cos(dnp[:, 1])
+#     source = np.expand_dims(source, 1)
+#     val = np.transpose(exp_mat) * source
+#     valtot = np.matmul(exp_mat, source) / L
+#     cur_ax += 1
+#     ax = plt.subplot(nplots, 1, cur_ax, projection='polar')
+#     imag_plane = plt.polar(np.angle(val), np.linalg.norm(val, 2, 1))
+#     center = plt.polar(np.angle(valtot), np.linalg.norm(valtot, 2, 1), 'ro')
+#     return imag_plane
+
+
+# Find angle t seconds after last data point
+def angle_in_t_seconds(data, freq, offset, t, plot_history, plot_propagation):
+    # global cur_ax, ax, nplots
+    dnp = np.array(data)
+    t_augmented = dnp[-1, 0] + t  # time of interest with respect to original time frame
+    angle = np.mod(t_augmented * 2 * math.pi * freq + (offset - math.pi / 2) * 2 * math.pi, 2 * math.pi)
+    # print 'in ', t, ' seconds, angle is ', angle, '[rad]'
+
+    # Rest is plotting
+    # t_start = dnp[-1, 0]
+    # t_end = dnp[-1, 0]
+    # if (plot_history):
+    #     t_start = dnp[0, 0]
+    # if (plot_propagation):
+    #     t_end = dnp[-1, 0] + t
+    # print t_start, t_end, t
+    # t_range = np.linspace(t_start, t_end, ((t_end - t_start) + t) * 10)
+    # time_prop = None
+    # if (plot_history or plot_propagation):
+    #     cur_ax += 1
+    #     ax = plt.subplot(nplots, 1, cur_ax)
+    #     if (plot_history):
+    #         original = plt.plot(dnp[:, 0], dnp[:, 1])
+    #     time_prop = plt.plot(t_range,
+    #                          np.mod(t_range * 2 * math.pi * freq + (offset - math.pi / 2) * 2 * math.pi, 2 * math.pi))
+    # return angle, time_prop
+    return angle
+
+
+def extract_freq(data, resolution, plot_freq_domain, plot_imag):
+    freq_range = np.arange(0, 2 * math.pi, resolution)
+    # [response, four_plot] = fourier(data, freq_range, plot_freq_domain, plot_imag)
+    response = fourier(data, freq_range, plot_freq_domain, plot_imag)
+    real_r = np.real(response)  # Real part of response
+    imag_r = np.imag(response)  # Imaginary part of response
+    index = np.argmax(np.abs(real_r))  # index for largest real part of response
+    freq = freq_range[index]  # Frequency for largest real response
+    offset = imag_r[index]  # Offset for largest real response (phase shift to calculate future angle)
+
+    # Plotting
+    # if (plot_imag):
+    #     imag_plot = fourier_imag_plane(data, freq)
+    # # print 'arg: ', np.angle(response[index])
+    # print 'freq: ', freq * 2 * math.pi, ', offset: ', np.mod((offset - math.pi / 2) * 2 * math.pi, 2 * math.pi), '[rad]'
+    # return [freq, offset, four_plot, imag_plot]
+    return [freq, offset]

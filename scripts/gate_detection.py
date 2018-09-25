@@ -16,7 +16,7 @@ from cv_bridge import CvBridge
 import time
 import math
 from bebop_auto.msg import Gate_Detection_Msg
-from std_msgs.msg import Float64MultiArray, Bool, Float32
+from std_msgs.msg import Float64MultiArray, Float32MultiArray, Bool, Float32
 import matplotlib.pyplot as plt
 
 import signal
@@ -62,17 +62,17 @@ def mask_image(hsv, color):
         # lower_color = np.array([85, 60, 80])  # orange matlab jungle
         # upper_color = np.array([130, 255, 255])  # orange matlab jungle
 
-        # lower_color = np.array([110, 80, 80])  # orange matlab dynamic
+        # lower_color = np.array([80, 20, 240])  # orange matlab dynamic
         # upper_color = np.array([130, 255, 255])  # orange matlab dynamic
-        #
+
         # lower_color = np.array([87, 55, 100])  # orange dynamic cypress
         # upper_color = np.array([117, 255, 255])  # orange dynamic cypress
 
         # lower_color = np.array([87, 145, 90])  # orange static cypress
         # upper_color = np.array([117, 255, 255])  # orange static cypress
-
-        lower_color = np.array([87, 125, 50])  # orange armory
-        upper_color = np.array([145, 255, 255])  # orange armory
+        #
+        # lower_color = np.array([87, 125, 50])  # orange armory
+        # upper_color = np.array([145, 255, 255])  # orange armory
 
         # lower_color = np.array([106, 120, 90])  # orange kim hallway
         # upper_color = np.array([117, 255, 255])  # orange kim hallway
@@ -82,11 +82,14 @@ def mask_image(hsv, color):
 
         # lower_color = np.array([105, 115, 60])  # orange outdoor
         # upper_color = np.array([130, 255, 255])  # orange outdoor
+        #
+        lower_color = orange_low
+        upper_color = orange_high
 
         publisher = publisher_image_threshold_orange
     else:
-        # lower_color = np.array([40, 100, 50])  # green matlab pointer
-        # upper_color = np.array([90, 255, 255])  # green matlab pointer
+        # lower_color = np.array([0, 0, 150])  # green matlab pointer
+        # upper_color = np.array([60, 255, 255])  # green matlab pointer
 
         # lower_color = np.array([20, 55, 100])  # green cypress pointer
         # upper_color = np.array([35, 255, 255])  # green cypress pointer
@@ -131,7 +134,7 @@ def mask_image(hsv, color):
     # res = cv2.bitwise_and(rgb, rgb, mask=mask)
     # output_im = bridge.cv2_to_imgmsg(res, encoding="rgb8")
     output_im = cv2.resize(mask, (0, 0), fx=output_scale, fy=output_scale)
-    output_im = bridge.cv2_to_imgmsg(mask, encoding="8UC1")
+    output_im = bridge.cv2_to_imgmsg(output_im, encoding="8UC1")
     publisher.publish(output_im)
 
     # cv2.imshow("test",res)
@@ -153,8 +156,8 @@ def stereo_callback(data):
         global gate_detection_dynamic_on
         global gate_detection_jungle_on
         this_pose = Pose()
-        gate_detection_jungle_on = True
-        # gate_detection_dynamic_on = True
+        # gate_detection_jungle_on = True
+        gate_detection_dynamic_on = True
     else:
         if latest_pose is None:
             print("No position")
@@ -200,8 +203,10 @@ def stereo_callback(data):
     # for counter, line in enumerate(lines):
     #     for x1, y1, x2, y2 in line:
     #         # angles.append(math.atan2(y2 - y1, x2 - x1) * 180 / np.pi)  # between -90 and 90
-    #         cv2.circle(rgb, (x1, y1), 5, (votes[counter]*255.0/len(lines), votes[counter]*255.0/len(lines), votes[counter]*255.0/len(lines)), 2)
-    #         cv2.circle(rgb, (x2, y2), 5, (votes[counter]*255.0/len(lines), votes[counter]*255.0/len(lines), votes[counter]*255.0/len(lines)), 2)
+    #         cv2.circle(rgb, (x1, y1), 5, (votes[counter]*255.0/len(lines), votes[counter]*255.0/len(lines),
+    #           votes[counter]*255.0/len(lines)), 2)
+    #         cv2.circle(rgb, (x2, y2), 5, (votes[counter]*255.0/len(lines), votes[counter]*255.0/len(lines),
+    #           votes[counter]*255.0/len(lines)), 2)
     #         # cv2.line(rgb, (x1, y1), (x2, y2), (0, 255, 0), 2)
 
     # plt.clf()
@@ -283,8 +288,8 @@ def stereo_callback(data):
 
     # for index in range(len(vote_ms_1)):
     #     cv2.circle(rgb, (int(x_ms_1[index]), int(y_ms_1[index])), dist_thresh, (255, 255, 255), 2)
-    #     cv2.putText(rgb, str(int(idx[index])), (int(x_ms_1[index]), int(y_ms_1[index])), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2,
-    #                 cv2.LINE_AA)
+    #     cv2.putText(rgb, str(int(idx[index])), (int(x_ms_1[index]), int(y_ms_1[index])), cv2.FONT_HERSHEY_SIMPLEX, 1,
+    #                   (255, 255, 255), 2, cv2.LINE_AA)
 
     max_cluster = np.argmax(idx)+1
 
@@ -343,8 +348,8 @@ def stereo_callback(data):
 
     if cluster < 2:
         if gate_detection_jungle_on:
-            gate_detection_jungle(vote_ms_1, y_ms_1, x_ms_1, lines, clusters_1, start, end, votes, dist_thresh, rgb, data,
-                              this_pose)
+            gate_detection_jungle(vote_ms_1, y_ms_1, x_ms_1, lines, clusters_1, start, end, votes, dist_thresh, rgb,
+                                  data, this_pose)
         else:
             rospy.loginfo("empty sequence 2")
             publisher_result.publish(Gate_Detection_Msg())
@@ -419,7 +424,6 @@ def stereo_callback(data):
     # for line in to_cluster_id2_b:
     #     cv2.line(rgb, (start[0][line], start[1][line]), (end[0][line], end[1][line]), (255, 0, 0), 2)
 
-
     # cluster a
     to_cluster1 = end[:, to_cluster_id1_a]
     to_cluster2 = start[:, to_cluster_id2_a]
@@ -462,8 +466,8 @@ def stereo_callback(data):
 
     if cluster == 0:
         if gate_detection_jungle_on:
-            gate_detection_jungle(vote_ms_1, y_ms_1, x_ms_1, lines, clusters_1, start, end, votes, dist_thresh, rgb, data,
-                              this_pose)
+            gate_detection_jungle(vote_ms_1, y_ms_1, x_ms_1, lines, clusters_1, start, end, votes, dist_thresh, rgb,
+                                  data, this_pose)
         else:
             rospy.loginfo("empty sequence 3a")
             publisher_result.publish(Gate_Detection_Msg())
@@ -539,8 +543,8 @@ def stereo_callback(data):
 
     if cluster == 0:
         if gate_detection_jungle_on:
-            gate_detection_jungle(vote_ms_1, y_ms_1, x_ms_1, lines, clusters_1, start, end, votes, dist_thresh, rgb, data,
-                              this_pose)
+            gate_detection_jungle(vote_ms_1, y_ms_1, x_ms_1, lines, clusters_1, start, end, votes, dist_thresh, rgb,
+                                  data, this_pose)
         else:
             rospy.loginfo("empty sequence 3b")
             publisher_result.publish(Gate_Detection_Msg())
@@ -591,8 +595,8 @@ def stereo_callback(data):
 
     if not (lines1.any() and lines2.any() and lines3.any() and lines4.any()):
         if gate_detection_jungle_on:
-            gate_detection_jungle(vote_ms_1, y_ms_1, x_ms_1, lines, clusters_1, start, end, votes, dist_thresh, rgb, data,
-                              this_pose)
+            gate_detection_jungle(vote_ms_1, y_ms_1, x_ms_1, lines, clusters_1, start, end, votes, dist_thresh, rgb,
+                                  data, this_pose)
         else:
             rospy.loginfo("not four lines")
             publisher_result.publish(Gate_Detection_Msg())
@@ -615,7 +619,7 @@ def stereo_callback(data):
     cv2.circle(rgb, (int(x3), int(y3)), 3, (0, 255, 255), 2)
     cv2.circle(rgb, (int(x4), int(y4)), 3, (0, 255, 255), 2)
 
-    corner_points = np.array([[x1, y1],[x2, y2],[x3,y3],[x4,y4]])
+    corner_points = np.array([[x1, y1], [x2, y2], [x3, y3], [x4, y4]])
 
     # Assume no lens distortion
     dist_coeffs = np.zeros((4, 1))
@@ -672,10 +676,10 @@ def stereo_callback(data):
         mask = mask_image(hsv, "green")
 
         # probabilistic hough transform
-        minLineLength = 70
-        maxLineGap = 10
+        minlinelength = 70
+        maxlinegap = 10
 
-        lines = cv2.HoughLinesP(mask, 5, np.pi / 180, 500, minLineLength=minLineLength, maxLineGap=maxLineGap)
+        lines = cv2.HoughLinesP(mask, 5, np.pi / 180, 500, minLineLength=minlinelength, maxLineGap=maxlinegap)
 
         if lines is None:
             rospy.loginfo("no dynamic lines")
@@ -728,7 +732,8 @@ def stereo_callback(data):
 
         cv2.line(rgb, (gate[0], gate[1]), (
             gate[0] + int(-250 * math.sin(angle_m)), gate[1] + int(-250 * math.cos(angle_m))),
-                 (255, 255, 0), 6)
+                 (0, 0, 255), 6)
+
         # cv2.putText(rgb, str(angle_m * 180 / math.pi), (0, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2,
         #             cv2.LINE_AA)
 
@@ -741,17 +746,19 @@ def stereo_callback(data):
         publisher_dynamic.publish(msg)
 
     elif gate_detection_jungle_on:
-        gate_detection_jungle(vote_ms_1, y_ms_1, x_ms_1, lines, clusters_1, start, end, votes, dist_thresh, rgb, data, this_pose)
+        gate_detection_jungle(vote_ms_1, y_ms_1, x_ms_1, lines, clusters_1, start, end, votes, dist_thresh, rgb, data,
+                              this_pose)
 
     rgb = cv2.resize(rgb, (0, 0), fx=output_scale, fy=output_scale)
     output_im = bridge.cv2_to_imgmsg(rgb, encoding=data.encoding)
     publisher_image_gate.publish(output_im)
 
-        # plt.pause(0.0001)
+    # plt.pause(0.0001)
     # time.sleep(3)
 
 
-def gate_detection_jungle(vote_ms_1, y_ms_1, x_ms_1, lines, clusters_1, start, end, votes, dist_thresh, rgb, data, this_pose):
+def gate_detection_jungle(vote_ms_1, y_ms_1, x_ms_1, lines, clusters_1, start, end, votes, dist_thresh, rgb, data,
+                          this_pose):
     # altered for jungle to find second gate
         idx = vote_ms_1 * (800-y_ms_1) / 1000  # * (400-abs(x_ms_1-1280/2))/100000
         max_hor_id = np.argmax(idx)
@@ -760,8 +767,8 @@ def gate_detection_jungle(vote_ms_1, y_ms_1, x_ms_1, lines, clusters_1, start, e
         #
         # for index in range(len(vote_ms_1)):
         #     cv2.circle(rgb, (int(x_ms_1[index]), int(y_ms_1[index])), dist_thresh, (255, 255, 255), 2)
-        #     cv2.putText(rgb, str(int(idx[index])), (int(x_ms_1[index]), int(y_ms_1[index])), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2,
-        #                 cv2.LINE_AA)
+        #     cv2.putText(rgb, str(int(idx[index])), (int(x_ms_1[index]), int(y_ms_1[index])), cv2.FONT_HERSHEY_SIMPLEX,
+    #            1, (255, 255, 255), 2,  cv2.LINE_AA)
 
         max_cluster = np.argmax(idx) + 1
 
@@ -1156,6 +1163,13 @@ def emergency_shutdown(_):
     rospy.signal_shutdown("emergency shutdown")
 
 
+def callback_orange_values(data):
+    global orange_low
+    global orange_high
+    orange_low = np.array(data.data[:3])
+    orange_high = np.array(data.data[3:])
+
+
 if __name__ == '__main__':
     signal.signal(signal.SIGINT, signal_handler)
     rospy.init_node('gate_detection', anonymous=False)
@@ -1167,6 +1181,9 @@ if __name__ == '__main__':
     gate_detection_jungle_on = False
     gate_size = 1.4
     output_scale = 0.25
+    # armory
+    orange_low = np.array([87, 125, 50])
+    orange_high = np.array([145, 255, 255])
     # relocate_factor = 1.5
 
     bridge = CvBridge()
@@ -1178,6 +1195,7 @@ if __name__ == '__main__':
     rospy.Subscriber("/auto/jungle_detection_on", Bool, callback_jungle_detection_changed)
     rospy.Subscriber("/auto/gate_size", Float32, callback_gate_size_changed)
     rospy.Subscriber("/auto/emergency_shutdown", Empty, emergency_shutdown)
+    rospy.Subscriber("/auto/gate_color", Float32MultiArray, callback_orange_values)
 
     publisher_image_threshold_orange = rospy.Publisher("/auto/gate_detection_threshold_orange", Image, queue_size=1)
     publisher_image_threshold_dynamic = rospy.Publisher("/auto/gate_detection_threshold_dynamic", Image, queue_size=1)

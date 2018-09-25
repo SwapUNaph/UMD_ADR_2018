@@ -19,7 +19,6 @@ sub_gate = rossubscriber('/auto/visual_logger','std_msgs/String',@gate_callback)
 fprintf('connected, recording on index %d and %d \n',NavPID_indx, Gate_indx)
 
 
-
 %%
 clear sub_nav
 clear sub_gate

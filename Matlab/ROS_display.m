@@ -325,14 +325,17 @@ vec(vec==0)=[];
 figure
 hold on
 grid on
-plot(dataTemp(:,40),dataTemp(:,2))
-plot(dataTemp(:,40),dataTemp(:,3))
-plot(dataTemp(:,4),dataTemp(:,5))
-plot(dataTemp(:,40),dataTemp(:,6))
-plot(dataTemp(:,40),dataTemp(:,7),'og')
-plot(dataTemp(:,40),dataTemp(:,9),'xr')
-plot(dataTemp(:,40),dataTemp(:,10),'ok')
-plot(vec,0*ones(length(vec),1),'xm')
+first_val = 1;
+% last_val = size(dataTemp,1);
+last_val = 33;
+plot(dataTemp(first_val:last_val,40),dataTemp(first_val:last_val,2))
+plot(dataTemp(first_val:last_val,40),dataTemp(first_val:last_val,3))
+plot(dataTemp(first_val:last_val,4),dataTemp(first_val:last_val,5))
+plot(dataTemp(first_val:last_val,40),dataTemp(first_val:last_val,6))
+plot(dataTemp(first_val:last_val,40),dataTemp(first_val:last_val,7),'og')
+plot(dataTemp(first_val:last_val,40),dataTemp(first_val:last_val,9),'xr')
+plot(dataTemp(first_val:last_val,40),dataTemp(first_val:last_val,10),'ok')
+% plot(vec,0*ones(length(vec),1),'xm')
 % plot(dataTemp(:,40),dataTemp(:,12))
 
-legend('freq','offset','measurement','deviation','current_angle','theta trigger','angle_diff','exec time', 'throttle')
+legend('freq','offset','measurement','deviation','current angle','theta trigger','angle diff','exec time', 'throttle')

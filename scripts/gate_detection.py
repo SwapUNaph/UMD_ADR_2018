@@ -94,8 +94,8 @@ def mask_image(hsv, color):
         # lower_color = np.array([20, 55, 100])  # green cypress pointer
         # upper_color = np.array([35, 255, 255])  # green cypress pointer
 
-        lower_color = np.array([10, 105, 50])  # green armory
-        upper_color = np.array([35, 255, 255])  # green armory
+        lower_color = np.array([0, 170, 60])  # green armory
+        upper_color = np.array([45, 255, 255])  # green armory
 
         publisher = publisher_image_threshold_dynamic
 

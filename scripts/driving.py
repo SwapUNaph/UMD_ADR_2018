@@ -82,7 +82,7 @@ if __name__ == '__main__':
     rospy.Subscriber("/auto/auto_drive", Auto_Driving_Msg, callback_autonomous_drive_msg_changed)
 
     # run with 20Hz
-    rate = rospy.Rate(cr.frequency)
+    rate = rospy.Rate(20)
 
     rospy.loginfo("ready")
 

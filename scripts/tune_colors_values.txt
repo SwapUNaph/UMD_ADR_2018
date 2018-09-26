@@ -1,3 +1,16 @@
+87, 150, 50
+155, 255, 255
+orange armory
+
+
+105, 95, 40
+155, 255, 255
+orange dynamic armory
+
+0, 170, 60
+45, 255, 255
+green armory
+
 80, 20, 240
 130, 255, 255
 orange matlab dynamic
@@ -8,13 +21,6 @@ green matlab pointer
 
 
 
-87, 125, 50
-145, 255, 255
-orange armory
-
-10, 100, 50
-35, 255, 255
-green armory
 
 
 

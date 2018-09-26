@@ -118,7 +118,7 @@ class OpenloopData:
         self.timer = None
         self.period = None
         self.theta = None
-        self.time_taken_to_gate = 1.7
+        self.time_taken_to_gate = 2.0
         self.std_dev = None
 
         self.rotate_perform = False

@@ -311,23 +311,35 @@ legend('1','2','3','4','5')
 %% dyn
 dataTemp2 = NavPID_data(NavPID_indx,:);
 dataTemp = [];
+
 for k = 1:1000
-    dataTemp = [dataTemp;cellfun(@str2num,strsplit(dataTemp2{k}{1},', '))];
+    dataTemp2{k}{1} = strrep(dataTemp2{k}{1},'through','-1');
     
     if ~iscell(NavPID_data{NavPID_indx,k+1})
        break 
     end
 end
 
-vec = dataTemp(:,11);
-vec(vec==0)=[];
+for k = 1:1000
+    if k ~= 8
+        dataTemp = [dataTemp;cellfun(@str2num,strsplit(dataTemp2{k}{1},', '))];
+    end
+
+    if ~iscell(NavPID_data{NavPID_indx,k+1})
+       break 
+    end
+end
 
 figure
 hold on
 grid on
-first_val = 1;
+first_val = 443;
 % last_val = size(dataTemp,1);
-last_val = 33;
+last_val = 481;
+
+vec = dataTemp(first_val:last_val,11);
+vec(vec==0)=[];
+
 plot(dataTemp(first_val:last_val,40),dataTemp(first_val:last_val,2))
 plot(dataTemp(first_val:last_val,40),dataTemp(first_val:last_val,3))
 plot(dataTemp(first_val:last_val,4),dataTemp(first_val:last_val,5))
@@ -335,7 +347,7 @@ plot(dataTemp(first_val:last_val,40),dataTemp(first_val:last_val,6))
 plot(dataTemp(first_val:last_val,40),dataTemp(first_val:last_val,7),'og')
 plot(dataTemp(first_val:last_val,40),dataTemp(first_val:last_val,9),'xr')
 plot(dataTemp(first_val:last_val,40),dataTemp(first_val:last_val,10),'ok')
-% plot(vec,0*ones(length(vec),1),'xm')
-% plot(dataTemp(:,40),dataTemp(:,12))
+plot(vec,0*ones(length(vec),1),'xm')
+plot(dataTemp(first_val:last_val,40),dataTemp(first_val:last_val,12))
 
 legend('freq','offset','measurement','deviation','current angle','theta trigger','angle diff','exec time', 'throttle')

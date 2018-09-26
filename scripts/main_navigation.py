@@ -240,7 +240,6 @@ def callback_visual_gate_dynamic_changed(input_data):
                 angles = np.unwrap(angles)
                 a_dev = np.std(angles)
                 if a_dev < 20*math.pi/180:
-                    detection_dynamic_data.triggered = True
                     theta_current = math.atan2(np.sum(np.sin(angles)), np.sum(np.cos(angles)))
                     if theta_current < 0:
                         theta_current = theta_current + 2 * math.pi
@@ -312,12 +311,16 @@ def callback_visual_gate_dynamic_changed(input_data):
 
                     publisher_nav_log.publish(log_string)
 
-                    while exec_time > time.time():
-                        time.sleep(0.01)
-
-                    full_throttle_executer(1.5)
-                    global nav_active
-                    nav_active = "off"
+                    if detection_dynamic_data.triggered:
+                        return
+                    else:
+                        detection_dynamic_data.triggered = True
+                        while exec_time > time.time():
+                            time.sleep(0.01)
+                        full_throttle_executer(1.5)
+                        global nav_active
+                        nav_active = "off"
+                        return
 
             log_string = str(
                 0) + ", " + str(
@@ -327,7 +330,7 @@ def callback_visual_gate_dynamic_changed(input_data):
                 measurement[1]) + ", " + str(
                 dev) + ', ' + str(
                 theta_current or 0) + ', ' + str(
-                t) + ", " + str(
+                cur_t) + ", " + str(
                 theta_trigger or 0) + ', ' + str(
                 angle_diff or 0) + ", " + str(
                 exec_time or 0) + ", " + str(

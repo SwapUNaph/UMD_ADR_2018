@@ -186,7 +186,7 @@ def callback_visual_gate_dynamic_changed(input_data):
             # data = np.loadtxt(open('theta.csv', 'rb'), delimiter=',', skiprows=1)
             data = detection_dynamic_input_history
             # Resolution determines how accurate the fourier transform is
-            resolution = 0.0003
+            resolution = 0.001
 
             # Plots:
             # [fourier series plot in frequency domain, in complex plane, angle history plot, angle propagation plot]:
@@ -203,8 +203,8 @@ def callback_visual_gate_dynamic_changed(input_data):
             # Last two parameters are showing plot in frequency domain, and plot in imaginary plane.
             # [freq, offset, four_plot, imag_plot] = cr.extract_freq(data, resolution, plots[0], plots[1])
             [freq, offset] = cr.extract_freq(data, resolution, plots[0], plots[1])
-            # if np.sum(np.diff(np.unwrap(np.transpose(detection_dynamic_input_history)[1][:]))) < 0:
-            #     freq=-freq
+            if np.sum(np.sign(np.diff(np.unwrap(np.transpose(detection_dynamic_input_history)[1][:])))) < 0:
+                freq = -freq
             global detection_dynamic_freqs
             detection_dynamic_freqs = np.append(detection_dynamic_freqs,freq)
 

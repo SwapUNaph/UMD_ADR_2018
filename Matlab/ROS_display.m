@@ -333,9 +333,9 @@ end
 figure
 hold on
 grid on
-first_val = 443;
-% last_val = size(dataTemp,1);
-last_val = 481;
+first_val = 1;
+last_val = size(dataTemp,1);
+% last_val = 481;
 
 vec = dataTemp(first_val:last_val,11);
 vec(vec==0)=[];

@@ -94,8 +94,11 @@ def mask_image(hsv, color):
         # lower_color = np.array([20, 55, 100])  # green cypress pointer
         # upper_color = np.array([35, 255, 255])  # green cypress pointer
 
-        lower_color = np.array([0, 170, 60])  # green armory
-        upper_color = np.array([45, 255, 255])  # green armory
+        # lower_color = np.array([0, 170, 60])  # green armory
+        # upper_color = np.array([45, 255, 255])  # green armory
+
+        lower_color = np.array([25, 100, 20])  # green Madrid
+        upper_color = np.array([50, 255, 60])  # green Madrid
 
         publisher = publisher_image_threshold_dynamic
 
@@ -197,7 +200,10 @@ def stereo_callback(data):
 
     # shorten list of lines to only use good matches
     if len(lines) > 40:
-        lines = lines[:40]
+        if gate_detection_jungle_on:
+            lines = lines[:80]
+        else:
+            lines = lines[:40]
 
     # votes = np.array(list(reversed(range(len(lines))))) + 1
     # for counter, line in enumerate(lines):

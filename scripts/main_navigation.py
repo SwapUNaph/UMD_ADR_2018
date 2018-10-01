@@ -1543,6 +1543,10 @@ class State:
             if nav_active == self.condition_thres:
                 self.exit()
 
+        elif self.condition_type == "auto":
+            if autonomy_active == self.condition_thres:
+                self.exit()
+
 
 def callback_bebop_odometry_changed(data):
     global bebop_odometry
@@ -1629,6 +1633,13 @@ def emergency_shutdown(_):
     rospy.signal_shutdown("emergency shutdown")
 
 
+
+def callback_autonomous_driving(data):
+    print("autonomy " + str(data))
+    global autonomy_active
+    autonomy_active = data.data
+
+
 if __name__ == '__main__':
     # Enable killing the script with Ctrl+C.
     signal.signal(signal.SIGINT, signal_handler)
@@ -1636,6 +1647,7 @@ if __name__ == '__main__':
     rospy.init_node('main_navigation', anonymous=False)
 
     # Variables
+    autonomy_active = False
     bebop_odometry = None
     state_auto = -1
     state_bebop = None
@@ -1708,44 +1720,58 @@ if __name__ == '__main__':
     # own_state, next_state, condition_type, condition_thres, exit_clear_visual, detection_active_bool,
     # special_detection, nav_active_str, gate_size, gate_color, fly, look
 
-    o0 = [87, 150, 50, 155, 255, 255]
-    o1 = [105, 95, 40, 155, 255, 255]
+    # o0 = [87, 150, 50, 155, 255, 255]
+    # o1 = [105, 95, 40, 155, 255, 255]
+
+    # Madrid
+    # 1+3+6 (bright)
+    o1 = [105, 145, 70, 118, 255, 180]
+    # 2+4+5 (dark)
+    o2 = [105, 185, 30, 128, 255, 125]
+    # 7
+    o7 = [112, 145, 60, 123, 255, 180]
+    # 8
+    o8 = [112, 145, 20, 125, 255, 180]
+
+    # states[10] = State(10, 11, "dist",  dist_gate_blind, 0, 0, 0, p,  1.4,  o1, [1.0, 0, 1.2], [4.4, 0, 0])
+    # states[04] = State(04, 10, "time",  1.0,             0, 0, 0, o,  None, o1, [], [])
 
     states = [State()] * 100
     states[02] = State(02, 03, "bebop", cr.Bebop.TAKEOFF,  0, 0, 0, o,  None, [], [], [])
     states[03] = State(03, 04, "bebop", cr.Bebop.HOVERING, 0, 0, 0, o,  None, [], [])
-    states[04] = State(04, 10, "time",  1.0,               0, 0, 0, o,  None, o0, [], [])
-    states[10] = State(10, 11, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  o0, [1.0, 0, 1.2], [4.4, 0, 0])
-    states[11] = State(11, 12, "wp",    None,              0, 1, 0, p,  None, o0, [2.0, 0, 0], [4.4, 0, 0])
+    states[04] = State(04, 05, "dist",  0.2,               0, 0, 0, o,  None, o1, [0.2, 0.0, 1.0], [1.0, 0.0, 0.0])
+    states[05] = State(05, 06, "time",  1.0,               0, 0, 0, o,  None, o1, [], [])
+    states[06] = State(06, 11, "auto",  True,              0, 1, 0, o,  1.4,  o1, [], [])
+    states[11] = State(11, 12, "wp",    None,              0, 1, 0, p,  1.4,  o1, [2.0, 0, 0], [4.4, 0, 0])
     states[12] = State(12, 13, "dist",  dist_gate_close,   1, 1, 0, t,  None, [], [], [])
     states[13] = State(13, 20, "dist",  dist_exit_gate,    0, 0, 0, p,  None, [], [dist_egw, 0, 0], [dist_egw, 0, 0])
-    states[20] = State(20, 21, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  [], [2.0, 0, 0], [6.46, 0, 0])
+    states[20] = State(20, 21, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  o2, [2.0, 0, 0], [6.46, 0, 0])
     states[21] = State(21, 22, "wp",    None,              0, 1, 0, p,  None, [], [3.5, 0, 0], [6.46, 0, 0])
     states[22] = State(22, 23, "dist",  dist_gate_close,   1, 1, 0, t,  None, [], [], [])
     states[23] = State(23, 30, "dist",  dist_exit_gate,    0, 0, 0, p,  None, [], [dist_egw, 0, 0], [dist_egw, 0, 0])
-    states[30] = State(30, 31, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  [], [1.6, -0.5, 0], [1.34, -3.5, 0])
+    states[30] = State(30, 31, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  o1, [1.6, -0.5, 0], [1.34, -3.5, 0])
     states[31] = State(31, 32, "wp",    None,              0, 1, 0, p,  None, [], [1.3, -1.5, 0], [1.34, -3.5, 0])
     states[32] = State(32, 33, "dist",  dist_gate_close,   1, 1, 0, t,  None, [], [], [])
     states[33] = State(33, 40, "dist",  dist_exit_gate,    0, 0, 0, p,  None, [], [dist_egw, 0, 0], [dist_egw, 0, 0])
-    states[40] = State(40, 41, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  [], [2.5, 0.3, 0.0], [3.1, -3.4, 0])
+    states[40] = State(40, 41, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  o2, [2.5, 0.3, 0.0], [3.1, -3.4, 0])
     states[41] = State(41, 42, "wp",    None,              0, 1, 0, p,  None, [], [3.5, 1.3, 0], [3.1, -3.4, 0])
     states[42] = State(42, 43, "dist",  dist_gate_close,   1, 1, 0, t,  None, [], [], [])
     states[43] = State(43, 50, "dist",  dist_exit_gate,    0, 0, 0, p,  None, [], [dist_egw, 0, 0], [dist_egw, 0, 0])
-    states[50] = State(50, 51, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  [], [2.0, -0.1, 0], [6.2, -0.1, 0])
+    states[50] = State(50, 51, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  o2, [2.0, -0.1, 0], [6.2, -0.1, 0])
     states[51] = State(51, 52, "wp",    None,              0, 1, 0, p,  None, [], [5.0, -0.1, 0], [6.2, -0.1, 0])
     states[52] = State(52, 53, "dist",  dist_gate_close,   1, 1, 0, t,  None, [], [], [])
     states[53] = State(53, 60, "dist",  dist_exit_gate,    0, 0, 0, p,  None, [], [dist_egw, 0, 0], [dist_egw, 0, 0])
-    states[60] = State(60, 61, "dist",  dist_gate_blind,   0, 0, 0, p,  1.0,  [], [2.1, -3.3, +0.3], [0.0, -2.8, 0])
+    states[60] = State(60, 61, "dist",  dist_gate_blind,   0, 0, 0, p,  1.0,  o1, [2.1, -3.3, +0.3], [0.0, -2.8, 0])
     states[61] = State(61, 62, "wp",    None,              0, 1, 0, p,  None, [], [1.6, -3.0, -0.5], [0.0, -2.8, 0])
     states[62] = State(62, 63, "dist",  0.3,               0, 1, 0, j,  None, [], [], [])
     states[63] = State(63, 70, "dist",  0.9,               1, 1, j, j2, None, [], [], [])
-    states[70] = State(70, 71, "dist",  dist_gate_blind,   0, 0, 0, p,  2.1,  o1, [1.0, -3.3, -0.3], [3.15, 0, 0])
-    states[71] = State(71, 72, "wp",    None,              0, 1, 0, p,  None, o1, [3.0, -3.3, -0.3], [3.15, 0, 0])
-    states[72] = State(72, 73, "dist",  dist_gate_dyn,     0, 1, 0, p,  None, o1, [], [])
+    states[70] = State(70, 71, "dist",  dist_gate_blind,   0, 0, 0, p,  2.1,  o7, [1.0, -3.3, -0.3], [3.15, 0, 0])
+    states[71] = State(71, 72, "wp",    None,              0, 1, 0, p,  None, [], [3.0, -3.3, -0.3], [3.15, 0, 0])
+    states[72] = State(72, 73, "dist",  dist_gate_dyn,     0, 1, 0, p,  None, [], [], [])
     states[73] = State(73, 80, "nav",   "off",             1, 1, d, d,  None, [], [], [])
-    states[80] = State(80, 81, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  o0, [2.5, 0.0, 0.6], [3.0, 2.82, 0])
-    states[81] = State(81, 82, "wp",    None,              0, 1, 0, p,  None, o0, [3.0, 0.2, 0.6], [3.0, 2.82, 0])
-    states[82] = State(82, 83, "dist",  dist_gate_close,   1, 1, 0, t,  None, o0, [], [])
+    states[80] = State(80, 81, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  o8, [2.5, 0.0, 0.6], [3.0, 2.82, 0])
+    states[81] = State(81, 82, "wp",    None,              0, 1, 0, p,  None, [], [3.0, 0.2, 0.6], [3.0, 2.82, 0])
+    states[82] = State(82, 83, "dist",  dist_gate_close,   1, 1, 0, t,  None, [], [], [])
     states[83] = State(83, 90, "dist",  dist_exit_gate,    0, 0, 0, p,  None, [], [dist_egw, 0, 0], [dist_egw, 0, 0])
     states[90] = State(90, 91, "bebop", cr.Bebop.LANDING,  0, 0, 0, o,  None, [], [], [])
     states[91] = State(91, 91, "bebop", cr.Bebop.LANDED,   0, 0, 0, o,  None, [], [], [])
@@ -1759,6 +1785,7 @@ if __name__ == '__main__':
     rospy.Subscriber("/bebop/states/ardrone3/PilotingState/FlyingStateChanged", Ardrone3PilotingStateFlyingStateChanged,
                      callback_states_changed, "state_bebop")
     rospy.Subscriber("/auto/emergency_shutdown", Empty, emergency_shutdown)
+    rospy.Subscriber("/auto/autonomous_driving", Bool, callback_autonomous_driving)
 
     # initializes startup by publishing state 0
     publisher_state_auto.publish(0)

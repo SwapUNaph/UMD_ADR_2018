@@ -709,9 +709,9 @@ def navigate_through():
 
     x_pos_error = cr.min_value(dist * math.cos(d_theta), 0.1)
     if dist > 2:
-        x_vel_des = x_pos_error*max(cr.limit_value(1-4*abs(d_theta)/math.pi, 1.0), 0)
+        x_vel_des = x_pos_error*max(cr.limit_value(1-8*abs(d_theta)/math.pi, 1.0), 0)
     else:
-        x_vel_des = x_pos_error*max(cr.limit_value(1-12*abs(d_theta)/math.pi, 1.0), -.25)
+        x_vel_des = x_pos_error*max(cr.limit_value(1-20*abs(d_theta)/math.pi, 1.0), -.25)
 
     z_error = diff_global[2]
 
@@ -961,7 +961,7 @@ def navigate_jungle():
             x_vel_des = x_vel_des * max(1 - abs(velocity.y / .07), 0)
     elif dist > 1.2:
         x_vel_des = x_pos_error * max(cr.limit_value(1 - 36 * abs(d_theta) / math.pi, 1.0), -.02)
-        if abs(d_theta) < math.pi / 36 and dist > 1.5:
+        if abs(d_theta) < math.pi / 36 and dist > 1.2:
             x_vel_des = x_vel_des * max(1 - abs(velocity.y / .07), 0)
     else:
         x_vel_des = x_pos_error * max((.1 - abs(y_pos_error)) / .1, -.02)
@@ -1442,7 +1442,7 @@ def wp_move(wp, dist, hdg):
 class State:
     def __init__(self, own_state=None, next_state=None, condition_type=None, condition_thres=None,
                  exit_clear_visual=None, detection_active_bool=None, special_detection=None, nav_active_str=None,
-                 gate_size=None, gate_color=None, fly=None, look=None):
+                 gate_size=None, gate_color=None, fly=None, look=None, auto=None):
         self.own_state = own_state
         self.next_state = next_state
         self.condition_type = condition_type
@@ -1457,6 +1457,7 @@ class State:
         self.fly = np.array(fly)
         self.look = np.array(look)
         self.time = None
+        self.auto = auto
 
     def enter(self):
         # do things when state is selected
@@ -1477,6 +1478,12 @@ class State:
         nav_through_PID_y_vel.reset()
         nav_through_PID_z_vel.reset()
         nav_through_PID_r_vel.reset()
+
+        # if self.auto is not None:
+        #     if self.auto:
+        #         publisher_auto_active.publish(True)
+        #     else:
+        #         publisher_auto_active.publish(False)
 
         if self.condition_type == "time":
             self.time = time.time()
@@ -1570,7 +1577,8 @@ def callback_bebop_odometry_changed(data):
         wp_takeoff = [bebop_position.x, bebop_position.y, bebop_position.z]
     if wp_scale is None and wp_visual is None and wp_visual_old is not None:
         diff = wp_visual_old.pos - wp_takeoff
-        wp_scale = math.sqrt(diff[0]*diff[0] + diff[1]*diff[1]) / 4.0
+        wp_scale = math.sqrt(diff[0]*diff[0] + diff[1]*diff[1]) / 2.5
+        wp_scale = 1
         rospy.loginfo("wp_scale")
         rospy.loginfo(wp_scale)
 
@@ -1708,6 +1716,7 @@ if __name__ == '__main__':
     publisher_jungle_detection_on = rospy.Publisher("/auto/jungle_detection_on", Bool,   queue_size=1, latch=True)
     publisher_gate_size = rospy.Publisher("/auto/gate_size",       Float32,              queue_size=1, latch=True)
     publisher_gate_color = rospy.Publisher("/auto/gate_color",     Float32MultiArray,    queue_size=1, latch=True)
+    publisher_auto_active = rospy.Publisher('/auto/autonomous_driving', Bool,            queue_size=1, latch=True)
 
     d = "dynamic"
     j = "jungle"
@@ -1723,53 +1732,61 @@ if __name__ == '__main__':
     # o1 = [105, 95, 40, 155, 255, 255]
 
     # Madrid
-    # 1+3+6 (bright)
-    o1 = [105, 145, 70, 118, 255, 180]
-    # 2+4+5 (dark)
-    o2 = [105, 185, 30, 128, 255, 125]
+    # 1+2+6 (bright)
+    o1 = [100, 140, 50, 140, 255, 255]
+    o2 = [110, 135, 50, 130, 255, 180]
+    # 3
+    o3 = [100, 130, 30, 140, 255, 180]
+    # 4+5
+    o4 = [70, 130, 50, 148, 255, 255]
+    o5 = [70, 125, 50, 148, 255, 255]
+    # 6
+    o6 = [110, 135, 50, 130, 255, 180]
     # 7
-    o7 = [112, 145, 60, 123, 255, 180]
+    o7 = [100, 130, 50, 130, 255, 255]
     # 8
-    o8 = [112, 145, 20, 125, 255, 180]
+    o8 = [112, 105, 20, 125, 255, 180]
 
-    # states[10] = State(10, 11, "dist",  dist_gate_blind, 0, 0, 0, p,  1.4,  o1, [1.0, 0, 1.2], [4.4, 0, 0])
-    # states[04] = State(04, 10, "time",  1.0,             0, 0, 0, o,  None, o1, [], [])
+    #
+    #
 
     states = [State()] * 100
     states[02] = State(02, 03, "bebop", cr.Bebop.TAKEOFF,  0, 0, 0, o,  None, [], [], [])
     states[03] = State(03, 04, "bebop", cr.Bebop.HOVERING, 0, 0, 0, o,  None, [], [])
-    states[04] = State(04, 05, "dist",  0.2,               0, 0, 0, o,  None, o1, [0.2, 0.0, 1.7], [1.0, 0.0, 0.0])
-    states[05] = State(05, 06, "time",  1.0,               0, 0, 0, o,  None, o1, [], [])
-    states[06] = State(06, 11, "auto",  True,              0, 1, 0, o,  1.4,  o1, [], [])
-    states[11] = State(11, 12, "wp",    None,              0, 1, 0, p,  1.4,  o1, [2.0, 0, 0], [3.2, 0, 0])
+    states[04] = State(04, 10, "time",  1.0,                0, 0, 0, o, None, o1, [], [])
+    # states[04] = State(04, 05, "dist",  0.2,               0, 0, 0, p,  None, o1, [0.0, 0.0, 1.7], [1.0, 0.0, 0.0], auto=True)
+    # states[05] = State(05, 06, "time",  1.0,               0, 0, 0, o,  None, o1, [], [], auto=False)
+    # states[06] = State(06, 11, "auto",  True,              0, 1, 0, o,  1.4,  o1, [], [])
+    states[10] = State(10, 11, "dist", 0.2,                0, 0, 0, p,  1.4,  o1, [0.5, 0, 1.3], [4.4, 0, 0])
+    states[11] = State(11, 12, "wp",    None,              0, 1, 0, p,  1.4,  o1, [0.0, 0, 0.1], [3.2, 0, 0])
     states[12] = State(12, 13, "dist",  dist_gate_close,   1, 1, 0, t,  None, [], [], [])
     states[13] = State(13, 20, "dist",  dist_exit_gate,    0, 0, 0, p,  None, [], [dist_egw, 0, 0], [dist_egw, 0, 0])
     states[20] = State(20, 21, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  o2, [0.7, 0, 0], [5.0, 0, 0])
     states[21] = State(21, 22, "wp",    None,              0, 1, 0, p,  None, [], [2.25, 0, 0], [5.0, 0, 0])
     states[22] = State(22, 23, "dist",  dist_gate_close,   1, 1, 0, t,  None, [], [], [])
     states[23] = State(23, 30, "dist",  dist_exit_gate,    0, 0, 0, p,  None, [], [dist_egw, 0, 0], [dist_egw, 0, 0])
-    states[30] = State(30, 31, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  o1, [2.2, 0, 0], [2.75, -2.75, 0])
-    states[31] = State(31, 32, "wp",    None,              0, 1, 0, p,  None, [], [2.75, -.25, 0], [2.75, -2.75, 0])
+    states[30] = State(30, 31, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  o3, [0.9, -0.5, -.1], [1.5, -2.75, 0])
+    states[31] = State(31, 32, "wp",    None,              0, 1, 0, p,  None, [], [1.1, -0.75, -.1], [1.5, -2.75, 0])
     states[32] = State(32, 33, "dist",  dist_gate_close,   1, 1, 0, t,  None, [], [], [])
     states[33] = State(33, 40, "dist",  dist_exit_gate,    0, 0, 0, p,  None, [], [dist_egw, 0, 0], [dist_egw, 0, 0])
-    states[40] = State(40, 41, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  o2, [1.5, 0.0, 0.0], [2.18, -3.1, 0])
-    states[41] = State(41, 42, "wp",    None,              0, 1, 0, p,  None, [], [2.2, 1, 0], [2.18, -3.1, 0])
+    states[40] = State(40, 41, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  o4, [0.5, -0.5, 0.0], [1.4, -2.1, 0])
+    states[41] = State(41, 42, "wp",    None,              0, 1, 0, p,  None, [], [1.2, -0.5, 0], [1.4, -2.1, 0])
     states[42] = State(42, 43, "dist",  dist_gate_close,   1, 1, 0, t,  None, [], [], [])
     states[43] = State(43, 50, "dist",  dist_exit_gate,    0, 0, 0, p,  None, [], [dist_egw, 0, 0], [dist_egw, 0, 0])
-    states[50] = State(50, 51, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  o2, [1.5, -0.0, 0], [5.0, 0, 0])  # 1.5 -> 0.8
-    states[51] = State(51, 52, "wp",    None,              0, 1, 0, p,  None, [], [3.8, -0.0, 0], [5.0, 0, 0])
+    states[50] = State(50, 51, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  o5, [1.5, -0.2, 0], [5.0, 0, 0])  # 1.5 -> 0.8
+    states[51] = State(51, 52, "wp",    None,              0, 1, 0, p,  None, [], [2.3, -0.2, 0], [5.0, 0, 0])
     states[52] = State(52, 53, "dist",  dist_gate_close,   1, 1, 0, t,  None, [], [], [])
     states[53] = State(53, 60, "dist",  dist_exit_gate,    0, 0, 0, p,  None, [], [dist_egw, 0, 0], [dist_egw, 0, 0])
-    states[60] = State(60, 61, "dist",  dist_gate_blind,   0, 0, 0, p,  1.0,  o1, [3.1, -2.7, -0.1], [0.5, -2.5, 0]) # height?
-    states[61] = State(61, 62, "wp",    None,              0, 1, 0, p,  None, [], [2.9, -3.4, -1.0], [0.5, -2.5, 0])
+    states[60] = State(60, 61, "dist",  dist_gate_blind,   0, 0, 0, p,  1.0,  o6, [1.6, -1.7, -0.1], [0.2, -2.0, 0])
+    states[61] = State(61, 62, "wp",    None,              0, 1, 0, p,  None, [], [1.6, -2.4, -1.0], [0.2, -2.0, 0])
     states[62] = State(62, 63, "dist",  0.3,               0, 1, 0, j,  None, [], [], [])
     states[63] = State(63, 70, "dist",  0.9,               1, 1, j, j2, None, [], [], [])
-    states[70] = State(70, 71, "dist",  dist_gate_blind,   0, 0, 0, p,  2.1,  o7, [0.5, -2.7, -0.2], [3.1, 0, 0]) # ??
-    states[71] = State(71, 72, "wp",    None,              0, 1, 0, p,  None, [], [2.9, -3.2, -0.2], [3.1, 0, 0])
+    states[70] = State(70, 71, "dist",  dist_gate_blind,   0, 0, 0, p,  2.1,  o7, [1.2, -1.5, -0.2], [1.8, 0, 0]) 
+    states[71] = State(71, 72, "wp",    None,              0, 1, 0, p,  None, [], [2.2, -2.7, -0.2], [1.8, 0, 0])
     states[72] = State(72, 73, "dist",  dist_gate_dyn,     0, 1, 0, p,  None, [], [], [])
     states[73] = State(73, 80, "nav",   "off",             1, 1, d, d,  None, [], [], [])
-    states[80] = State(80, 81, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  o8, [2.0, -1.0, 0.6], [2.5, 2.0, 0])
-    states[81] = State(81, 82, "wp",    None,              0, 1, 0, p,  None, [], [2.5, 0.0, 0.6], [2.5, 2.0, 0])
+    states[80] = State(80, 81, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  o8, [2.0, -0.5, 1.0], [2.5, 2.0, 0])
+    states[81] = State(81, 82, "wp",    None,              0, 1, 0, p,  None, [], [2.5, -0.5, 1.0], [2.5, 2.0, 0])
     states[82] = State(82, 83, "dist",  dist_gate_close,   1, 1, 0, t,  None, [], [], [])
     states[83] = State(83, 90, "dist",  dist_exit_gate,    0, 0, 0, p,  None, [], [dist_egw, 0, 0], [dist_egw, 0, 0])
     states[90] = State(90, 91, "bebop", cr.Bebop.LANDING,  0, 0, 0, o,  None, [], [], [])

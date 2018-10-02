@@ -97,8 +97,8 @@ def mask_image(hsv, color):
         # lower_color = np.array([0, 170, 60])  # green armory
         # upper_color = np.array([45, 255, 255])  # green armory
 
-        lower_color = np.array([25, 100, 20])  # green Madrid
-        upper_color = np.array([50, 255, 60])  # green Madrid
+        lower_color = np.array([15, 80, 50])  # green Madrid
+        upper_color = np.array([60, 255, 150])  # green Madrid
 
         publisher = publisher_image_threshold_dynamic
 
@@ -1186,10 +1186,10 @@ if __name__ == '__main__':
     gate_detection_dynamic_on = False
     gate_detection_jungle_on = False
     gate_size = 1.4
-    output_scale = 0.25
+    output_scale = 0.1
     # armory
-    orange_low = np.array([87, 125, 50])
-    orange_high = np.array([145, 255, 255])
+    orange_low = np.array([100, 130, 50])
+    orange_high = np.array([130, 255, 255])
     # relocate_factor = 1.5
 
     bridge = CvBridge()

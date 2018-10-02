@@ -1633,7 +1633,6 @@ def emergency_shutdown(_):
     rospy.signal_shutdown("emergency shutdown")
 
 
-
 def callback_autonomous_driving(data):
     print("autonomy " + str(data))
     global autonomy_active
@@ -1739,7 +1738,7 @@ if __name__ == '__main__':
     states = [State()] * 100
     states[02] = State(02, 03, "bebop", cr.Bebop.TAKEOFF,  0, 0, 0, o,  None, [], [], [])
     states[03] = State(03, 04, "bebop", cr.Bebop.HOVERING, 0, 0, 0, o,  None, [], [])
-    states[04] = State(04, 05, "dist",  0.2,               0, 0, 0, o,  None, o1, [0.2, 0.0, 1.0], [1.0, 0.0, 0.0])
+    states[04] = State(04, 05, "dist",  0.2,               0, 0, 0, o,  None, o1, [0.2, 0.0, 1.7], [1.0, 0.0, 0.0])
     states[05] = State(05, 06, "time",  1.0,               0, 0, 0, o,  None, o1, [], [])
     states[06] = State(06, 11, "auto",  True,              0, 1, 0, o,  1.4,  o1, [], [])
     states[11] = State(11, 12, "wp",    None,              0, 1, 0, p,  1.4,  o1, [2.0, 0, 0], [3.2, 0, 0])
@@ -1754,22 +1753,22 @@ if __name__ == '__main__':
     states[32] = State(32, 33, "dist",  dist_gate_close,   1, 1, 0, t,  None, [], [], [])
     states[33] = State(33, 40, "dist",  dist_exit_gate,    0, 0, 0, p,  None, [], [dist_egw, 0, 0], [dist_egw, 0, 0])
     states[40] = State(40, 41, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  o2, [1.5, 0.0, 0.0], [2.18, -3.1, 0])
-    states[41] = State(41, 42, "wp",    None,              0, 1, 0, p,  None, [], [2.2, -1, 0], [2.18, -3.1, 0]) # ??? -1
+    states[41] = State(41, 42, "wp",    None,              0, 1, 0, p,  None, [], [2.2, 1, 0], [2.18, -3.1, 0])
     states[42] = State(42, 43, "dist",  dist_gate_close,   1, 1, 0, t,  None, [], [], [])
     states[43] = State(43, 50, "dist",  dist_exit_gate,    0, 0, 0, p,  None, [], [dist_egw, 0, 0], [dist_egw, 0, 0])
-    states[50] = State(50, 51, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  o2, [1.5, -0.0, 0], [5.0, 0, 0])
-    states[51] = State(51, 52, "wp",    None,              0, 1, 0, p,  None, [], [2.8, -0.0, 0], [5.0, 0, 0])
+    states[50] = State(50, 51, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  o2, [1.5, -0.0, 0], [5.0, 0, 0])  # 1.5 -> 0.8
+    states[51] = State(51, 52, "wp",    None,              0, 1, 0, p,  None, [], [3.8, -0.0, 0], [5.0, 0, 0])
     states[52] = State(52, 53, "dist",  dist_gate_close,   1, 1, 0, t,  None, [], [], [])
     states[53] = State(53, 60, "dist",  dist_exit_gate,    0, 0, 0, p,  None, [], [dist_egw, 0, 0], [dist_egw, 0, 0])
-    states[60] = State(60, 61, "dist",  dist_gate_blind,   0, 0, 0, p,  1.0,  o1, [3.1, -2.7, -0.1], [0.5, -2.5, 0])
+    states[60] = State(60, 61, "dist",  dist_gate_blind,   0, 0, 0, p,  1.0,  o1, [3.1, -2.7, -0.1], [0.5, -2.5, 0]) # height?
     states[61] = State(61, 62, "wp",    None,              0, 1, 0, p,  None, [], [2.9, -3.4, -1.0], [0.5, -2.5, 0])
     states[62] = State(62, 63, "dist",  0.3,               0, 1, 0, j,  None, [], [], [])
     states[63] = State(63, 70, "dist",  0.9,               1, 1, j, j2, None, [], [], [])
-    states[70] = State(70, 71, "dist",  dist_gate_blind,   0, 0, 0, p,  2.1,  o7, [0.5, -2.7, -0.2], [3.1, 0, 0])
-    states[71] = State(71, 72, "wp",    None,              0, 1, 0, p,  None, [], [2.9, -2.4, -0.2], [3.1, 0, 0])
+    states[70] = State(70, 71, "dist",  dist_gate_blind,   0, 0, 0, p,  2.1,  o7, [0.5, -2.7, -0.2], [3.1, 0, 0]) # ??
+    states[71] = State(71, 72, "wp",    None,              0, 1, 0, p,  None, [], [2.9, -3.2, -0.2], [3.1, 0, 0])
     states[72] = State(72, 73, "dist",  dist_gate_dyn,     0, 1, 0, p,  None, [], [], [])
     states[73] = State(73, 80, "nav",   "off",             1, 1, d, d,  None, [], [], [])
-    states[80] = State(80, 81, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  o8, [2.0, 0.0, 0.6], [2.5, 2.0, 0])
+    states[80] = State(80, 81, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  o8, [2.0, -1.0, 0.6], [2.5, 2.0, 0])
     states[81] = State(81, 82, "wp",    None,              0, 1, 0, p,  None, [], [2.5, 0.0, 0.6], [2.5, 2.0, 0])
     states[82] = State(82, 83, "dist",  dist_gate_close,   1, 1, 0, t,  None, [], [], [])
     states[83] = State(83, 90, "dist",  dist_exit_gate,    0, 0, 0, p,  None, [], [dist_egw, 0, 0], [dist_egw, 0, 0])

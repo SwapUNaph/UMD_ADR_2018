@@ -736,8 +736,8 @@ def navigate_through():
     nav_cmd_r = nav_through_PID_r_vel.update(r_error)
 
     msg = Auto_Driving_Msg()
-    msg.x = cr.limit_value(sum(nav_cmd_x) + 0.04, nav_limit_x)
-    msg.y = cr.limit_value(sum(nav_cmd_y), nav_limit_y)
+    msg.x = cr.limit_value(sum(nav_cmd_x) + 0.04, nav_limit_x_thr)
+    msg.y = cr.limit_value(sum(nav_cmd_y), nav_limit_y_thr)
     msg.z = cr.limit_value(sum(nav_cmd_z), nav_limit_z)
     msg.r = cr.limit_value(sum(nav_cmd_r), nav_limit_r)
 
@@ -860,8 +860,8 @@ def navigate_point():
     nav_cmd_y_veh = sum(nav_cmd_y) * math.cos(-angle) + sum(nav_cmd_x) * math.sin(-angle)
 
     msg = Auto_Driving_Msg()
-    msg.x = cr.limit_value(nav_cmd_x_veh, nav_limit_x)
-    msg.y = cr.limit_value(nav_cmd_y_veh, nav_limit_y)
+    msg.x = cr.limit_value(nav_cmd_x_veh, nav_limit_x_pt)
+    msg.y = cr.limit_value(nav_cmd_y_veh, nav_limit_y_pt)
     msg.z = cr.limit_value(sum(nav_cmd_z), nav_limit_z)
     msg.r = cr.limit_value(sum(nav_cmd_r), nav_limit_r)
 
@@ -989,8 +989,8 @@ def navigate_jungle():
     nav_cmd_r = nav_through_PID_r_vel.update(r_error)
 
     msg = Auto_Driving_Msg()
-    msg.x = cr.limit_value(sum(nav_cmd_x) + 0.04, nav_limit_x)
-    msg.y = cr.limit_value(sum(nav_cmd_y), nav_limit_y)
+    msg.x = cr.limit_value(sum(nav_cmd_x) + 0.04, nav_limit_x_thr)
+    msg.y = cr.limit_value(sum(nav_cmd_y), nav_limit_y_thr)
     msg.z = cr.limit_value(sum(nav_cmd_z), nav_limit_z)
     msg.r = cr.limit_value(sum(nav_cmd_r), nav_limit_r)
 
@@ -1685,8 +1685,10 @@ if __name__ == '__main__':
     nav_through_PID_y_vel = cr.PID2(0.3, 0, 0.0)
     nav_through_PID_z_vel = cr.PID(1.0, 0, 0.0)
     nav_through_PID_r_vel = cr.PID(0.8, 0, 1.0)
-    nav_limit_x = .1  # .25
-    nav_limit_y = .2  # .4
+    nav_limit_x_pt = .1  # .25
+    nav_limit_y_pt = .2  # .4
+    nav_limit_x_thr = .1  # .25
+    nav_limit_y_thr = .2  # .4
     nav_limit_z = .5  # .75
     nav_limit_r = 1.0  # 1
     dist_gate_blind = 1.0  # how exact go to blind wp
@@ -1736,10 +1738,10 @@ if __name__ == '__main__':
     o1 = [100, 140, 50, 140, 255, 255]
     o2 = [110, 135, 50, 130, 255, 180]
     # 3
-    o3 = [100, 130, 30, 140, 255, 180]
+    o3 = [100, 100, 70, 140, 255, 255]
     # 4+5
-    o4 = [70, 130, 50, 148, 255, 255]
-    o5 = [70, 125, 50, 148, 255, 255]
+    o4 = [70, 100, 40, 148, 255, 255]
+    o5 = [70, 105, 50, 148, 255, 255]
     # 6
     o6 = [110, 135, 50, 130, 255, 180]
     # 7
@@ -1760,29 +1762,29 @@ if __name__ == '__main__':
     states[10] = State(10, 11, "dist", 0.2,                0, 0, 0, p,  1.4,  o1, [0.2, 0, 1.3], [4.4, 0, 0])
     states[11] = State(11, 12, "wp",    None,              0, 1, 0, p,  1.4,  o1, [0.0, 0, 0.1], [3.2, 0, 0])
     states[12] = State(12, 13, "dist",  dist_gate_close,   1, 1, 0, t,  None, [], [], [])
-    states[13] = State(13, 20, "dist",  dist_exit_gate,    0, 0, 0, p,  None, [], [dist_egw, 0, 0], [dist_egw, 0, 0])
-    states[20] = State(20, 21, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  o2, [0.7, 0, 0], [5.0, 0, 0])
-    states[21] = State(21, 22, "wp",    None,              0, 1, 0, p,  None, [], [2.25, 0, 0], [5.0, 0, 0])
+    states[13] = State(13, 20, "dist",  dist_exit_gate+.2, 0, 0, 0, p,  None, [], [dist_egw, 0, 0], [dist_egw, 0, 0])
+    states[20] = State(20, 21, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  o2, [1.7, 0, 0], [5.0, 0, 0])
+    states[21] = State(21, 22, "wp",    None,              0, 1, 0, p,  None, [], [3.25, 0, 0], [5.0, 0, 0])
     states[22] = State(22, 23, "dist",  dist_gate_close,   1, 1, 0, t,  None, [], [], [])
     states[23] = State(23, 30, "dist",  dist_exit_gate,    0, 0, 0, p,  None, [], [dist_egw, 0, 0], [dist_egw, 0, 0])
-    states[30] = State(30, 31, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  o3, [0.9, -0.5, -.2], [1.5, -2.75, 0])
-    states[31] = State(31, 32, "wp",    None,              0, 1, 0, p,  None, [], [1.1, -1.25, -.2], [1.5, -2.75, 0])
+    states[30] = State(30, 31, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  o3, [1.5, -0.25, -.2], [1.5, -2.75, 0])
+    states[31] = State(31, 32, "wp",    None,              0, 1, 0, p,  None, [], [1.7, -0.5, -.2], [1.5, -2.75, 0])
     states[32] = State(32, 33, "dist",  dist_gate_close,   1, 1, 0, t,  None, [], [], [])
     states[33] = State(33, 40, "dist",  dist_exit_gate,    0, 0, 0, p,  None, [], [dist_egw, 0, 0], [dist_egw, 0, 0])
-    states[40] = State(40, 41, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  o4, [0.5, -0.5, 0.0], [1.4, -2.1, 0])
-    states[41] = State(41, 42, "wp",    None,              0, 1, 0, p,  None, [], [1.2, -0.5, 0], [1.4, -2.1, 0])
+    states[40] = State(40, 41, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  o4, [0.5, -0.2, 0.0], [1.7, -2.1, 0])
+    states[41] = State(41, 42, "wp",    None,              0, 1, 0, p,  None, [], [1.2, -0.4, 0], [1.7, -2.1, 0])
     states[42] = State(42, 43, "dist",  dist_gate_close,   1, 1, 0, t,  None, [], [], [])
     states[43] = State(43, 50, "dist",  dist_exit_gate,    0, 0, 0, p,  None, [], [dist_egw, 0, 0], [dist_egw, 0, 0])
-    states[50] = State(50, 51, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  o5, [1.5, -0.2, 0], [5.0, 0, 0])  # 1.5 -> 0.8
+    states[50] = State(50, 51, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  o5, [1.2, -0.2, 0], [5.0, 0, 0])  # 1.5 -> 0.8
     states[51] = State(51, 52, "wp",    None,              0, 1, 0, p,  None, [], [2.3, -0.2, 0], [5.0, 0, 0])
     states[52] = State(52, 53, "dist",  dist_gate_close,   1, 1, 0, t,  None, [], [], [])
     states[53] = State(53, 60, "dist",  dist_exit_gate,    0, 0, 0, p,  None, [], [dist_egw, 0, 0], [dist_egw, 0, 0])
-    states[60] = State(60, 61, "dist",  dist_gate_blind,   0, 0, 0, p,  1.0,  o6, [1.6, -1.4, -0.1], [0.2, -2.2, 0])
-    states[61] = State(61, 62, "wp",    None,              0, 1, 0, p,  None, [], [1.6, -2.4, -1.0], [0.2, -2.2, 0])
+    states[60] = State(60, 61, "dist",  dist_gate_blind,   0, 0, 0, p,  1.0,  o6, [2.3, -1.4, -0.1], [0.2, -1.9, 0])
+    states[61] = State(61, 62, "wp",    None,              0, 1, 0, p,  None, [], [2.3, -2.4, -.6], [0.2, -2.2, 0])
     states[62] = State(62, 63, "dist",  0.3,               0, 1, 0, j,  None, [], [], [])
     states[63] = State(63, 70, "dist",  0.9,               1, 1, j, j2, None, [], [], [])
     states[70] = State(70, 71, "dist",  dist_gate_blind,   0, 0, 0, p,  2.1,  o7, [1.6, -1.5, -0.1], [1.8, 0, 0])
-    states[71] = State(71, 72, "wp",    None,              0, 1, 0, p,  None, [], [2.2, -2.5, -0.1], [1.8, 0, 0])
+    states[71] = State(71, 72, "wp",    None,              0, 1, 0, p,  None, [], [1.9, -2.5, -0.1], [1.8, 0, 0])
     states[72] = State(72, 73, "dist",  dist_gate_dyn,     0, 1, 0, p,  None, [], [], [])
     states[73] = State(73, 80, "nav",   "off",             1, 1, d, d,  None, [], [], [])
     states[80] = State(80, 81, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  o8, [2.0, 0.5, 0.7], [2.5, 2.0, 0])

@@ -97,8 +97,8 @@ def mask_image(hsv, color):
         # lower_color = np.array([0, 170, 60])  # green armory
         # upper_color = np.array([45, 255, 255])  # green armory
 
-        lower_color = np.array([15, 80, 50])  # green Madrid
-        upper_color = np.array([60, 255, 150])  # green Madrid
+        lower_color = np.array([25, 70, 30])  # green Madrid
+        upper_color = np.array([70, 255, 255])  # green Madrid
 
         publisher = publisher_image_threshold_dynamic
 

@@ -212,7 +212,9 @@ def callback_visual_gate_dynamic_changed(input_data):
                 dev = np.std(detection_dynamic_freqs)
             else:
                 dev = 2
-
+            
+            dev = 0
+            freq = -2
             if detection_dynamic_freqs.shape[0] > 20:
                 detection_dynamic_freqs = np.delete(detection_dynamic_freqs, 0)
 

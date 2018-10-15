@@ -178,9 +178,10 @@ def callback_visual_gate_dynamic_changed(input_data):
     # publisher_nav_log.publish(log_string)
 
     if nav_active == "fast":
+
         detection_dynamic_input_history = np.append(detection_dynamic_input_history, [[measurement[0], measurement[1]]],
                                                     axis=0)
-        if detection_dynamic_input_history.shape[0] > 10 and not detection_dynamic_data.triggered:
+        if detection_dynamic_input_history.shape[0] > 5 and not detection_dynamic_data.triggered:
             # detection_dynamic_input_history = np.delete(detection_dynamic_input_history, 0, axis=0)
             # Data must be array with rows having value [time,measurement]
             # data = np.loadtxt(open('theta.csv', 'rb'), delimiter=',', skiprows=1)
@@ -206,13 +207,14 @@ def callback_visual_gate_dynamic_changed(input_data):
             if np.sum(np.sign(np.diff(np.unwrap(np.transpose(detection_dynamic_input_history)[1][:])))) < 0:
                 freq = -freq
             global detection_dynamic_freqs
+            freq = -0.5
             detection_dynamic_freqs = np.append(detection_dynamic_freqs,freq)
 
             if detection_dynamic_freqs.shape[0] > 5:
                 dev = np.std(detection_dynamic_freqs)
             else:
                 dev = 2
-
+            dev = 0.00000001
             if detection_dynamic_freqs.shape[0] > 20:
                 detection_dynamic_freqs = np.delete(detection_dynamic_freqs, 0)
 
@@ -234,12 +236,12 @@ def callback_visual_gate_dynamic_changed(input_data):
                 # plt.show()
 
                 detection_dynamic_data.period = 1.0/freq
-                t_delta = cur_t - np.transpose(detection_dynamic_input_history)[0][-5:]
+                t_delta = cur_t - np.transpose(detection_dynamic_input_history)[0][-2:]
                 a_delta = 2 * math.pi * t_delta / detection_dynamic_data.period
-                angles = a_delta + np.transpose(detection_dynamic_input_history)[1][-5:]
+                angles = a_delta + np.transpose(detection_dynamic_input_history)[1][-2:]
                 angles = np.unwrap(angles)
                 a_dev = np.std(angles)
-                if a_dev < 20*math.pi/180:
+                if a_dev < 30*math.pi/180:
                     theta_current = math.atan2(np.sum(np.sin(angles)), np.sum(np.cos(angles)))
                     if theta_current < 0:
                         theta_current = theta_current + 2 * math.pi
@@ -709,9 +711,9 @@ def navigate_through():
 
     x_pos_error = cr.min_value(dist * math.cos(d_theta), 0.1)
     if dist > 2:
-        x_vel_des = x_pos_error*max(cr.limit_value(1-8*abs(d_theta)/math.pi, 1.0), 0)
+        x_vel_des = x_pos_error*max(cr.limit_value(1-6*abs(d_theta)/math.pi, 1.0), 0)
     else:
-        x_vel_des = x_pos_error*max(cr.limit_value(1-20*abs(d_theta)/math.pi, 1.0), -.25)
+        x_vel_des = x_pos_error*max(cr.limit_value(1-14*abs(d_theta)/math.pi, 1.0), -.25)
 
     z_error = diff_global[2]
 
@@ -1183,15 +1185,15 @@ def navigate_dynamic():
 
     if detection_dynamic_data.rotate_perform:
         # test and perform rotation
-        if abs(r_error) < .08:
+        if abs(r_error) < .175:
             detection_dynamic_data.rotate_perform = False
         else:
             msg.r = cr.limit_value(r_error, .1)
     elif detection_dynamic_data.timer is None:
         detection_dynamic_data.timer = time.time()
-    elif time.time() - detection_dynamic_data.timer > .8:
+    elif time.time() - detection_dynamic_data.timer > .4:
         detection_dynamic_data.timer = None
-        if abs(r_error) < .08:
+        if abs(r_error) < .175:
             global nav_active
             nav_active = "fast"
         else:
@@ -1695,9 +1697,9 @@ if __name__ == '__main__':
     dist_gate_close = 0.5  # how soon turn off detection
     dist_exit_gate_wp = 15.0  # how far exit waypoint
     dist_egw = dist_exit_gate_wp
-    dist_exit_gate_min = 0.5  # how far from the gate until it is cleared
+    dist_exit_gate_min = 0.3  # how far from the gate until it is cleared
     dist_gate_dyn = 0.2  # how accurate hover in front of dynamic gate
-    dist_exit_jungle = dist_exit_gate_wp - (dist_exit_gate_min + 0.7)  # distance to exit jungle
+    dist_exit_jungle = dist_exit_gate_wp - (dist_exit_gate_min + 0.8)  # distance to exit jungle
     dist_exit_gate = dist_exit_gate_wp - dist_exit_gate_min  # distance to exit wp
     auto_driving_msg = Auto_Driving_Msg()
     current_state = None
@@ -1759,36 +1761,36 @@ if __name__ == '__main__':
     # states[04] = State(04, 05, "dist",  0.2,               0, 0, 0, p,  None, o1, [0.0, 0.0, 1.7], [1.0, 0.0, 0.0], auto=True)
     # states[05] = State(05, 06, "time",  1.0,               0, 0, 0, o,  None, o1, [], [], auto=False)
     # states[06] = State(06, 11, "auto",  True,              0, 1, 0, o,  1.4,  o1, [], [])
-    states[10] = State(10, 11, "dist", 0.2,                0, 0, 0, p,  1.4,  o1, [0.2, 0, 1.3], [4.4, 0, 0])
-    states[11] = State(11, 12, "wp",    None,              0, 1, 0, p,  1.4,  o1, [0.0, 0, 0.1], [3.2, 0, 0])
+    states[10] = State(10, 11, "dist", 0.4,                0, 0, 0, p,  1.4,  o1, [0.2, 0, 1.3], [4.4, 0, 0])
+    states[11] = State(11, 12, "wp",    None,              0, 1, 0, p,  1.4,  o1, [0.0, 0, 0.4], [3.2, 0, 0])
     states[12] = State(12, 13, "dist",  dist_gate_close,   1, 1, 0, t,  None, [], [], [])
-    states[13] = State(13, 20, "dist",  dist_exit_gate+.2, 0, 0, 0, p,  None, [], [dist_egw, 0, 0], [dist_egw, 0, 0])
+    states[13] = State(13, 21, "dist",  dist_exit_gate+.2, 0, 0, 0, p,  None, [], [dist_egw, 0, 0], [dist_egw, 0, 0])
     states[20] = State(20, 21, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  o2, [1.7, 0, 0], [5.0, 0, 0])
-    states[21] = State(21, 22, "wp",    None,              0, 1, 0, p,  None, [], [3.25, 0, 0], [5.0, 0, 0])
+    states[21] = State(21, 22, "wp",    None,              0, 1, 0, p,  None, o2, [3.25, 0, 0], [5.0, 0, 0])
     states[22] = State(22, 23, "dist",  dist_gate_close,   1, 1, 0, t,  None, [], [], [])
-    states[23] = State(23, 30, "dist",  dist_exit_gate,    0, 0, 0, p,  None, [], [dist_egw, 0, 0], [dist_egw, 0, 0])
-    states[30] = State(30, 31, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  o3, [1.5, -0.25, -.2], [1.5, -2.75, 0])
-    states[31] = State(31, 32, "wp",    None,              0, 1, 0, p,  None, [], [1.7, -0.5, -.2], [1.5, -2.75, 0])
+    states[23] = State(23, 31, "dist",  dist_exit_gate,    0, 0, 0, p,  None, [], [dist_egw, 0, 0], [dist_egw, 0, 0])
+    states[30] = State(30, 31, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  o3, [1.5, -0.25, 0], [0.7, -2.75, 0])
+    states[31] = State(31, 32, "wp",    None,              0, 1, 0, p,  None, o3, [0.9, -0.5, -0.3], [0.7, -2.75, 0])
     states[32] = State(32, 33, "dist",  dist_gate_close,   1, 1, 0, t,  None, [], [], [])
-    states[33] = State(33, 40, "dist",  dist_exit_gate,    0, 0, 0, p,  None, [], [dist_egw, 0, 0], [dist_egw, 0, 0])
-    states[40] = State(40, 41, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  o4, [0.5, -0.2, 0.0], [1.7, -2.1, 0])
-    states[41] = State(41, 42, "wp",    None,              0, 1, 0, p,  None, [], [1.2, -0.4, 0], [1.7, -2.1, 0])
+    states[33] = State(33, 41, "dist",  dist_exit_gate,    0, 0, 0, p,  None, [], [dist_egw, 0, 0], [dist_egw, 0, 0])
+    states[40] = State(40, 41, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  o4, [0.5, -0.2, 0.0], [1.4, -2.1, 0])
+    states[41] = State(41, 42, "wp",    None,              0, 1, 0, p,  None, o4, [0.9, -0.0, 0], [1.2, -2.1, 0])
     states[42] = State(42, 43, "dist",  dist_gate_close,   1, 1, 0, t,  None, [], [], [])
-    states[43] = State(43, 50, "dist",  dist_exit_gate,    0, 0, 0, p,  None, [], [dist_egw, 0, 0], [dist_egw, 0, 0])
+    states[43] = State(43, 51, "dist",  dist_exit_gate,    0, 0, 0, p,  None, [], [dist_egw, 0, 0], [dist_egw, 0, 0])
     states[50] = State(50, 51, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  o5, [1.2, -0.2, 0], [5.0, 0, 0])  # 1.5 -> 0.8
-    states[51] = State(51, 52, "wp",    None,              0, 1, 0, p,  None, [], [2.3, -0.2, 0], [5.0, 0, 0])
+    states[51] = State(51, 52, "wp",    None,              0, 1, 0, p,  None, o5, [2.3, -0.2, 0], [5.0, 0, 0])
     states[52] = State(52, 53, "dist",  dist_gate_close,   1, 1, 0, t,  None, [], [], [])
     states[53] = State(53, 60, "dist",  dist_exit_gate,    0, 0, 0, p,  None, [], [dist_egw, 0, 0], [dist_egw, 0, 0])
-    states[60] = State(60, 61, "dist",  dist_gate_blind,   0, 0, 0, p,  1.0,  o6, [2.3, -1.4, -0.1], [0.2, -1.9, 0])
-    states[61] = State(61, 62, "wp",    None,              0, 1, 0, p,  None, [], [2.3, -2.4, -.6], [0.2, -2.2, 0])
+    states[60] = State(60, 61, "dist",  dist_gate_blind,   0, 0, 0, p,  1.0,  o6, [2.7, -1.4, -0.1], [0.2, -1.9, 0])
+    states[61] = State(61, 62, "wp",    None,              0, 1, 0, p,  None, o6, [2.7, -2.4, -.6], [0.2, -2.2, 0])
     states[62] = State(62, 63, "dist",  0.3,               0, 1, 0, j,  None, [], [], [])
     states[63] = State(63, 70, "dist",  0.9,               1, 1, j, j2, None, [], [], [])
-    states[70] = State(70, 71, "dist",  dist_gate_blind,   0, 0, 0, p,  2.1,  o7, [1.6, -1.5, -0.1], [1.8, 0, 0])
-    states[71] = State(71, 72, "wp",    None,              0, 1, 0, p,  None, [], [1.9, -2.5, -0.1], [1.8, 0, 0])
+    states[70] = State(70, 71, "dist",  dist_gate_blind,   0, 0, 0, p,  2.1,  o7, [1.6, -2.0, 0.3], [1.8, 0, 0])
+    states[71] = State(71, 72, "wp",    None,              0, 1, 0, p,  None, o7, [1.9, -3.0, 0.3], [1.8, 0, 0])
     states[72] = State(72, 73, "dist",  dist_gate_dyn,     0, 1, 0, p,  None, [], [], [])
-    states[73] = State(73, 80, "nav",   "off",             1, 1, d, d,  None, [], [], [])
-    states[80] = State(80, 81, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  o8, [2.0, 0.5, 0.7], [2.5, 2.0, 0])
-    states[81] = State(81, 82, "wp",    None,              0, 1, 0, p,  None, [], [2.5, 0.5, 0.7], [2.5, 2.0, 0])
+    states[73] = State(73, 81, "nav",   "off",             1, 1, d, d,  None, [], [], [])
+    states[80] = State(80, 81, "dist",  dist_gate_blind,   0, 0, 0, p,  1.4,  o8, [2.0, 0.0, 0.7], [2.5, 2.0, 0])
+    states[81] = State(81, 82, "wp",    None,              0, 1, 0, p,  None, o8, [2.5, -0.5, 0.7], [2.5, 2.0, 0])
     states[82] = State(82, 83, "dist",  dist_gate_close,   1, 1, 0, t,  None, [], [], [])
     states[83] = State(83, 90, "dist",  dist_exit_gate,    0, 0, 0, p,  None, [], [dist_egw, 0, 0], [dist_egw, 0, 0])
     states[90] = State(90, 91, "bebop", cr.Bebop.LANDING,  0, 0, 0, o,  None, [], [], [])

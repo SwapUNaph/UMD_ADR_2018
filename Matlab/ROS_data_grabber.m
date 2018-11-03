@@ -16,7 +16,7 @@ global Gate_indx
 global temp_index_Gate
 Gate_indx = Gate_indx+1;
 temp_index_Gate = 1;
-sub_gate = rossubscriber('/auto/visual_logger','std_msgs/String',@gate_callback);
+% sub_gate = rossubscriber('/auto/visual_logger','std_msgs/String',@gate_callback);
 
 fprintf('connected, recording on index %d and %d \n',NavPID_indx, Gate_indx)
 

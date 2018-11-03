@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 
+# Script developed by Vincenz Frenzel
 #  --- Changelog ---
-# Goal:     Input by joystick. Startup drone by publishing to the state machine. Intervene by publishing to driving.
+# Goal:     Input by joystick or controller. Startup drone by publishing to the state machine. Intervene by publishing to driving.
 # Status:   06/19:  Manual flight possible through joystick. Takeoff with T1, Land with T2, Emergency land at Mode A, Move camera with hat.
 #           06/25:  Start of script delayed until connected to state_machine. Manual flight possible through joystick. Takeoff with T1, Land with T2, Emergency land at Mode A, Manual flight with T3, automatic flight with T4.
+#           11/03:  Commented code
 
 import rospy
 from std_msgs.msg import Empty
@@ -16,12 +18,13 @@ from bebop_msgs.msg import Ardrone3PilotingStateFlyingStateChanged
 from std_msgs.msg import Bool, Int32
 
 
-def signal_handler(signal, frame):
+def signal_handler(_, __):
     sys.exit(0)
 
 
-def publish_cmd(x,y,z,r):
-    msg = Twist()  # [0,0,0],[0,pitch,yaw])
+def publish_cmd(x, y, z, r):
+    # publishes messages to drone
+    msg = Twist()
     msg.linear.x = x
     msg.linear.y = y
     msg.linear.z = z
@@ -30,9 +33,11 @@ def publish_cmd(x,y,z,r):
 
 
 def publish_status(st):
+    # publishes Empty message to a status topic (like takeoff, land, ...)
     pub = rospy.Publisher('/bebop/' + st, Empty, queue_size=1, latch=True)
 
     msg = Empty()
+    # aways publish twice in case command gets missed
     pub.publish(msg)
     pub.publish(msg)
     print('publish to /bebop/' + st)
@@ -40,26 +45,30 @@ def publish_status(st):
 
 
 def callback_state_auto_changed(data):
-    # used for initialization between jetson and ground
+    # only used for initialization between jetson and ground
+    # update state variable
     global state_auto
     state_auto = data.data
 
 
-def autonomy_pub(bool):
+def autonomy_pub(auto_bool):
+    # publish autonomy active boolean
     pub = rospy.Publisher('/auto/autonomous_driving', Bool, queue_size=1, latch=True)
 
-    pub.publish(bool)
-    print('autonomy_active: ' + str(bool))
-    rospy.loginfo('autonomy_active: ' + str(bool))
+    pub.publish(auto_bool)
+    print('autonomy_active: ' + str(auto_bool))
+    rospy.loginfo('autonomy_active: ' + str(auto_bool))
 
 
-def list_compare(old,new):
-    for i in range(len(old)):
-        new[i] = new[i] - old[i]
+def list_compare(old, new):
+    # compare two lists of button states and return all buttons that have changed
+    for j in range(len(old)):
+        new[j] = new[j] - old[j]
     return new
 
 
 def callback_state_bebop_changed(data):
+    # update bebop state variable
     global state_bebop
     state_bebop = data.state
 
@@ -81,16 +90,17 @@ if __name__ == '__main__':
     state_bebop = 0
     state_auto = None
 
+    # subscribers
     rospy.Subscriber("/bebop/states/ardrone3/PilotingState/FlyingStateChanged", Ardrone3PilotingStateFlyingStateChanged,
                      callback_state_bebop_changed)
     rospy.Subscriber("/auto/state_auto", Int32, callback_state_auto_changed)
 
-    # create a global publisher for driving manually
+    # publishers
     cmd_vel_pub = rospy.Publisher('/bebop/cmd_vel', Twist, queue_size=1, latch=True)
     state_auto_pub = rospy.Publisher('/auto/state_auto', Int32, queue_size=1, latch=True)
     publisher_emergency_shutdown = rospy.Publisher("/auto/emergency_shutdown", Empty, queue_size=1, latch=True)
 
-    # allow starting gcs without joystick
+    # allow starting gcs without joystick for debugging purposes
     start_without_joystick = False
     if start_without_joystick:
         while state_auto is None:
@@ -117,10 +127,12 @@ if __name__ == '__main__':
         print("Connect exactly one joystick")
         rospy.loginfo("Connect exactly one joystick")
         time.sleep(1)
+
+    # select joystick and initialize
     joystick = pygame.joystick.Joystick(0)
     joystick.init()
 
-    # Initialize current button status.
+    # Initialize current button status. last buttons commented out because xbox controller has fewer buttons than yoke
     btn_status_old = [joystick.get_button(0),
                       joystick.get_button(1),
                       joystick.get_button(2),
@@ -137,6 +149,10 @@ if __name__ == '__main__':
                       # joystick.get_button(13)]
 
     # Wait until connection between ground and air is established
+    # while there is no state, wait (air is starting pairing
+    # while status is 0, respond with 1
+    # while status is 1, wait until it was received by air (changed to 2)
+    # then confirm with one more 2
     while state_auto is None:
         rospy.loginfo("waiting None")
         time.sleep(1)
@@ -152,12 +168,14 @@ if __name__ == '__main__':
     print("GCS communicating")
     rospy.loginfo("GCS communicating")
 
+    # detect controller automatically
     if joystick.get_name() == 'Saitek AV8R Joystick':
         rospy.loginfo('found yoke')
         controller = 'yoke'
     elif joystick.get_name() == 'Xbox 360 Wireless Receiver':
         rospy.loginfo('found xbox')
         controller = 'xbox'
+        # set a dead zone for xbox controller
         dead_zone = .2
     else:
         rospy.loginfo('controller unknown')
@@ -178,6 +196,7 @@ if __name__ == '__main__':
             axis_pitch = -joystick.get_axis(4)
             axis_throttle = -joystick.get_axis(1)
             axis_yaw = -joystick.get_axis(0)
+            # apply dead zone
             if abs(axis_roll) < dead_zone:
                 axis_roll = 0.0
             if abs(axis_pitch) < dead_zone:
@@ -190,7 +209,9 @@ if __name__ == '__main__':
         # process all events that have happened
         for event in pygame.event.get():
             # Possible events are: JOYAXISMOTION JOYBALLMOTION JOYBUTTONDOWN JOYBUTTONUP JOYHATMOTION
+            # for now only look at button presses
             if event.type == pygame.JOYBUTTONDOWN or event.type == pygame.JOYBUTTONUP:
+                # update button status
                 btn_status_new = [joystick.get_button(0),  # trigger, A
                                   joystick.get_button(1),  # red, B
                                   joystick.get_button(2),  # big, X
@@ -230,8 +251,9 @@ if __name__ == '__main__':
                                     rospy.loginfo("not in manual mode")
 
                             if (i == 5 and controller == 'yoke') or (i == 2 and controller == 'xbox'):  # land
-                                if True: #not autonomy_active:  # manual flight active
-                                    if True: #state_bebop == 2 or state_bebop == 1 or state_bebop == 3:  # takeoff, hover, flight
+                                # always accept land command, no matter what state drone is in
+                                if True: #not autonomy_active:  # manual flight active, commented out
+                                    if True: #state_bebop == 2 or state_bebop == 1 or state_bebop == 3:  # takeoff, hover, flight, commented out
                                         publish_status("land")
                                         print("Landing")
                                         rospy.loginfo("Landing")
@@ -244,6 +266,7 @@ if __name__ == '__main__':
                                     rospy.loginfo("not in manual mode")
 
                             elif (i == 6 and controller == 'yoke') or (i == 1 and controller == 'xbox'):  # enter manual mode
+                                # always go to manual mode, also if throttle is not centered or autonomous is already inactive
                                 if True:  # autonomy_active:  # autonomous flight active
                                     if True:  # axis_throttle == 0:  # throttle centered
                                         publisher_emergency_shutdown.publish()
@@ -271,7 +294,7 @@ if __name__ == '__main__':
                                     print("already in automatic mode")
                                     rospy.loginfo("already in automatic mode")
 
-                            elif (i == 8 and controller == 'yoke') or (i == 7 and controller == 'xbox'):  # emergency
+                            elif (i == 8 and controller == 'yoke') or (i == 7 and controller == 'xbox'):  # emergency pressed
                                 publish_status("reset")
                                 print("Emergency")
                                 rospy.loginfo("Emergency")
@@ -282,15 +305,16 @@ if __name__ == '__main__':
                 if event.type == pygame.JOYBUTTONUP:  # button was released
                     for i in range(len(btn_status_diff)):
                         if btn_status_diff[i] == -1:
-                            if i == 8:  # emergency flipped back
+                            if i == 8:  # emergency flipped back (only for yoke)
                                 print("Emergency Reset")
                                 rospy.loginfo("Emergency Reset")
                             btn_status_old[i] = 0
 
-                           # send flt_cmd every step
+        # send flt_cmd every step
 
-        # if in manual mode and hovering or flying, publish commands
+        # if in manual mode and hovering or flying, publish commands, commented out
         if flight_command_active: #(not autonomy_active) and (state_bebop == 2 or state_bebop == 3):
+            # publish commands
             publish_cmd(axis_pitch, axis_roll, axis_throttle, axis_yaw)
             rospy.loginfo("ground publish driving msg")
             rospy.loginfo(axis_pitch)

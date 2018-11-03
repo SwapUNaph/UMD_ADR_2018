@@ -2,6 +2,8 @@
 70, 255, 255
 pointer madrid
 
+# script "tune_colors.py" reads first two lines of values in this file and applies those thresholds to image
+
 
 70, 105, 50
 148, 255, 255

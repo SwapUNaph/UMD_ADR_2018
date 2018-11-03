@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 
+# Script developed by Vincenz Frenzel (PIDs by Derek Thompson, frequency extraction by Matt Vaughn)
 #  --- Changelog ---
-# Goal:     Collect information that are needed at multiple locations
-
+# Goal:     Collect information that is needed at multiple locations of other scripts or that are less essential
+# Status:   11/03: Started changelog and commented code
 
 import math
 from tf import transformations as tfs
 import numpy as np
-
 
 # vector and rotation from bebop to zed
 BZ = np.array([0, 0, 0])
@@ -15,11 +15,10 @@ zRb = tfs.euler_matrix(-math.pi / 2, 0, -math.pi / 2, 'rzyx')
 cam_q = tfs.quaternion_from_matrix(zRb)
 zRb = zRb[:3, :3]
 
-# how fast do scripts run
+# how fast do scripts run (I think this is never used)
 frequency = 5
 
-
-# rotate vector by quaternion
+# rotate a vector by a quaternion
 def qv_mult(q1, v1):
     l = np.linalg.norm(v1)
     v1 = tfs.unit_vector(v1)
@@ -27,6 +26,7 @@ def qv_mult(q1, v1):
     return tfs.quaternion_multiply(tfs.quaternion_multiply(q1, q2), tfs.quaternion_conjugate(q1))[:3] * l
 
 
+# transform axis angle representation into quaternian
 def axang2quat(vector):
     l = np.linalg.norm(vector)
     s = math.sin(l / 2)
@@ -37,6 +37,7 @@ def axang2quat(vector):
     return np.array([x, y, z, w])
 
 
+# find an average of a list of waypoints in position and heading
 def find_average(latest_gates):
     count = len(latest_gates)
 
@@ -54,6 +55,7 @@ def find_average(latest_gates):
     return WP(pos, angle)
 
 
+# find standard deviation of position of waypoints
 def find_std_dev_waypoints(average, wp_input_history):
     deviation = 0
     for gate in wp_input_history:
@@ -62,6 +64,7 @@ def find_std_dev_waypoints(average, wp_input_history):
     return deviation
 
 
+# set a value to a minimum
 def min_value(value, minimum):
     if -minimum < value < 0:
         return -minimum
@@ -71,6 +74,7 @@ def min_value(value, minimum):
         return value
 
 
+# limit a value at a maximum
 def limit_value(value, limit):
     if value > limit:
         return limit
@@ -80,6 +84,7 @@ def limit_value(value, limit):
         return value
 
 
+# calculate rotation periods from angles and timestamps
 def calculate_periods(input_data):
     angles = np.unwrap(input_data[1, :])
     times = input_data[0, :]
@@ -88,6 +93,7 @@ def calculate_periods(input_data):
     return 2*math.pi * d_t / d_a
 
 
+# waypoint class with position and hdg as well as a string function
 class WP:
     def __init__(self, pos, hdg):
         self.pos = np.array(pos)
@@ -95,24 +101,9 @@ class WP:
 
     def __str__(self):
         return str(list(self.pos) + [self.hdg])
-#
-#
-# class Gate_Detection_Info:
-#     def __init__(self, data):
-#         tvec = np.array(data.tvec)
-#         tvec.resize([3, 1])
-#         rvec = np.array(data.rvec)
-#         rvec.resize([3, 1])
-#
-#         self.tvec = tvec
-#         self.rvec = rvec
-#         self.bebop_pose = data.bebop_pose
-#
-#     def __str__(self):
-#         return "\ntvec " + str(self.tvec) + "\nrvec " + str(self.rvec) + "\n" + str(self.bebop_pose)
-#
 
 
+# this is the data that is required to pass dynamic gate
 class OpenloopData:
     def __init__(self):
         self.timer = None
@@ -126,6 +117,7 @@ class OpenloopData:
         self.triggered = False
 
 
+# PID control loop without smoothing
 class PID:
     def __init__(self, p=2.0, i=0.0, d=1.0, derivator=0, integrator=0, integrator_max=.5, integrator_min=-.5):
         self.kp = p
@@ -167,6 +159,7 @@ class PID:
         self.derivator = None
 
 
+# PID control loop with some derivator smoothing
 class PID2:
     def __init__(self, p=2.0, i=0.0, d=1.0, derivator=[0.0, 0.0, 0.0, 0.0], integrator=0, integrator_max=.5, integrator_min=-.5):
         self.kp = p
@@ -207,6 +200,7 @@ class PID2:
         self.derivator = None
 
 
+# bebop class definition
 class Bebop:
     # BEBOP STATE overview
     #   0   landed
@@ -232,6 +226,7 @@ class Bebop:
     SENSOR_DEFECT = 8
 
 
+# everything after here is used for determining rotation speed of dynamic gate
 def fourier(data, freq, plot_freq_domain, plot_imag):
     # Convert data to numpy arrays
     global cur_ax, ax, nplots

@@ -1,11 +1,7 @@
 #!/usr/bin/env python
 
-#  --- Changelog ---
-# Goal:     Input from ground or from navigation. Ground overrides navigation. Publish to drone.
-# Status:   06/19: Not existing
-#           06/25: Drone takes off autonomously and lands autonomously on the same location
-#           06/27: Drone takes off autonomously, flies to a virtual target and lands after reaching the target
-
+# Script developed by Vincenz Frenzel
+# This file is for testing purposes only to fly open loop with full speed and log distances covered
 import rospy
 from std_msgs.msg import Empty
 from geometry_msgs.msg import Twist

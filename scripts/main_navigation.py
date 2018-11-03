@@ -20,7 +20,7 @@ from tf import transformations as tfs
 import common_resources as cr
 
 
-def signal_handler(_):
+def signal_handler(_, __):
     # enable Ctrl+C of the script
     sys.exit(0)
 
@@ -1385,8 +1385,8 @@ class State:
         # do things when state is selected
         print("enter state " + str(self.own_state))
         # change global state id and also publish state id
-        global state_auto
-        state_auto = states[self.own_state]
+        global current_state
+        current_state = states[self.own_state]
         publisher_state_auto.publish(self.own_state)
 
         # reset all PID loops
@@ -1524,7 +1524,7 @@ def callback_bebop_odometry_changed(data):
     rospy.loginfo(navigation_distance)
 
     # state_machine_advancement (if conditions are met: distances, states, ...)
-    state_auto.check(navigation_distance)
+    current_state.check(navigation_distance)
 
     # if there is no odometry, don't do anything
     if bebop_odometry is None:
@@ -1592,7 +1592,8 @@ if __name__ == '__main__':
     # Variables
     autonomy_active = False                                     # autonomous mode is active
     bebop_odometry = None                                       # latest odometry from bebop
-    state_auto = -1                                             # initialize state machine
+    state_auto = -1                                             # initialize state machine (number of state)
+    current_state = None                                        # the actual state object with method "check"
     state_bebop = None                                          # state of drone itself (own state machine)
     wp_average = None                                           # wp that is the average from last measurements
     wp_visual = None                                            # almost same as above (see calculate_visual_wp)

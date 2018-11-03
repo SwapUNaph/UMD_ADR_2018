@@ -1,5 +1,10 @@
 #!/usr/bin/env python
 
+# Script developed by Vincenz Frenzel
+#  --- Changelog ---
+# Goal:     Apply color threshold from text file dynamically for color tuning
+# Status:   11/03:  Started changelog and commented code
+
 import rospy
 from sensor_msgs.msg import Image
 import cv2
@@ -9,7 +14,7 @@ import signal
 import sys
 import os
 
-def signal_handler(signal, frame):
+def signal_handler(_, __):
     sys.exit(0)
 
 
@@ -21,18 +26,22 @@ def stereo_callback(data):
     # original image is BGR but conversion here is RGB so red color does not wrap around
     hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
 
-    # masking image
+    # read threshold parameters
     path = os.path.dirname(sys.argv[0]) + "/tune_colors_values.txt"
     f = open(path)
     low = f.readline().split(", ")
     high = f.readline().split(", ")
+    # convert to numbers
     lower_color = np.array(low, dtype='int')
     upper_color = np.array(high, dtype='int')
 
+    # masking image
     mask = cv2.inRange(hsv, lower_color, upper_color)
 
+    # convert back to rgb to apply mask
     rgb = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
     res = cv2.bitwise_and(rgb, rgb, mask=mask)
+    # show image
     cv2.imshow("pic", res)
     if cv2.waitKey(1) & 0xFF == ord('q'):
         exit()
@@ -40,6 +49,7 @@ def stereo_callback(data):
 
 if __name__ == '__main__':
     signal.signal(signal.SIGINT, signal_handler)
+    # initialize node
     rospy.init_node('tune_colors', anonymous=True)
 
     bridge = CvBridge()

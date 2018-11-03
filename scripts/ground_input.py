@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 
+# Script developed by Derek Thompson
 #  --- Changelog ---
-# Goal:     Display all relevant flight data like position, waypoint, state, video, battery level, wifi status,
+# Goal:     Display all relevant flight data like position, waypoint, state, video, battery level, wifi status
 # Status:   06/19: There is a gui that displays some information.
-#           06/25:
+#           11/03: Fully functional, comments still missing
 
 import rospy
 from geometry_msgs.msg import Twist, Pose, PoseStamped, PointStamped, Point

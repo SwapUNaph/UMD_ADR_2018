@@ -1206,7 +1206,7 @@ def gate_detection_jungle(vote_ms_1, y_ms_1, x_ms_1, lines, clusters_1, start, e
 
     square_side = gate_size
 
-    # 3D model points.
+    # 3D model points
     model_points = np.array([
         (+square_side / 2, +square_side / 2, 0.0),
         (+square_side / 2, -square_side / 2, 0.0),

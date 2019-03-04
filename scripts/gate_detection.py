@@ -698,7 +698,7 @@ def stereo_callback(data):
     (x3, y3) = isect_lines_bundle(lines2, lines4, start, end)
     (x4, y4) = isect_lines_bundle(lines3, lines4, start, end)
 
-    # draw all these intersection points
+    # draw all these intersection points.
     cv2.circle(rgb, (int(x1), int(y1)), dist_thresh, (0, 255, 255), 2)
     cv2.circle(rgb, (int(x2), int(y2)), dist_thresh, (0, 255, 255), 2)
     cv2.circle(rgb, (int(x3), int(y3)), dist_thresh, (0, 255, 255), 2)

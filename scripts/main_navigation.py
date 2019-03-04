@@ -892,9 +892,9 @@ def navigate_jungle():
 
     x_pos_error = cr.min_value(dist * math.cos(d_theta), 0.1)
     # if further than 2 meters: be within 10 deg, otherwise no forward
-        # if within 10 deg: be slower than .07 m/s laterally
+    #      if within 10 deg: be slower than .07 m/s laterally
     # if between 1.2 and 2m: be within 5 deg, otherwise backwards
-        # if within 5 deg: be slower than 0.07 laterally
+    #      if within 5 deg: be slower than 0.07 laterally
     # if closer that 1.2: be less than 10cm off laterally (lateral velocity negligible now)
     if dist > 2:
         x_vel_des = x_pos_error * max(cr.limit_value(1 - 18 * abs(d_theta) / math.pi, 1.0), 0)
